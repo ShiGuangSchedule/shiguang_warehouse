@@ -1,0 +1,17 @@
+# resources/CQUST/adapters.yaml
+adapters:
+  - adapter_id: "CQUST_01"
+    adapter_name: "重庆科技大学本科教务 (IPv6推荐)"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqust_01.js"
+    import_url: "http://jwnew.cqust.edu.ex2.http.80.ipv6.cqust.edu.cn/eams/login.action"
+    maintainer: "yuexps"
+    description: "重庆科技大学树维EAMS教务系统 IPv6 通道，校外网络访问更稳定"
+
+  - adapter_id: "CQUST_02"
+    adapter_name: "重庆科技大学本科教务 (IPv4备用)"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqust_01.js"
+    import_url: "http://jwnew.cqust.edu.cn/eams/login.action"
+    maintainer: "yuexps"
+    description: "重庆科技大学树维EAMS教务系统 IPv4 备用通道，当无 IPv6 环境时选用"
