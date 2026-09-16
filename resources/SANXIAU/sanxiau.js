@@ -35,10 +35,23 @@ function parseWeeks(weekStr) {
     // 1. 按逗号 / 顿号 / 分号切分多个区间
     const segments = text.split(/[,，、;；]+/);
 
-    const weeks = new Set();
+    // 用定长标记表去重（周次 1-99），最后从小到大扫一遍即为升序。
+    //
+    // 【为什么不用 Set / filter / sort / 展开运算符】
+    // 真机上（Android，同一台设备、同一份代码、输入已确认为正确值）实测到
+    // 数组方法给出错误结果：
+    //   raw.zcd = "1-16周"           → 本应 [1..16]，实际得到 [2..16]
+    //   raw.zcd = "1-3周(单),4-16周" → 本应 [1,3,4..16]，实际得到 [3,4..16]
+    // 同一台设备上，手写 for 循环能得到正确结果，改用下标循环后上述两例均恢复正确。
+    //
+    // 具体是引擎哪一处缺陷，未能定性：同一环境下 .map / .sort 表现正常，
+    // 且 filter 也并非在每次调用上都出错，故此处不去猜机制，
+    // 只把数据处理路径统一换成下标循环，以结果为准则。
+    const seen = [];
+    for (let i = 0; i < 100; i++) seen[i] = false;
 
-    for (const segment of segments) {
-        const seg = segment.trim();
+    for (let si = 0; si < segments.length; si++) {
+        const seg = String(segments[si]).trim();
         if (!seg) continue;
 
         // 2. 判断奇偶限制：单周 / 双周
@@ -46,7 +59,7 @@ function parseWeeks(weekStr) {
         const isOdd = /单/.test(seg) && !/单双/.test(seg);
         const isEven = /双/.test(seg) && !/单双/.test(seg);
 
-        // 3. 抽取该区间内所有 "数字-数字" 或 "数字" 片段
+        // 3. 抽取该区间内所有 "a-b" 片段
         //    使用全局匹配，从而同时支持 "1-3" 和 "1,3,5" 这类混排
         const rangeRe = /(\d+)\s*-\s*(\d+)/g;
         let matched = false;
@@ -61,24 +74,30 @@ function parseWeeks(weekStr) {
             for (let w = start; w <= end; w++) {
                 if (isOdd && w % 2 === 0) continue;
                 if (isEven && w % 2 !== 0) continue;
-                weeks.add(w);
+                if (w > 0 && w < 100) seen[w] = true;
             }
         }
 
         // 4. 该区间没有 "a-b" 形式，则抽取所有孤立数字（"1,3,5周"）
         if (!matched) {
-            const singles = seg.match(/\d+/g) || [];
-            for (const s of singles) {
-                const w = parseInt(s, 10);
-                if (isNaN(w)) continue;
-                if (isOdd && w % 2 === 0) continue;
-                if (isEven && w % 2 !== 0) continue;
-                weeks.add(w);
+            const singles = seg.match(/\d+/g);
+            if (singles) {
+                for (let k = 0; k < singles.length; k++) {
+                    const w = parseInt(singles[k], 10);
+                    if (isNaN(w)) continue;
+                    if (isOdd && w % 2 === 0) continue;
+                    if (isEven && w % 2 !== 0) continue;
+                    if (w > 0 && w < 100) seen[w] = true;
+                }
             }
         }
     }
 
-    return [...weeks].filter(w => w > 0 && w < 100).sort((a, b) => a - b);
+    const out = [];
+    for (let w = 1; w < 100; w++) {
+        if (seen[w]) out.push(w);
+    }
+    return out;
 }
 
 /**
@@ -164,13 +183,24 @@ function cleanCourseName(rawName) {
 function mergeAndDistinctCourses(courses) {
     if (!Array.isArray(courses) || courses.length <= 1) return courses || [];
 
-    const list = courses.map(c => ({
-        ...c,
-        name: c.name || '',
-        teacher: c.teacher || '',
-        position: c.position || '',
-        weeks: Array.isArray(c.weeks) ? [...c.weeks].sort((a, b) => a - b) : []
-    }));
+    // 复制一份并规整字段。不用 map / 展开 / sort：
+    // parseWeeks 已保证周次去重且升序，这里只需原样拷贝。
+    const list = [];
+    for (let i = 0; i < courses.length; i++) {
+        const c = courses[i] || {};
+        const srcWeeks = Array.isArray(c.weeks) ? c.weeks : [];
+        const weeks = [];
+        for (let k = 0; k < srcWeeks.length; k++) weeks.push(srcWeeks[k]);
+        list.push({
+            name: c.name || '',
+            teacher: c.teacher || '',
+            position: c.position || '',
+            day: c.day || 0,
+            startSection: c.startSection || 0,
+            endSection: c.endSection || 0,
+            weeks: weeks
+        });
+    }
 
     // 先按 课程名/教师/地点/星期/周次/起始节次 排序，使可合并项彼此相邻
     list.sort((a, b) =>
@@ -231,7 +261,22 @@ function mergeAndDistinctCourses(courses) {
             cur.startSection === nxt.startSection &&
             cur.endSection === nxt.endSection;
         if (sameSlot) {
-            cur.weeks = [...new Set([...cur.weeks, ...nxt.weeks])].sort((a, b) => a - b);
+            // 并集：不用 Set / 展开 / sort，用标记表手动合并并升序
+            const mark = [];
+            for (let i = 0; i < 100; i++) mark[i] = false;
+            for (let i = 0; i < cur.weeks.length; i++) {
+                const w = cur.weeks[i];
+                if (w > 0 && w < 100) mark[w] = true;
+            }
+            for (let i = 0; i < nxt.weeks.length; i++) {
+                const w = nxt.weeks[i];
+                if (w > 0 && w < 100) mark[w] = true;
+            }
+            const merged = [];
+            for (let w = 1; w < 100; w++) {
+                if (mark[w]) merged.push(w);
+            }
+            cur.weeks = merged;
         } else {
             step2.push(cur);
             cur = nxt;
@@ -300,14 +345,21 @@ function parseJsonData(jsonData) {
         // 空值时补一个可读占位，不因为缺地点就丢弃这门课。
         const campus = String(raw.xqmc || '').trim();
         const room = String(raw.cdmc || raw.jxdd || '').trim();
-        const position = [campus, room || '未排地点'].filter(Boolean).join(' ') || '未排地点';
+        // 不用 [a, b].filter(Boolean).join(' ')：真机上实测该写法会丢掉校区，
+        // 只得到“明辨1-516”（同一时刻 campus 变量里确实是“新区”）。理由详见 parseWeeks。
+        const place = room || '未排地点';
+        const position = campus ? (campus + ' ' + place) : place;
 
         // --- 星期 ---
         const day = parseInt(raw.xqj, 10);
         if (isNaN(day) || day < 1 || day > 7) continue;
 
         // --- 周次 ---
-        const weeksArray = parseWeeks(raw.zcd || raw.zcmc || '');
+        // 只认 zcd（如 "1-16周"、"1-3周(单),4-16周"）。
+        // 不要再回退到 zcmc —— 本校准方的 zcmc 是**教师职称**（"教授"/"讲师"/"实验师"），
+        // 实测 14 行全部如此，拿它当周次字符串在语义上就是错的。
+        // zcd 缺失时 parseWeeks 返回空数组，下面一行会把该行整条跳过，不会产出无周次的脏数据。
+        const weeksArray = parseWeeks(raw.zcd || '');
         if (weeksArray.length === 0) continue;
 
         // --- 节次 ---
@@ -376,37 +428,63 @@ async function fetchAcademicOptions() {
         const htmlText = await response.text();
         const doc = new DOMParser().parseFromString(htmlText, 'text/html');
 
-        const allYearOptions = Array.from(doc.querySelectorAll('#xnm option'))
-            .filter(opt => opt.value !== '')
-            .map(opt => ({ value: opt.value, text: opt.textContent.trim(), selected: opt.selected }));
+        // 不用 Array.from(...).filter(...).map(...)：数组方法在部分 WebView 不可靠，
+        // 一旦它们吞掉一个学年，用户就选不到自己的学期。全部改成下标循环。
+        const yearNodes = doc.querySelectorAll('#xnm option');
+        const semNodes = doc.querySelectorAll('#xqm option');
 
-        const semesterOptions = Array.from(doc.querySelectorAll('#xqm option'))
-            .filter(opt => opt.value !== '')
-            .map(opt => ({ value: opt.value, text: opt.textContent.trim(), selected: opt.selected }));
+        const allYearOptions = [];
+        for (let i = 0; i < yearNodes.length; i++) {
+            const opt = yearNodes[i];
+            if (opt.value === '') continue;
+            allYearOptions.push({
+                value: opt.value,
+                text: String(opt.textContent).trim(),
+                selected: !!opt.selected
+            });
+        }
+
+        const semesterOptions = [];
+        for (let i = 0; i < semNodes.length; i++) {
+            const opt = semNodes[i];
+            if (opt.value === '') continue;
+            semesterOptions.push({
+                value: opt.value,
+                text: String(opt.textContent).trim(),
+                selected: !!opt.selected
+            });
+        }
 
         if (allYearOptions.length === 0 || semesterOptions.length === 0) return null;
 
-        const selectedIndex = allYearOptions.findIndex(opt => opt.selected);
-        const defaultSemesterIndex = semesterOptions.findIndex(opt => opt.selected);
-
-        if (selectedIndex === -1) {
-            return {
-                yearOptions: allYearOptions.slice(0, 5),
-                semesterOptions,
-                defaultYearIndex: 0,
-                defaultSemesterIndex: defaultSemesterIndex !== -1 ? defaultSemesterIndex : 0
-            };
+        let selectedIndex = -1;
+        for (let i = 0; i < allYearOptions.length; i++) {
+            if (allYearOptions[i].selected) { selectedIndex = i; break; }
         }
 
-        // 以当前学年为中心，向前 2 年、向后 2 年，避免列表过长
-        const start = Math.max(0, selectedIndex - 2);
-        const end = Math.min(allYearOptions.length, selectedIndex + 3);
+        let semSelectedIndex = -1;
+        for (let i = 0; i < semesterOptions.length; i++) {
+            if (semesterOptions[i].selected) { semSelectedIndex = i; break; }
+        }
+        const defaultSemesterIndex = semSelectedIndex !== -1 ? semSelectedIndex : 0;
+
+        // 取子集也用循环，避开 slice
+        const subYearOptions = [];
+        if (selectedIndex === -1) {
+            const end = Math.min(allYearOptions.length, 5);
+            for (let i = 0; i < end; i++) subYearOptions.push(allYearOptions[i]);
+        } else {
+            // 以当前学年为中心，向前 2 年、向后 2 年，避免列表过长
+            const start = Math.max(0, selectedIndex - 2);
+            const end = Math.min(allYearOptions.length, selectedIndex + 3);
+            for (let i = start; i < end; i++) subYearOptions.push(allYearOptions[i]);
+        }
 
         return {
-            yearOptions: allYearOptions.slice(start, end),
-            semesterOptions,
-            defaultYearIndex: selectedIndex - start,
-            defaultSemesterIndex: defaultSemesterIndex !== -1 ? defaultSemesterIndex : 0
+            yearOptions: subYearOptions,
+            semesterOptions: semesterOptions,
+            defaultYearIndex: selectedIndex === -1 ? 0 : selectedIndex - Math.max(0, selectedIndex - 2),
+            defaultSemesterIndex: defaultSemesterIndex
         };
     } catch (e) {
         return null;
@@ -445,13 +523,18 @@ async function selectAcademicYearAndSemester() {
 
     const { yearOptions, semesterOptions, defaultYearIndex, defaultSemesterIndex } = optionsData;
 
+    const yearTexts = [];
+    for (let i = 0; i < yearOptions.length; i++) yearTexts.push(yearOptions[i].text);
+    const semesterTexts = [];
+    for (let i = 0; i < semesterOptions.length; i++) semesterTexts.push(semesterOptions[i].text);
+
     const yearIndex = await window.shiguangBridgePromise.showSingleSelection(
-        '选择学年', JSON.stringify(yearOptions.map(o => o.text)), defaultYearIndex
+        '选择学年', JSON.stringify(yearTexts), defaultYearIndex
     );
     if (yearIndex === null || yearIndex === -1) return null;
 
     const semesterIndex = await window.shiguangBridgePromise.showSingleSelection(
-        '选择学期', JSON.stringify(semesterOptions.map(o => o.text)), defaultSemesterIndex
+        '选择学期', JSON.stringify(semesterTexts), defaultSemesterIndex
     );
     if (semesterIndex === null || semesterIndex === -1) return null;
 
@@ -537,29 +620,42 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
     const json = await postForm(url, `xnm=${academicYear}&xqm=${semesterCode}`);
     if (!json) return empty;
 
-    const list = Array.isArray(json) ? json : (Array.isArray(json.items) ? json.items : null);
+    let list = null;
+    if (Array.isArray(json)) list = json;
+    else if (Array.isArray(json.items)) list = json.items;
     if (!list || list.length === 0) return empty;
 
     // --- 第 1 周的起始日期 ---
-    const firstWeek = list.find(item =>
-        String(item.zs) === '1' || String(item.zsmc) === '1'
-    ) || list[0];
+    // 不用 find：找不到就用第一条
+    let firstWeek = null;
+    for (let i = 0; i < list.length; i++) {
+        const item = list[i] || {};
+        if (String(item.zs) === '1' || String(item.zsmc) === '1') { firstWeek = item; break; }
+    }
+    if (!firstWeek) firstWeek = list[0];
 
     let startDate = null;
-    for (const c of [firstWeek.rq, firstWeek.zcrq, firstWeek.ksrq, firstWeek.qsrq]) {
-        if (!c) continue;
+    const candidates = [firstWeek.rq, firstWeek.zcrq, firstWeek.ksrq, firstWeek.qsrq];
+    for (let i = 0; i < candidates.length; i++) {
+        if (!candidates[i]) continue;
         // "2026-09-07/2026-09-13" 这种区间取前半段
-        const match = String(c).match(/(\d{4}-\d{2}-\d{2})/);
+        const match = String(candidates[i]).match(/(\d{4}-\d{2}-\d{2})/);
         if (match) { startDate = match[1]; break; }
     }
 
     // --- 总周数：取校历里最大的周次序号，取不到序号就退回条目数 ---
-    const zsNumbers = list
-        .map(item => parseInt(item.zs, 10))
-        .filter(n => Number.isInteger(n) && n > 0);
-    const totalWeeks = zsNumbers.length > 0 ? Math.max(...zsNumbers) : list.length;
+    let maxZs = 0;
+    let numbered = 0;
+    for (let i = 0; i < list.length; i++) {
+        const n = parseInt((list[i] || {}).zs, 10);
+        if (!isNaN(n) && n > 0) {
+            numbered++;
+            if (n > maxZs) maxZs = n;
+        }
+    }
+    const totalWeeks = numbered > 0 ? maxZs : list.length;
 
-    return { startDate, totalWeeks };
+    return { startDate: startDate, totalWeeks: totalWeeks };
 }
 
 /**
@@ -612,7 +708,12 @@ const DEFAULT_TIME_SLOTS = [
  * @returns {Promise<Array>} TimeSlotJsonModel 数组
  */
 async function fetchTimeSlots() {
-    return DEFAULT_TIME_SLOTS.map(slot => ({ ...slot }));
+    const out = [];
+    for (let i = 0; i < DEFAULT_TIME_SLOTS.length; i++) {
+        const s = DEFAULT_TIME_SLOTS[i];
+        out.push({ number: s.number, startTime: s.startTime, endTime: s.endTime });
+    }
+    return out;
 }
 
 /* ============================================================
