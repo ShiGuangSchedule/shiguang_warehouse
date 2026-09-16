@@ -13,9 +13,6 @@
         'jwnew.cqust.edu.cn'
     ];
 
-    // WebVPN 教务系统地址
-    const WEBVPN_EAMS_HOME = 'https://web.cqust.edu.cn/http/77726476706e69737468656265737421fae04f99307e6b416b1b9de29d51367b4912/eams/home!index.action';
-
     // 作息时间表（共 11 节）
     const CQUST_TIME_SLOTS = [
         { number: 1, startTime: '08:30', endTime: '09:15' },
@@ -336,12 +333,7 @@
     // 导入主流程
     const runImport = async () => {
         if (!checkHost()) {
-            if (isWebvpn()) {
-                toast('正在跳转至教务系统...');
-                window.location.href = WEBVPN_EAMS_HOME;
-                return;
-            }
-            throw new Error('请先进入重庆科技大学教务系统');
+            throw new Error('请先登录并进入教务系统页面');
         }
 
         toast('正在检查登录状态...');
