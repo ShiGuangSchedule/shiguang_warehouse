@@ -92,11 +92,9 @@ function parseSections(sectionStr) {
     const text = String(sectionStr).trim();
     if (!text) return null;
 
-    // 去掉 "第" "节" "课" 等中文字符，只留数字和连字符
     const normalized = text.replace(/[^\d-]/g, '');
     if (!normalized) return null;
 
-    // a-b 形式
     const rangeMatch = normalized.match(/^(\d+)\s*-\s*(\d+)$/) || normalized.match(/(\d+)-(\d+)/);
     if (rangeMatch) {
         let start = parseInt(rangeMatch[1], 10);
@@ -106,10 +104,8 @@ function parseSections(sectionStr) {
         return { startSection: start, endSection: end };
     }
 
-    // 纯数字形式：可能是 "3" 也可能是补零的 "0102"
     const digits = normalized.replace(/-/g, '');
     if (/^\d{4}$/.test(digits)) {
-        // "0102" -> 1~2
         const start = parseInt(digits.slice(0, 2), 10);
         const end = parseInt(digits.slice(2, 4), 10);
         if (start > 0 && end >= start) return { startSection: start, endSection: end };
@@ -315,7 +311,6 @@ function parseJsonData(jsonData, withCampus = true) {
 function getContextRoot() {
     const origin = window.location.origin;
     const path = window.location.pathname || '';
-    // 若当前路径里出现 /jwglxt/，则上下文根带该前缀
     const m = path.match(/^(.*?\/jwglxt)(?=\/|$)/);
     if (m) return origin + m[1];
     return origin;
@@ -383,7 +378,6 @@ async function fetchAcademicOptions() {
         }
         const defaultSemesterIndex = semSelectedIndex !== -1 ? semSelectedIndex : 0;
 
-        // 取子集也用循环，避开 slice
         const subYearOptions = [];
         if (selectedIndex === -1) {
             const end = Math.min(allYearOptions.length, 5);
@@ -753,7 +747,6 @@ async function runImportFlow() {
     // 6. 保存作息时间（使用实测的 DEFAULT_TIME_SLOTS；学校调整作息需更新该常量）
     await savePresetTimeSlots(timeSlots);
 
-    // 7. 完成
     let msg = `导入成功，共 ${courses.length} 条课程安排！`;
     if (semesterStartDate) {
         msg += ` 开学日期：${semesterStartDate}`;
