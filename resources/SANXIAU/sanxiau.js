@@ -246,9 +246,6 @@ function mergeAndDistinctCourses(courses) {
  * 二、数据解析：正方 kbList -> 拾光 CourseJsonModel
  * ============================================================ */
 
-/** 被跳过的「未实际排课」课程数（网课等），供流程末尾向用户汇报 */
-let skippedUnscheduledCount = 0;
-
 /**
  * 从正方返回的 JSON 中解析课程。
  *
@@ -262,7 +259,7 @@ let skippedUnscheduledCount = 0;
  *       "xqj":"1",                    //   星期 1-7
  *       "zcd":"1-16周",               //   周次，如 "1-3周(单),4-16周"
  *       "jcor":"3-4", "jcs":"3-4", "jc":"3-4节",  // 节次
- *       "pkbj":"1",                   //   排课标记：1=已排 0=未排（网课）
+ *       "pkbj":"1",                   //   排课标记，本适配器不使用（原因见解析处的说明）
  *       ... 以及 kch/xf/zxs/khfsmc/jxbmc 等大量附加信息（本适配器不使用）
  *     }
  *   ],
@@ -278,17 +275,15 @@ function parseJsonData(jsonData) {
     if (!jsonData || !Array.isArray(jsonData.kbList)) return [];
 
     const initialCourseList = [];
-    skippedUnscheduledCount = 0;
 
     for (const raw of jsonData.kbList) {
-        // --- 跳过未实际排课的课程（网课）---
-        // 实测本校：正方用 pkbj 标记是否排课，"0" = 未排。这类课程没有教室编号
-        // （cd_id 字段缺失），地点显示为 "未排地点"，本质是网课/线上课。
-        // 本校的网课（智慧树等，以及显示为"未排地点"的课程）都属于此类。
-        // 它们没有真实的上课时间格，放进课表会凭空占据一格，故跳过。
-        const unscheduled = String(raw.pkbj) === '0' ||
-                            (!raw.cd_id && String(raw.cdmc || '').trim() === '未排地点');
-        if (unscheduled) { skippedUnscheduledCount++; continue; }
+        // --- 关于「未排地点」的课程：不要跳过 ---
+        // 本校正方给「没有分配教室」的课标上 cdmc="未排地点"、cd_id 缺失、pkbj="0"。
+        // 实测确认：这类课**仍然有固定的上课时间**（如毛概 周五5-6节、5-12周），
+        // 只是没排教室而已，属于正常课程，必须照常排进课表，地点写占位文字。
+        // 而真正的网课（智慧树等）没有星期和节次，位于 sjkList，本函数根本读不到，
+        // 自然不会误排。所以这里不按 pkbj 做任何过滤：没有时间的课会被下面的
+        // 星期/节次校验自然挡掉，有时间的课一律保留。
 
         // --- 课程名 ---
         const rawName = raw.kcmc || raw.kcmc_raw || raw.kcbmc || '';
@@ -710,9 +705,6 @@ async function runImportFlow() {
 
     // 7. 完成
     let msg = `导入成功，共 ${courses.length} 条课程安排！`;
-    if (skippedUnscheduledCount > 0) {
-        msg += ` 已跳过 ${skippedUnscheduledCount} 门未排课网课`;
-    }
     if (!semesterStartDate) msg += '（未获取到开学日期，请在设置中自行确认）';
     else msg += ` 开学日期：${semesterStartDate}`;
     if (timeSlots.length > 0) msg += ` 作息已导入 ${timeSlots.length} 节`;
