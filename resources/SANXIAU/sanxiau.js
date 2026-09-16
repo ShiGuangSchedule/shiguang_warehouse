@@ -245,9 +245,10 @@ function mergeAndDistinctCourses(courses) {
  * sjkList 是无固定上课时间的网课，本函数不读取。
  *
  * @param {object} jsonData 接口返回的 JSON
+ * @param {boolean} withCampus 地点是否带校区前缀，默认 true
  * @returns {Array} 拾光课程数组
  */
-function parseJsonData(jsonData) {
+function parseJsonData(jsonData, withCampus = true) {
     if (!jsonData || !Array.isArray(jsonData.kbList)) return [];
 
     const initialCourseList = [];
@@ -271,7 +272,7 @@ function parseJsonData(jsonData) {
         const room = String(raw.cdmc || raw.jxdd || '').trim();
         // 不用 [a, b].filter(Boolean).join(' ')：真机上实测会丢掉校区（见文件头）。
         const place = room || '未排地点';
-        const position = campus ? (campus + ' ' + place) : place;
+        const position = (withCampus && campus) ? (campus + ' ' + place) : place;
 
         // --- 星期 ---
         const day = parseInt(raw.xqj, 10);
@@ -455,6 +456,21 @@ async function selectAcademicYearAndSemester() {
         academicYear: yearOptions[yearIndex].value,
         semesterCode: semesterOptions[semesterIndex].value
     };
+}
+
+/**
+ * 让用户选择地点是否带校区前缀（「新区 明辨1-516」或「明辨1-516」）。
+ * App 未提供持久化存储接口，记不住上次选择，故每次导入都问一次；
+ * 取消（null / -1）不终止导入，按带校区处理。
+ *
+ * @returns {Promise<boolean>} true = 地点带校区前缀
+ */
+async function askPositionFormat() {
+    const options = ['带校区（新区 明辨1-516）', '不带校区（明辨1-516）'];
+    const index = await window.shiguangBridgePromise.showSingleSelection(
+        '地点显示方式', JSON.stringify(options), 0
+    );
+    return index !== 1;
 }
 
 /**
@@ -687,13 +703,15 @@ async function runImportFlow() {
         return;
     }
 
-    // 2. 选择学年学期
+    // 2. 选择学年学期与地点显示方式
     const selection = await selectAcademicYearAndSemester();
     if (!selection) {
         window.shiguangBridge.showToast('未选择学年学期，导入流程终止。');
         return;
     }
     const { academicYear, semesterCode } = selection;
+
+    const withCampus = await askPositionFormat();
 
     // 3. 拉取并解析课表
     window.shiguangBridge.showToast('正在获取课表数据…');
@@ -707,7 +725,7 @@ async function runImportFlow() {
         return;
     }
 
-    const courses = parseJsonData(json);
+    const courses = parseJsonData(json, withCampus);
     if (courses.length === 0) {
         window.shiguangBridge.showToast('未解析到任何课程，请检查所选学年学期。');
         return;
