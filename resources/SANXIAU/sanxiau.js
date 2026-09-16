@@ -637,6 +637,37 @@ async function saveCourses(parsedCourses) {
     }
 }
 
+/**
+ * 根据校历信息与已解析课程，构造要写入的课表配置；**信息不足时返回 null**。
+ *
+ * 返回 null 表示「一个字都不要写」，调用方必须因此跳过 saveCourseConfig。
+ * 原因见 runImportFlow 第 5 步的长注释：App 侧对 semesterStartDate 不做兜底合并，
+ * 发出不含开学日期的配置会把用户手动设好的开学日期清成 null。
+ *
+ * @param {{startDate: string|null, totalWeeks: number|null}} semesterInfo 校历信息
+ * @param {Array} courses 已解析的课程（用于兜底推算总周数）
+ * @returns {object|null} 配置对象，或 null（表示不应写入任何配置）
+ */
+function buildCourseConfig(semesterInfo, courses) {
+    const startDate = semesterInfo && semesterInfo.startDate;
+    // 没有开学日期就什么都不写——这是硬性约束，不是可选项。
+    if (!startDate) return null;
+
+    const config = { semesterStartDate: startDate };
+
+    const maxWeek = (courses || []).reduce(
+        (m, c) => Math.max(m, ...(c.weeks || [0])), 0
+    );
+    // 总周数优先用校历里的真实周数；校历只给了开学日期时，退回课表里的最大周次。
+    // 绝不写入凭空的常量。
+    const totalWeeks = Math.max(
+        (semesterInfo && semesterInfo.totalWeeks) || 0, maxWeek
+    );
+    if (totalWeeks > 0) config.semesterTotalWeeks = totalWeeks;
+
+    return config;
+}
+
 async function saveConfig(config) {
     if (!config || Object.keys(config).length === 0) return;
     try {
@@ -698,31 +729,42 @@ async function runImportFlow() {
     const saveResult = await saveCourses(courses);
     if (!saveResult) return;
 
-    // 5. 保存课表配置（学期开始日期能取到才写，取不到则沿用软件默认）
+    // 5. 保存课表配置
+    //
+    // ⚠️ 这里是整个适配器最容易踩的坑，务必保持「有才写，没有就一个字都不写」：
+    //
+    // App 侧 CourseConversionRepository.importCourseConfig 对这两个字段**不做兜底合并**：
+    //     showWeekends       = currentConfig?.showWeekends ?: false   ← 保留原值
+    //     semesterStartDate  = configJsonModel.semesterStartDate      ← 直接覆盖
+    //     semesterTotalWeeks = configJsonModel.semesterTotalWeeks     ← 直接覆盖
+    // 而 CourseConfigJsonModel 里 semesterStartDate 默认为 null，
+    // 所以只要发出一份不含开学日期的配置，就会把用户手动设好的开学日期**清成 null**，
+    // App 随即换用默认基准重算周次，整张课表的周次全部错位（表现为「有些课凭空消失」）。
+    //
+    // 本校校历接口实测返回**空响应体**，开学日期经常取不到。因此：
+    //   取到开学日期 → 写入 startDate + totalWeeks；
+    //   取不到        → **完全不调 saveCourseConfig**，完整保留用户的手动设置。
+    // （通用适配器从不调用该接口，所以它的周次是对的——这不是巧合，是必须对齐的行为。）
     const [semesterInfo, timeSlots] = await Promise.all([
         fetchSemesterInfo(academicYear, semesterCode),
         fetchTimeSlots()
     ]);
     const semesterStartDate = semesterInfo.startDate;
 
-    const maxWeek = courses.reduce((m, c) => Math.max(m, ...c.weeks), 0);
-
-    const config = {};
-    if (semesterStartDate) config.semesterStartDate = semesterStartDate;
-    // 总周数优先用校历里的真实周数；校历取不到时退回课表里的最大周次。
-    // 两者都取不到才不写（沿用软件默认值），绝不写入凭空的常量。
-    const totalWeeks = Math.max(semesterInfo.totalWeeks || 0, maxWeek);
-    if (totalWeeks > 0) config.semesterTotalWeeks = totalWeeks;
-
-    if (Object.keys(config).length > 0) await saveConfig(config);
+    // buildCourseConfig 在取不到开学日期时返回 null —— 此时一个字都不写。
+    const config = buildCourseConfig(semesterInfo, courses);
+    if (config) await saveConfig(config);
 
     // 6. 保存作息时间（使用实测的 DEFAULT_TIME_SLOTS；学校调整作息需更新该常量）
     await savePresetTimeSlots(timeSlots);
 
     // 7. 完成
     let msg = `导入成功，共 ${courses.length} 条课程安排！`;
-    if (!semesterStartDate) msg += '（未获取到开学日期，请在设置中自行确认）';
-    else msg += ` 开学日期：${semesterStartDate}`;
+    if (semesterStartDate) {
+        msg += ` 开学日期：${semesterStartDate}`;
+    } else {
+        msg += '（未取到开学日期，已保留您的课表设置；若周次不对请在「课表设置」中手动设置开学日期）';
+    }
     if (timeSlots.length > 0) msg += ` 作息已导入 ${timeSlots.length} 节`;
 
     window.shiguangBridge.showToast(msg);
