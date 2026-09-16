@@ -1062,3 +1062,8 @@ schools:
     name: "浙江树人学院"
     initial: "Z"
     resource_folder: "ZJSRU"
+
+  - id: "JUST"
+    name: "江苏科技大学"
+    initial: "J"
+    resource_folder: "JUST"
