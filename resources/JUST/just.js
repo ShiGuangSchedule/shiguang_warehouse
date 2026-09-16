@@ -3,8 +3,9 @@
 // 校外访问：深信服 enlink WebVPN，统一身份认证 https://client.v.just.edu.cn/
 //   WebVPN 代理路径形如 /http/webvpn<hex>/jwglxt/...，<hex> 与登录会话相关不能写死，
 //   脚本从当前页面 URL 动态取前缀。
-// 该校课表查询页没有学年/学期下拉（由页面脚本动态生成，服务端 HTML 里没有 option），
-// 因此学年学期由用户输入；校区作息、开学日期等仍从接口读取。
+// 课表页的学年/学期是 <select id="xnm">（学年）/ <select id="xqm">（学期），
+// 被 chosen 组件包装成 div#xnm_chosen / div#xqm_chosen（原 select 是容器的前一个兄弟节点）。
+// 脚本读出选项让用户确认，再请求课表、校历与校区作息。
 // 维护者：abyss-stars
 
 (async function () {
@@ -25,20 +26,9 @@
     };
 
     // ---------- 1. 接口 ----------
-    // 校内直连是 https://<host>/jwglxt/...，WebVPN 下前面还有 /http/webvpn<hex>
-    function resolveBase() {
-        const matched = (window.location.pathname || '').match(/^(.*?)\/jwglxt(?:\/|$)/i);
-        if (matched) return matched[1] + '/jwglxt';
-        // 停在 WebVPN 门户页时，从页面里的教务入口链接取前缀
-        for (const link of document.querySelectorAll('a[href]')) {
-            const linkMatched = String(link.getAttribute('href') || '')
-                .match(/^(\/(?:https?)\/(?:webvpn)?[0-9a-f]+\/jwglxt)(?:\/|$)/i);
-            if (linkMatched) return linkMatched[1];
-        }
-        return '/jwglxt';
-    }
-
-    const BASE = resolveBase();
+    // 校内直连是 https://<host>/jwglxt/...，WebVPN 下前面还有 /http/webvpn<hex>（<hex> 与会话相关）
+    const matched = (window.location.pathname || '').match(/^(.*?)\/jwglxt(?:\/|$)/i);
+    const BASE = (matched ? matched[1] : '') + '/jwglxt';
 
     // enlink 网关下通常需要 enlink-vpn 标记，两种写法依次尝试
     async function request(modulePath, params) {
@@ -79,10 +69,10 @@
             .replace(/（/g, '(').replace(/）/g, ')');
 
         for (const part of normalized.split(',')) {
-            const odds = part.indexOf('单') !== -1;
-            const evens = part.indexOf('双') !== -1;
-            const matched = part.replace(/[^\d-]/g, '').match(/^(\d+)-(\d+)$/) ||
-                part.replace(/[^\d-]/g, '').match(/^(\d+)$/);
+            const odds = /单/.test(part);
+            const evens = /双/.test(part);
+            const digits = part.replace(/[^\d-]/g, '');
+            const matched = digits.match(/^(\d+)-(\d+)$/) || digits.match(/^(\d+)$/);
             if (!matched) continue;
 
             const start = Number(matched[1]);
@@ -163,15 +153,8 @@
         const slots = [];
         for (const row of (Array.isArray(rows) ? rows : [])) {
             const number = Number(text(row.jcmc != null ? row.jcmc : row.jcdm));
-            let startTime = padTime(row.qssj);
-            let endTime = padTime(row.jssj);
-            if (!startTime || !endTime) {
-                const matched = text(row.sksj).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);
-                if (matched) {
-                    startTime = padTime(matched[1]);
-                    endTime = padTime(matched[2]);
-                }
-            }
+            const startTime = padTime(row.qssj);
+            const endTime = padTime(row.jssj);
             if (!(number > 0) || !startTime || !endTime) continue;
             if (toMinutes(startTime) >= toMinutes(endTime)) continue;
             slots.push({ number: number, startTime: startTime, endTime: endTime });
@@ -179,7 +162,12 @@
 
         slots.sort((a, b) => a.number - b.number);
         // app 要求节次从 1 连续，否则整段丢弃
-        const continuous = slots.length > 0 && slots.every((slot, index) => slot.number === index + 1);
+        const continuous = slots.length > 0 && (() => {
+            for (let i = 0; i < slots.length; i++) {
+                if (slots[i].number !== i + 1) return false;
+            }
+            return true;
+        })();
         return continuous ? slots : [];
     }
 
@@ -219,7 +207,7 @@
 
     function fallbackSlots(campusName) {
         for (const key of Object.keys(FALLBACK_TIME_SLOTS)) {
-            if (campusName.indexOf(key) !== -1) {
+            if (new RegExp(key).test(campusName)) {
                 return FALLBACK_TIME_SLOTS[key].map((item) => ({ number: item[0], startTime: item[1], endTime: item[2] }));
             }
         }
@@ -285,35 +273,66 @@
         return result;
     }
 
-    // ---------- 3. 学年学期（该校课表页无下拉，由用户输入） ----------
-    window.__justValidateYear = (input) => (/^(19|20)\d{2}$/.test(text(input)) ? false : '请输入四位学年，例如 2025');
+    // ---------- 3. 学年学期 ----------
+    // 学年/学期是 <select id="xnm"> / <select id="xqm">，chosen 组件会在其后插入 div#xnm_chosen 容器
+    function findTermSelect(name) {
+        const select = document.getElementById(name);
+        if (select) return select;
+        const chosen = document.getElementById(name + '_chosen');
+        const sibling = chosen ? chosen.previousElementSibling : null;
+        return sibling && sibling.tagName === 'SELECT' ? sibling : null;
+    }
 
-    const SEMESTERS = [
-        { text: '1（第一学期）', code: '3' },
-        { text: '2（第二学期）', code: '12' },
-        { text: '3（第三学期/短学期）', code: '16' }
-    ];
+    function readSelectOptions(name) {
+        const select = findTermSelect(name);
+        const options = [];
+        if (!select) return options;
+        // 注意：教务页面改写了 Array.prototype.filter/some/every（回调实参变成下标），
+        // 所以这里全部用普通循环，不调用这些方法。
+        for (const option of Array.from(select.options)) {
+            const value = text(option.value);
+            if (value === '') continue;
+            options.push({
+                value: value,
+                text: text(option.textContent) || value,
+                selected: option.selected === true
+            });
+        }
+        return options;
+    }
+
+    // 默认选中教务当前学年学期，没有标记则取第一项
+    function defaultIndex(options) {
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].selected) return i;
+        }
+        return 0;
+    }
 
     async function selectTerm() {
-        const now = new Date();
-        const month = now.getMonth() + 1;
+        const yearOptions = readSelectOptions('xnm');
+        const semesterOptions = readSelectOptions('xqm');
+        if (!yearOptions.length || !semesterOptions.length) {
+            await bridge.showAlert('读取学年学期失败',
+                '未在页面中找到学年(.xnm)/学期(.xqm)下拉。\n请确认：\n' +
+                '1. 已登录教务系统（校外需先登录 WebVPN）；\n' +
+                '2. 当前停留在「信息查询-学生课表查询」页面。', '知道了');
+            return null;
+        }
 
-        const input = await bridge.showPrompt('选择学年',
-            '请输入学年起始年份（如 2025 表示 2025-2026 学年）：',
-            String(month >= 9 ? now.getFullYear() : now.getFullYear() - 1),
-            '__justValidateYear');
-        if (input === null || !/^(19|20)\d{2}$/.test(text(input))) return null;
+        const yearIndex = await bridge.showSingleSelection('选择学年',
+            JSON.stringify(yearOptions.map((item) => item.text)), defaultIndex(yearOptions));
+        if (yearIndex === null || yearIndex === -1) return null;
 
-        const index = await bridge.showSingleSelection('选择学期',
-            JSON.stringify(SEMESTERS.map((item) => item.text)),
-            month >= 3 && month <= 8 ? 1 : 0);
-        if (index === null || index === -1) return null;
+        const semesterIndex = await bridge.showSingleSelection('选择学期',
+            JSON.stringify(semesterOptions.map((item) => item.text)), defaultIndex(semesterOptions));
+        if (semesterIndex === null || semesterIndex === -1) return null;
 
         return {
-            xnm: text(input),
-            xnmText: text(input),
-            xqm: SEMESTERS[index].code,
-            xqmText: SEMESTERS[index].text
+            xnm: yearOptions[yearIndex].value,
+            xnmText: yearOptions[yearIndex].text,
+            xqm: semesterOptions[semesterIndex].value,
+            xqmText: semesterOptions[semesterIndex].text
         };
     }
 
@@ -440,7 +459,10 @@
         }
         const unplaced = [...unplacedMap.values()];
         const importedNames = new Set(merged.map((course) => course.name));
-        const sameNameCount = unplaced.filter((item) => importedNames.has(text(item.kcmc))).length;
+        let sameNameCount = 0;
+        for (const item of unplaced) {
+            if (importedNames.has(text(item.kcmc))) sameNameCount++;
+        }
 
         if (unplaced.length || !presetSlots) {
             const summary = [`${term.xnmText} 学年第 ${term.xqmText} 学期：已导入 ${merged.length} 条排课记录。`,
