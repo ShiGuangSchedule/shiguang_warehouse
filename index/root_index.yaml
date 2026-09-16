@@ -478,6 +478,11 @@ schools:
     initial: "D"
     resource_folder: "DLU"
 
+  - id: "HUBU"
+    name: "湖北大学"
+    initial: "H"
+    resource_folder: "HUBU"
+
   - id: "HBMU"
     name: "湖北医药学院"
     initial: "H"
