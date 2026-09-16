@@ -1062,3 +1062,8 @@ schools:
     name: "浙江树人学院"
     initial: "Z"
     resource_folder: "ZJSRU"
+
+  - id: "SANXIAU"
+    name: "重庆三峡科技大学"
+    initial: "C"
+    resource_folder: "SANXIAU"

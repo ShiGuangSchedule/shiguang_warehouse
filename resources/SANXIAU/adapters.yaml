@@ -1,0 +1,9 @@
+# resources/SANXIAU/adapters.yaml
+adapters:
+  - adapter_id: "SANXIAU_01"
+    adapter_name: "重庆三峡科技大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sanxiau.js"
+    import_url: "http://jwglxt.sanxiau.edu.cn/xtgl/login_slogin.html"
+    maintainer: "misha-233"
+    description: "重庆三峡科技大学正方教务（正方V-9.0），请先登录教务系统并打开个人课表，再执行导入。自动导入课程、周次、开学日期与作息时间；未实际排课的网课（如智慧树）会自动跳过。作息若与学校实际不符，可在软件内「课表设置」中修改。"
