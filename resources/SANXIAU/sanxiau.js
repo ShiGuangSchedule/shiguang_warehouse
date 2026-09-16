@@ -4,6 +4,10 @@
 //
 // 数据来源：AJAX（POST 表单），返回 JSON，课程在 kbList 数组内。
 // 本脚本不包含任何账号密码，完全依赖用户在软件内已建立的教务会话（cookie）。
+//
+// 【已知问题】部分 Android WebView 上数组方法（filter 等）会算出错误结果，故本文件
+// 所有数据处理只用下标循环、定长标记表与字符串拼接，不使用 Set / filter / map /
+// sort / 展开运算符。改动时请保持这一约定。
 
 /* ============================================================
  * 一、纯函数：解析工具
@@ -11,18 +15,7 @@
 
 /**
  * 解析周次字符串，返回去重升序的周次数组。
- *
- * 支持（正方实际出现的各种写法）：
- *   "1-16周"            -> 1..16
- *   "1-15周(单)"        -> 1,3,5,...,15
- *   "2-16周(双)"        -> 2,4,6,...,16
- *   "1-3周(单),4-16周"  -> 1,3,4..16      ← 混合周次，关键用例
- *   "1-8周,10-16周"     -> 1..8,10..16
- *   "1-8,10-16周"       -> 同上（"周"只在末尾出现一次）
- *   "1,3,5周"           -> 1,3,5
- *   "第1-16周"          -> 1..16
- *   "1-16周(单双)"      -> 1..16（无限制）
- *   "1-16"              -> 1..16（无"周"字）
+ * 支持 "1-16周"、"1-15周(单)"、"2-16周(双)"、"1-3周(单),4-16周"、"1,3,5周" 等写法。
  *
  * @param {string} weekStr 原始周次字符串
  * @returns {number[]} 去重且升序的周次
@@ -35,18 +28,7 @@ function parseWeeks(weekStr) {
     // 1. 按逗号 / 顿号 / 分号切分多个区间
     const segments = text.split(/[,，、;；]+/);
 
-    // 用定长标记表去重（周次 1-99），最后从小到大扫一遍即为升序。
-    //
-    // 【为什么不用 Set / filter / sort / 展开运算符】
-    // 真机上（Android，同一台设备、同一份代码、输入已确认为正确值）实测到
-    // 数组方法给出错误结果：
-    //   raw.zcd = "1-16周"           → 本应 [1..16]，实际得到 [2..16]
-    //   raw.zcd = "1-3周(单),4-16周" → 本应 [1,3,4..16]，实际得到 [3,4..16]
-    // 同一台设备上，手写 for 循环能得到正确结果，改用下标循环后上述两例均恢复正确。
-    //
-    // 具体是引擎哪一处缺陷，未能定性：同一环境下 .map / .sort 表现正常，
-    // 且 filter 也并非在每次调用上都出错，故此处不去猜机制，
-    // 只把数据处理路径统一换成下标循环，以结果为准则。
+    // 用定长标记表去重（周次 1-99），从小到大扫一遍即为升序。数组方法的坑见文件头。
     const seen = [];
     for (let i = 0; i < 100; i++) seen[i] = false;
 
@@ -54,13 +36,11 @@ function parseWeeks(weekStr) {
         const seg = String(segments[si]).trim();
         if (!seg) continue;
 
-        // 2. 判断奇偶限制：单周 / 双周
-        //    兼容 "(单)" "（单）" "单周" "(单双)" 等写法
+        // 奇偶限制：单周 / 双周（兼容 "(单)" "单周" "(单双)" 等写法）
         const isOdd = /单/.test(seg) && !/单双/.test(seg);
         const isEven = /双/.test(seg) && !/单双/.test(seg);
 
-        // 3. 抽取该区间内所有 "a-b" 片段
-        //    使用全局匹配，从而同时支持 "1-3" 和 "1,3,5" 这类混排
+        // 抽取该区间内所有 "a-b" 片段（全局匹配以支持 "1-3" 与 "1,3,5" 混排）
         const rangeRe = /(\d+)\s*-\s*(\d+)/g;
         let matched = false;
         let m;
@@ -102,13 +82,7 @@ function parseWeeks(weekStr) {
 
 /**
  * 解析节次字符串，返回 { startSection, endSection }。
- *
- * 支持：
- *   "1-2"      -> {1,2}
- *   "3"        -> {3,3}
- *   "第1-2节"  -> {1,2}
- *   "0102"     -> {1,2}   正方偶见补零编码
- *   "9-10"     -> {9,10}  本校准许 11/12/13/14 节，不做上限裁剪
+ * 支持 "1-2" / "3" / "第1-2节" / 补零的 "0102"；本校准许 11-14 节，不做上限裁剪。
  *
  * @param {string} sectionStr 原始节次字符串
  * @returns {{startSection:number, endSection:number}|null}
@@ -149,33 +123,8 @@ function parseSections(sectionStr) {
 }
 
 /**
- * 清洗课程名称：去掉末尾的课程类型标记符号。
- *
- * 课表顶部图例：
- *   ★ 理论   ☆ 实验   〇 课外   ■ 实践   ◆ 上机
- * 这些符号属于"类型"而非课程名的一部分，需要剥离。
- * 例如 "线性代数Ⅱ★" -> "线性代数Ⅱ"
- *
- * @param {string} rawName 原始课程名
- * @returns {string} 清洗后的课程名
- */
-function cleanCourseName(rawName) {
-    if (!rawName) return '';
-    return String(rawName)
-        // 去掉末尾连续出现的类型标记
-        .replace(/[★☆〇■◆○●◇□▪▫•·]+$/g, '')
-        .trim();
-}
-
-/**
- * 合并与去重课程。
- *
- * 处理两类情况：
- *   1. 同一门课在同一星期、同一地点、同一周次下被拆成连续节次（如 1-2 与 3-4），合并为 1-4。
- *   2. 除节次外完全相同的记录，周次取并集。
- *
- * 注意：星期、周次、地点、教师任一不同则视为独立排课单元，不做合并。
- *       这正是"同名课程多个排课单元"能正确保留的原因。
+ * 合并与去重：连续节次（1-2 + 3-4 → 1-4）与完全重复的记录合并，节次相同者周次取并集。
+ * 星期、周次、地点、教师任一不同即视为独立排课单元，不合并。
  *
  * @param {Array} courses 课程数组
  * @returns {Array} 处理后的课程数组
@@ -183,8 +132,7 @@ function cleanCourseName(rawName) {
 function mergeAndDistinctCourses(courses) {
     if (!Array.isArray(courses) || courses.length <= 1) return courses || [];
 
-    // 复制一份并规整字段。不用 map / 展开 / sort：
-    // parseWeeks 已保证周次去重且升序，这里只需原样拷贝。
+    // 复制并规整字段（parseWeeks 已保证周次去重升序）
     const list = [];
     for (let i = 0; i < courses.length; i++) {
         const c = courses[i] || {};
@@ -261,7 +209,7 @@ function mergeAndDistinctCourses(courses) {
             cur.startSection === nxt.startSection &&
             cur.endSection === nxt.endSection;
         if (sameSlot) {
-            // 并集：不用 Set / 展开 / sort，用标记表手动合并并升序
+            // 周次并集（标记表合并，天然升序）
             const mark = [];
             for (let i = 0; i < 100; i++) mark[i] = false;
             for (let i = 0; i < cur.weeks.length; i++) {
@@ -292,26 +240,9 @@ function mergeAndDistinctCourses(courses) {
  * ============================================================ */
 
 /**
- * 从正方返回的 JSON 中解析课程。
- *
- * 真实返回结构（已对本校接口实测）：
- * {
- *   "kbList": [                      // 已排课课程
- *     { "kcmc":"高等数学",            //   课程名（干净，★ 不在这里）
- *       "xslxbj":"★",                 //   课程类型标记：★理论 ☆实验 〇课外 ■实践 ◆上机
- *       "xm":"张三",                  //   教师
- *       "xqmc":"某校区", "cdmc":"某教学楼101",  // 校区 与 教室（两个字段，需拼接）
- *       "xqj":"1",                    //   星期 1-7
- *       "zcd":"1-16周",               //   周次，如 "1-3周(单),4-16周"
- *       "jcor":"3-4", "jcs":"3-4", "jc":"3-4节",  // 节次
- *       "pkbj":"1",                   //   排课标记，本适配器不使用（原因见解析处的说明）
- *       ... 以及 kch/xf/zxs/khfsmc/jxbmc 等大量附加信息（本适配器不使用）
- *     }
- *   ],
- *   "sjkList": [ ... ]               // 其它课程（智慧树等网课），无星期/节次，本适配器跳过
- * }
- *
- * 字段名仍保留多路兜底，以便同一适配器在其它正方部署上也能工作。
+ * 解析 kbList 得到拾光课程数组。
+ * 关键字段：kcmc 课程名 / xm 教师 / xqmc 校区 + cdmc 教室 / xqj 星期 / zcd 周次 / jcor 节次。
+ * sjkList 是无固定上课时间的网课，本函数不读取。
  *
  * @param {object} jsonData 接口返回的 JSON
  * @returns {Array} 拾光课程数组
@@ -322,31 +253,23 @@ function parseJsonData(jsonData) {
     const initialCourseList = [];
 
     for (const raw of jsonData.kbList) {
-        // --- 关于「未排地点」的课程：不要跳过 ---
-        // 本校正方给「没有分配教室」的课标上 cdmc="未排地点"、cd_id 缺失、pkbj="0"。
-        // 实测确认：这类课**仍然有固定的上课时间**（如毛概 周五5-6节、5-12周），
-        // 只是没排教室而已，属于正常课程，必须照常排进课表，地点写占位文字。
-        // 而真正的网课（智慧树等）没有星期和节次，位于 sjkList，本函数根本读不到，
-        // 自然不会误排。所以这里不按 pkbj 做任何过滤：没有时间的课会被下面的
-        // 星期/节次校验自然挡掉，有时间的课一律保留。
+        // 「未排地点」的课不跳过：实测它们仍有固定上课时间（如毛概 周五5-6节），
+        // 只是没排教室。真正没有时间的网课在 sjkList，本函数读不到。
 
         // --- 课程名 ---
-        const rawName = raw.kcmc || raw.kcmc_raw || raw.kcbmc || '';
-        const courseName = cleanCourseName(rawName);
+        // 直接用 kcmc。课表图例里的类型标记（★☆〇■◆）在校方接口里位于 xslxbj 字段，
+        // 不是拼在 kcmc 里的，本适配器不读取该字段，也不把标记写进课程名。
+        const courseName = String(raw.kcmc || '').trim();
         if (!courseName) continue;
 
         // --- 教师 ---
         const teacher = String(raw.xm || raw.jsxm || raw.jsmc || '').trim();
 
-        // --- 地点 ---
-        // 本校正方把校区与教室放在两个独立字段里（已实测）：
-        //   xqmc="某校区" + cdmc="某教学楼101"  →  "某校区 某教学楼101"
-        // 教室可能直接是 "未排地点" 或空串；本校准许没有正常教室的课程，
-        // 空值时补一个可读占位，不因为缺地点就丢弃这门课。
+        // 校区与教室是两个独立字段，拼成 "校区 教室"；教室缺失时补占位文字，
+        // 不因为没地点就丢掉这门课。
         const campus = String(raw.xqmc || '').trim();
         const room = String(raw.cdmc || raw.jxdd || '').trim();
-        // 不用 [a, b].filter(Boolean).join(' ')：真机上实测该写法会丢掉校区，
-        // 只得到“明辨1-516”（同一时刻 campus 变量里确实是“新区”）。理由详见 parseWeeks。
+        // 不用 [a, b].filter(Boolean).join(' ')：真机上实测会丢掉校区（见文件头）。
         const place = room || '未排地点';
         const position = campus ? (campus + ' ' + place) : place;
 
@@ -354,11 +277,8 @@ function parseJsonData(jsonData) {
         const day = parseInt(raw.xqj, 10);
         if (isNaN(day) || day < 1 || day > 7) continue;
 
-        // --- 周次 ---
-        // 只认 zcd（如 "1-16周"、"1-3周(单),4-16周"）。
-        // 不要再回退到 zcmc —— 本校准方的 zcmc 是**教师职称**（"教授"/"讲师"/"实验师"），
-        // 实测 14 行全部如此，拿它当周次字符串在语义上就是错的。
-        // zcd 缺失时 parseWeeks 返回空数组，下面一行会把该行整条跳过，不会产出无周次的脏数据。
+        // 周次只认 zcd。本校准方的 zcmc 是教师职称（教授/讲师/实验师），不是周次字符串。
+        // zcd 缺失时 parseWeeks 返回空数组，下一行即把该行整条跳过，不会产出无周次的脏数据。
         const weeksArray = parseWeeks(raw.zcd || '');
         if (weeksArray.length === 0) continue;
 
@@ -387,11 +307,7 @@ function parseJsonData(jsonData) {
  * ============================================================ */
 
 /**
- * 推导教务系统的上下文根路径。
- *
- * 多数学校部署在 /jwglxt/ 下（如 http://host/jwglxt/kbcx/...），
- * 但也有学校直接部署在域名根目录（如 http://jwglxt.sanxiau.edu.cn/kbcx/...）。
- * 本函数从当前页面 URL 中自动识别，避免写死。
+ * 从当前页面 URL 推导教务系统上下文根（多数为 origin + /jwglxt，本校即 origin）。
  *
  * @returns {string} 形如 "http://host" 或 "http://host/jwglxt"
  */
@@ -414,8 +330,7 @@ function jsonHeaders() {
 }
 
 /**
- * 抓取课表页面，解析出可选的学年（xnm）与学期（xqm）。
- * 同时用于判断用户当前是否已登录。
+ * 抓取课表页面，解析可选学年（xnm）与学期（xqm）；同时可判断是否已登录。
  *
  * @returns {Promise<object|null>} { yearOptions, semesterOptions, defaultYearIndex, defaultSemesterIndex }
  */
@@ -428,8 +343,7 @@ async function fetchAcademicOptions() {
         const htmlText = await response.text();
         const doc = new DOMParser().parseFromString(htmlText, 'text/html');
 
-        // 不用 Array.from(...).filter(...).map(...)：数组方法在部分 WebView 不可靠，
-        // 一旦它们吞掉一个学年，用户就选不到自己的学期。全部改成下标循环。
+        // 用下标循环，不用 Array.from / filter / map / slice（见文件头）
         const yearNodes = doc.querySelectorAll('#xnm option');
         const semNodes = doc.querySelectorAll('#xqm option');
 
@@ -492,8 +406,7 @@ async function fetchAcademicOptions() {
 }
 
 /**
- * 让用户选择学年与学期。
- * 若页面解析失败（例如未登录），使用基于当前日期的智能兜底并提示用户。
+ * 让用户选择学年与学期；页面解析失败（如未登录）时按当前日期兜底并提示。
  *
  * @returns {Promise<{academicYear:string, semesterCode:string}|null>} 用户取消返回 null
  */
@@ -545,11 +458,11 @@ async function selectAcademicYearAndSemester() {
 }
 
 /**
- * 向课表接口发起 POST，返回解析后的 JSON（失败返回 null）。
+ * POST 表单并返回解析后的 JSON。
  *
  * @param {string} url 接口地址
  * @param {string} body 表单内容
- * @returns {Promise<object|null>}
+ * @returns {Promise<object|null>} 失败返回 null
  */
 async function postForm(url, body) {
     try {
@@ -573,8 +486,7 @@ async function postForm(url, body) {
 }
 
 /**
- * 获取课表数据。
- * 主接口失败时自动回落到备用接口（不同学校对正方的定制不同）。
+ * 获取课表数据，主接口失败时回落到备用接口。
  *
  * @param {string} academicYear 学年，如 "2026"
  * @param {string} semesterCode 学期代码，如 "3"
@@ -599,14 +511,9 @@ async function fetchCourseJson(academicYear, semesterCode) {
 }
 
 /**
- * 从校历接口一次性取出两项信息：学期第 1 周起始日期、本学期总周数。
- *
- * 说明：该接口并非所有学校都开放。取不到时两个字段均为 null，
- *      此时不写入对应配置，交由用户在软件内自行设置，
- *      绝不使用"常识"或凭空拍出来的常量。
- *
- * 总周数取自校历的周次条目（一条即一周），而不是课表里的最大周次 ——
- * 因为课表可能只排到第 16 周，而学期实际有 18 周。
+ * 从校历接口取「第 1 周起始日期」与「本学期总周数」。
+ * 总周数取校历的周次条目数而非课表最大周次（课表可能只排到 16 周而学期有 18 周）。
+ * 该接口并非所有学校都开放，取不到时两个字段均为 null，调用方据此不写配置。
  *
  * @param {string} academicYear 学年
  * @param {string} semesterCode 学期代码
@@ -661,29 +568,14 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
 /**
  * 本校作息时间（节次 -> 起止时间）。
  *
- * 【数据来源】2026-09-16 从本校教务系统「学生课表查询（按周次）」
- *   (gnmkdm=N2154) 页面**实测读取**：该页把每节课的起止时间渲染在
- *   课表首列，共 14 节，每节 40 分钟。逐条核对如下（节次/开始/结束）：
- *     1 08:30:00 09:10:00      8 15:20:00 16:00:00
- *     2 09:20:00 10:00:00      9 16:20:00 17:00:00
- *     3 10:20:00 11:00:00     10 17:10:00 17:50:00
- *     4 11:10:00 11:50:00     11 19:00:00 19:40:00
- *     5 12:30:00 13:10:00     12 19:50:00 20:30:00
- *     6 13:20:00 14:00:00     13 20:40:00 21:20:00
- *     7 14:30:00 15:10:00     14 21:30:00 22:10:00
- *   这是从系统里读出来的真实值，不是按常识推测的通用作息。
+ * 2026-09-16 从教务「学生课表查询（按周次）」(gnmkdm=N2154) 页面实测读取，共 14 节、
+ * 每节 40 分钟：1 08:30 / 2 09:20 / 3 10:20 / 4 11:10 / 5 12:30 / 6 13:20 / 7 14:30 /
+ * 8 15:20 / 9 16:20 / 10 17:10 / 11 19:00 / 12 19:50 / 13 20:40 / 14 21:30。
+ * 是从系统里读出的真实值，不是按常识推测的通用作息。
  *
- * 【为什么写死而不是动态取】已逐一排查，无接口可取：
- *   - /xtgl/jcsj_cxJcsj.html 对**学生账号返回"没有访问权限!"**（管理员接口）
- *   - 课表页 HTML（36 万字符）中「作息」0 命中、无任何 HH:MM
- *   - 课表模块 JS /js/comp/jwglxt/pkgl/cxkbazc/cxXskbcx.js (36KB)
- *     中无 08:30、无 kssj/jssj/jcsj 字段
- *   - 校历接口 xskbcxZccx_cxZcByXnxq.html 只返回周次与日期，不含节次时间
- *   - 页面 41 个 script、菜单中均无作息数据源
- *   仓库内同为正方 V9 的 GZMTU 适配器亦采用写死方式。
- *
- * 【学校调整作息怎么办】直接在拾光 App「课表设置 → 作息时间」里改，
- *   或改这里的常量。14 节覆盖了 1-10 与晚间 11-14 节。
+ * 写死的原因是无接口可取：jcsj_cxJcsj.html 对学生账号返回"没有访问权限!"，
+ * 课表页 HTML、课表模块 JS、校历接口与页面 41 个 script 中均无作息数据。
+ * 学校调整作息时，改这里或直接在 App「课表设置 → 作息时间」中改。
  */
 const DEFAULT_TIME_SLOTS = [
     { number: 1,  startTime: '08:30', endTime: '09:10' },
@@ -703,9 +595,7 @@ const DEFAULT_TIME_SLOTS = [
 ];
 
 /**
- * 返回本校作息时间。数据来源见 DEFAULT_TIME_SLOTS 上方注释。
- *
- * @returns {Promise<Array>} TimeSlotJsonModel 数组
+ * @returns {Promise<Array>} 本校作息 TimeSlotJsonModel 数组
  */
 async function fetchTimeSlots() {
     const out = [];
@@ -739,15 +629,12 @@ async function saveCourses(parsedCourses) {
 }
 
 /**
- * 根据校历信息与已解析课程，构造要写入的课表配置；**信息不足时返回 null**。
- *
- * 返回 null 表示「一个字都不要写」，调用方必须因此跳过 saveCourseConfig。
- * 原因见 runImportFlow 第 5 步的长注释：App 侧对 semesterStartDate 不做兜底合并，
- * 发出不含开学日期的配置会把用户手动设好的开学日期清成 null。
+ * 构造要写入的课表配置；**信息不足时返回 null**，调用方据此跳过 saveCourseConfig
+ * （原因见 runImportFlow 第 5 步）。
  *
  * @param {{startDate: string|null, totalWeeks: number|null}} semesterInfo 校历信息
- * @param {Array} courses 已解析的课程（用于兜底推算总周数）
- * @returns {object|null} 配置对象，或 null（表示不应写入任何配置）
+ * @param {Array} courses 已解析的课程
+ * @returns {object|null} 配置对象，或 null（一个字都不写）
  */
 function buildCourseConfig(semesterInfo, courses) {
     const startDate = semesterInfo && semesterInfo.startDate;
@@ -756,14 +643,14 @@ function buildCourseConfig(semesterInfo, courses) {
 
     const config = { semesterStartDate: startDate };
 
-    const maxWeek = (courses || []).reduce(
-        (m, c) => Math.max(m, ...(c.weeks || [0])), 0
-    );
-    // 总周数优先用校历里的真实周数；校历只给了开学日期时，退回课表里的最大周次。
-    // 绝不写入凭空的常量。
-    const totalWeeks = Math.max(
-        (semesterInfo && semesterInfo.totalWeeks) || 0, maxWeek
-    );
+    const maxWeek = 0;
+    for (let i = 0; i < (courses || []).length; i++) {
+        const ws = courses[i].weeks || [];
+        for (let k = 0; k < ws.length; k++) {
+            if (ws[k] > maxWeek) maxWeek = ws[k];
+        }
+    }
+    const totalWeeks = Math.max((semesterInfo && semesterInfo.totalWeeks) || 0, maxWeek);
     if (totalWeeks > 0) config.semesterTotalWeeks = totalWeeks;
 
     return config;
@@ -831,21 +718,10 @@ async function runImportFlow() {
     if (!saveResult) return;
 
     // 5. 保存课表配置
-    //
-    // ⚠️ 这里是整个适配器最容易踩的坑，务必保持「有才写，没有就一个字都不写」：
-    //
-    // App 侧 CourseConversionRepository.importCourseConfig 对这两个字段**不做兜底合并**：
-    //     showWeekends       = currentConfig?.showWeekends ?: false   ← 保留原值
-    //     semesterStartDate  = configJsonModel.semesterStartDate      ← 直接覆盖
-    //     semesterTotalWeeks = configJsonModel.semesterTotalWeeks     ← 直接覆盖
-    // 而 CourseConfigJsonModel 里 semesterStartDate 默认为 null，
-    // 所以只要发出一份不含开学日期的配置，就会把用户手动设好的开学日期**清成 null**，
-    // App 随即换用默认基准重算周次，整张课表的周次全部错位（表现为「有些课凭空消失」）。
-    //
-    // 本校校历接口实测返回**空响应体**，开学日期经常取不到。因此：
-    //   取到开学日期 → 写入 startDate + totalWeeks；
-    //   取不到        → **完全不调 saveCourseConfig**，完整保留用户的手动设置。
-    // （通用适配器从不调用该接口，所以它的周次是对的——这不是巧合，是必须对齐的行为。）
+    // 必须保持「有才写，没有就一个字都不写」：App 侧 importCourseConfig 对
+    // semesterStartDate / semesterTotalWeeks 是**直接覆盖**而非兜底合并，发出一份
+    // 不含开学日期的配置会把用户手动设好的开学日期清成 null，整张课表周次随之错位。
+    // 本校校历接口实测经常返回空，所以取不到就完全不调 saveCourseConfig。
     const [semesterInfo, timeSlots] = await Promise.all([
         fetchSemesterInfo(academicYear, semesterCode),
         fetchTimeSlots()
