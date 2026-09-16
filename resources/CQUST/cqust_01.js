@@ -1,20 +1,19 @@
 /**
- * 重庆科技大学 (CQUST) 树维EAMS教务系统课表导入脚本
- * 适用系统：树维 EAMS 教学管理系统 (本科)
- * 适配支持：拾光课程表 (shiguangschedule)
+ * 重庆科技大学 (CQUST) 树维 EAMS 教务系统课表导入
  * Maintainer: yuexps
  */
 
 (async () => {
     'use strict';
 
-    // 允许的教务系统域名（IPv6 专线与 IPv4 备用）
+    // 允许访问的教务域名
     const ALLOWED_HOSTS = [
+        'web.cqust.edu.cn',
         'jwnew.cqust.edu.ex2.http.80.ipv6.cqust.edu.cn',
         'jwnew.cqust.edu.cn'
     ];
 
-    // 重庆科技大学标准作息时间表（共 11 节）
+    // 作息时间表（共 11 节）
     const CQUST_TIME_SLOTS = [
         { number: 1, startTime: '08:30', endTime: '09:15' },
         { number: 2, startTime: '09:25', endTime: '10:10' },
@@ -29,7 +28,7 @@
         { number: 11, startTime: '20:50', endTime: '21:35' }
     ];
 
-    // 显示 Toast 提示
+    // Toast 提示
     const toast = (msg) => {
         if (window.shiguangBridge && typeof window.shiguangBridge.showToast === 'function') {
             window.shiguangBridge.showToast(msg);
@@ -38,15 +37,30 @@
         }
     };
 
-    // 检查是否在教务系统域名下
+    // 判断是否为 WebVPN
+    const isWebvpn = () => window.location.hostname === 'web.cqust.edu.cn';
+
+    // 检查页面域名与路径
     const checkHost = () => {
         const curHost = window.location.hostname;
-        return ALLOWED_HOSTS.some(h => curHost.includes(h) || curHost === h);
+        if (!ALLOWED_HOSTS.some(h => curHost.includes(h) || curHost === h)) return false;
+        if (isWebvpn()) {
+            return window.location.pathname.includes('/eams/') || window.location.pathname.includes('fae04f99307e6b416b1b9de29d51367b4912');
+        }
+        return true;
     };
 
-    // 通用 HTTP 请求封装（自动带凭据与当前域名）
+    // 提取 WebVPN 路径前缀
+    const getWebvpnPrefix = () => {
+        const m = window.location.pathname.match(/^\/(?:http|https)\/[0-9a-fA-F]+/);
+        return m ? m[0] : '';
+    };
+
+    // HTTP 请求封装
     const request = async (path, options = {}) => {
-        const url = path.startsWith('http') ? path : `${window.location.origin}${path}`;
+        const prefix = getWebvpnPrefix();
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        const url = path.startsWith('http') ? path : `${window.location.origin}${prefix}${cleanPath}`;
         const resp = await fetch(url, {
             credentials: 'include',
             ...options
@@ -57,7 +71,7 @@
         return await resp.text();
     };
 
-    // 获取周一日期（格式化为 YYYY-MM-DD）
+    // 获取所在周周一日期
     const getWeekMondayStr = (date) => {
         const d = new Date(date);
         d.setHours(0, 0, 0, 0);
@@ -69,7 +83,7 @@
         return `${y}-${m}-${dayStr}`;
     };
 
-    // 根据学年学期推算开学首周周一日期
+    // 推算学期开始日期
     const calcSemesterStartDate = (schoolYear, termName) => {
         const years = (schoolYear || '').match(/\d{4}/g) || [];
         const isSecond = String(termName) === '2' || (termName && termName.includes('2'));
@@ -80,11 +94,11 @@
         return isSecond ? getWeekMondayStr(`${nowYear}-02-22`) : getWeekMondayStr(`${nowYear}-09-07`);
     };
 
-    // 探测教务会话状态并提取排课标识 ids
+    // 获取排课标识 ids
     const detectParams = async () => {
         const html = await request('/eams/courseTableForStd.action');
         if (html.includes('actionError') || html.includes('login.action') || html.includes('密码错误') || html.includes('用户登录')) {
-            throw new Error('未检测到教务系统登录状态，请先登录教务后重新导入');
+            throw new Error('未检测到登录状态，请先登录教务系统');
         }
 
         const idsMatch = html.match(/bg\.form\.addInput\(form,\s*["']ids["'],\s*["'](\d+)["']\)/);
@@ -97,14 +111,14 @@
         }
 
         if (!ids) {
-            throw new Error('未能获取学生排课标识，请确认当前账号有选课排课权限');
+            throw new Error('未获取到排课标识 ids');
         }
 
         const tagId = tagMatch ? tagMatch[1] : 'semesterBar8875271691Semester';
         return { ids, tagId };
     };
 
-    // 获取学期列表并弹出单选框供用户选择
+    // 选择学期
     const selectSemester = async (tagId) => {
         let semesterList = [];
         let curSemId = '561';
@@ -130,13 +144,14 @@
                 });
             }
         } catch (e) {
-            console.warn('[学期日历查询失败，使用默认配置]', e);
+            console.warn('[获取学期列表异常]', e);
         }
 
         if (!semesterList.length) {
+            const nowYear = new Date().getFullYear();
             return {
                 id: curSemId,
-                schoolYear: '2026-2027',
+                schoolYear: `${nowYear}-${nowYear + 1}`,
                 name: '1',
                 label: '当前学期'
             };
@@ -162,7 +177,7 @@
         return semesterList[defaultIdx];
     };
 
-    // 解析 TaskActivity 课表与未排实践课程
+    // 解析课表数据
     const parseCourseTableHtml = (html) => {
         const rawSlots = [];
         const creditMap = new Map();
@@ -175,7 +190,7 @@
             if (cm[2]) creditMap.set(cm[2].trim(), cm[3].trim());
         }
 
-        // 解析已排网格课程 TaskActivity
+        // 解析 TaskActivity 课程
         const scriptMatch = html.match(/var\s+table0\s*=\s*new\s+CourseTable[\s\S]*?<\/script>/);
         if (scriptMatch) {
             const lines = scriptMatch[0].split('\n');
@@ -192,12 +207,12 @@
                     let sm;
                     while ((sm = strReg.exec(aM[1])) !== null) args.push(sm[1]);
                     if (args.length >= 7) {
-                        const rawName = args[3] || '未知课程';
+                        const rawName = args[3] || '';
                         const cleanName = rawName.replace(/\([A-Za-z0-9._-]+\)$/, '').trim() || rawName;
                         curAct = {
-                            teacher: args[1] || '未知教师',
+                            teacher: args[1] || '',
                             name: cleanName,
-                            room: args[5] || '待定',
+                            room: args[5] || '',
                             weeksStr: args[6] || ''
                         };
                     }
@@ -223,7 +238,7 @@
             }
         }
 
-        // 合并同一门课连续的节次
+        // 合并同天连续节次
         const groups = new Map();
         for (const slot of rawSlots) {
             const key = `${slot.name}|${slot.teacher}|${slot.position}|${slot.day}|${slot.weeks.join(',')}`;
@@ -267,7 +282,7 @@
             });
         }
 
-        // 解析未安排时间任务列表（实践课程/金工实习等）
+        // 解析未安排时间任务列表
         const unarrangedMatch = html.match(/未安排时间任务列表[\s\S]*?<table[^>]*>([\s\S]*?)<\/table>/i);
         if (unarrangedMatch) {
             const tableHtml = unarrangedMatch[1];
@@ -278,7 +293,7 @@
                 const tds = (tr[1].match(/<td[^>]*>[\s\S]*?<\/td>/gi) || []).map(td => td.replace(strip, '').trim());
                 if (tds.length >= 8 && /^\d+$/.test(tds[0])) {
                     const name = tds[2];
-                    const teacher = tds[5] || '指导教师';
+                    const teacher = tds[5] || '';
                     const weeksStr = tds[6] || '';
                     const weeks = [];
 
@@ -301,7 +316,7 @@
                         mergedCourses.push({
                             name,
                             teacher,
-                            position: '集中实践/待定',
+                            position: '集中实践',
                             day: 0,
                             startSection: 0,
                             endSection: 0,
@@ -315,23 +330,20 @@
         return mergedCourses;
     };
 
-    // 主执行流程
+    // 导入主流程
     const runImport = async () => {
         if (!checkHost()) {
-            throw new Error(`请先进入重庆科技大学教务系统 (jwnew.cqust.edu.cn)`);
+            throw new Error('请先登录并进入教务系统页面');
         }
 
-        toast('正在检查教务系统登录状态...');
         const { ids, tagId } = await detectParams();
 
-        toast('正在获取可用学期日历...');
         const semester = await selectSemester(tagId);
         if (!semester) {
             toast('已取消学期选择');
             return;
         }
 
-        toast(`正在同步 ${semester.label || ''} 课表...`);
         const courseHtml = await request('/eams/courseTableForStd!courseTable.action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -339,12 +351,12 @@
         });
 
         if (!courseHtml.includes('TaskActivity')) {
-            throw new Error('未在教务系统中查询到该学期的有效排课数据');
+            throw new Error('未查询到该学期的有效排课数据');
         }
 
         const courses = parseCourseTableHtml(courseHtml);
         if (!courses || !courses.length) {
-            throw new Error('未能从课表页面中解析出课程记录');
+            throw new Error('未能从课表页面解析出课程记录');
         }
 
         // 计算最大周次与开学日期
@@ -364,36 +376,34 @@
             defaultBreakDuration: 10
         };
 
-        toast('正在保存课程与作息配置...');
-
         // 保存学期配置
         if (window.shiguangBridgePromise && typeof window.shiguangBridgePromise.saveCourseConfig === 'function') {
             await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
         }
 
-        // 保存重科 11 节作息时间
+        // 保存作息时间
         if (window.shiguangBridgePromise && typeof window.shiguangBridgePromise.savePresetTimeSlots === 'function') {
             await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(CQUST_TIME_SLOTS));
         }
 
-        // 保存解析后的课程列表
+        // 保存课程列表
         if (window.shiguangBridgePromise && typeof window.shiguangBridgePromise.saveImportedCourses === 'function') {
             const ok = await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(courses));
             if (ok) {
-                toast(`导入成功！共导入 ${courses.length} 条课程安排`);
+                toast(`导入成功，共 ${courses.length} 门课程`);
             } else {
                 toast('课程数据保存完成');
             }
         } else {
-            console.log('[导出课程结果]', courses);
-            toast(`解析成功：共 ${courses.length} 门课程`);
+            console.log('[课程数据]', courses);
+            toast(`解析成功，共 ${courses.length} 门课程`);
         }
     };
 
     try {
         await runImport();
     } catch (err) {
-        console.error('[CQUST 课表导入失败]', err);
+        console.error('[CQUST 导入异常]', err);
         toast(`导入失败: ${err.message || '未知错误'}`);
     } finally {
         if (window.shiguangBridge && typeof window.shiguangBridge.notifyTaskCompletion === 'function') {
