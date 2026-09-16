@@ -516,38 +516,50 @@ async function fetchCourseJson(academicYear, semesterCode) {
 }
 
 /**
- * 尝试获取学期第 1 周的起始日期（用于校准周次）。
+ * 从校历接口一次性取出两项信息：学期第 1 周起始日期、本学期总周数。
  *
- * 说明：该接口并非所有学校都开放，取不到时返回 null，
- *      此时不写入 semesterStartDate，交由用户在软件内自行设置，
- *      绝不使用"常识"猜测的日期。
+ * 说明：该接口并非所有学校都开放。取不到时两个字段均为 null，
+ *      此时不写入对应配置，交由用户在软件内自行设置，
+ *      绝不使用"常识"或凭空拍出来的常量。
+ *
+ * 总周数取自校历的周次条目（一条即一周），而不是课表里的最大周次 ——
+ * 因为课表可能只排到第 16 周，而学期实际有 18 周。
  *
  * @param {string} academicYear 学年
  * @param {string} semesterCode 学期代码
- * @returns {Promise<string|null>} "YYYY-MM-DD" 或 null
+ * @returns {Promise<{startDate: string|null, totalWeeks: number|null}>}
  */
-async function fetchSemesterStartDate(academicYear, semesterCode) {
+async function fetchSemesterInfo(academicYear, semesterCode) {
+    const empty = { startDate: null, totalWeeks: null };
+
     const root = getContextRoot();
     const url = root + '/kbcx/xskbcxZccx_cxZcByXnxq.html?gnmkdm=N2154';
     const json = await postForm(url, `xnm=${academicYear}&xqm=${semesterCode}`);
-    if (!json) return null;
+    if (!json) return empty;
 
     const list = Array.isArray(json) ? json : (Array.isArray(json.items) ? json.items : null);
-    if (!list || list.length === 0) return null;
+    if (!list || list.length === 0) return empty;
 
-    // 找到第 1 周记录
+    // --- 第 1 周的起始日期 ---
     const firstWeek = list.find(item =>
         String(item.zs) === '1' || String(item.zsmc) === '1'
     ) || list[0];
 
-    const candidates = [firstWeek.rq, firstWeek.zcrq, firstWeek.ksrq, firstWeek.qsrq];
-    for (const c of candidates) {
+    let startDate = null;
+    for (const c of [firstWeek.rq, firstWeek.zcrq, firstWeek.ksrq, firstWeek.qsrq]) {
         if (!c) continue;
         // "2026-09-07/2026-09-13" 这种区间取前半段
         const match = String(c).match(/(\d{4}-\d{2}-\d{2})/);
-        if (match) return match[1];
+        if (match) { startDate = match[1]; break; }
     }
-    return null;
+
+    // --- 总周数：取校历里最大的周次序号，取不到序号就退回条目数 ---
+    const zsNumbers = list
+        .map(item => parseInt(item.zs, 10))
+        .filter(n => Number.isInteger(n) && n > 0);
+    const totalWeeks = zsNumbers.length > 0 ? Math.max(...zsNumbers) : list.length;
+
+    return { startDate, totalWeeks };
 }
 
 /**
@@ -687,16 +699,20 @@ async function runImportFlow() {
     if (!saveResult) return;
 
     // 5. 保存课表配置（学期开始日期能取到才写，取不到则沿用软件默认）
-    const [semesterStartDate, timeSlots] = await Promise.all([
-        fetchSemesterStartDate(academicYear, semesterCode),
+    const [semesterInfo, timeSlots] = await Promise.all([
+        fetchSemesterInfo(academicYear, semesterCode),
         fetchTimeSlots()
     ]);
+    const semesterStartDate = semesterInfo.startDate;
 
     const maxWeek = courses.reduce((m, c) => Math.max(m, ...c.weeks), 0);
 
     const config = {};
     if (semesterStartDate) config.semesterStartDate = semesterStartDate;
-    if (maxWeek > 0) config.semesterTotalWeeks = Math.max(maxWeek, 20);
+    // 总周数优先用校历里的真实周数；校历取不到时退回课表里的最大周次。
+    // 两者都取不到才不写（沿用软件默认值），绝不写入凭空的常量。
+    const totalWeeks = Math.max(semesterInfo.totalWeeks || 0, maxWeek);
+    if (totalWeeks > 0) config.semesterTotalWeeks = totalWeeks;
 
     if (Object.keys(config).length > 0) await saveConfig(config);
 
