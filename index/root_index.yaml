@@ -1077,3 +1077,8 @@ schools:
     name: "江苏科技大学"
     initial: "J"
     resource_folder: "JUST"
+
+  - id: "DLUT"
+    name: "大连理工大学"
+    initial: "D"
+    resource_folder: "DLUT"
