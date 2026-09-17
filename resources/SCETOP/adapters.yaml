@@ -1,9 +1,9 @@
 # resources/SCETOP/adapters.yaml
 adapters:
   - adapter_id: "SCETOP_01"
-    adapter_name: "四川托普信息技术职业学院-老正方教务"
+    adapter_name: "四川托普信息技术职业学院-正方教务"
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "scetop_zf_legacy.js"
-    import_url: "http://zf.scetop.com"
+    import_url: "http://zf.scetop.com/default2.aspx"
     maintainer: "psenY"
-    description: "适配 zf.scetop.com 老版正方。登录后打开「学生个人课表」或「班级课表查询」，周课表显示后导入。解析 Table6；无上课时间实践课忽略。作息含 A/非A 第3/4节差异，周五下午13:30提前半小时，差异时段写入课程自定义时间。"
+    description: "四川托普信息技术职业学院教务系统课表导入。登录后在「信息查询」里打开「学生个人课表」或「班级课表查询」，显示出周课表即可导入；开学初期个人课表还没有排出来时，请用「班级课表查询」。上课时间按学校作息自动设置（A 教学区以外的第 3、4 节和周五下午会单独调整）。没有固定上课时间的实践、实训类课程不会导入，可以手动添加。"
