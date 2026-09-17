@@ -1077,3 +1077,8 @@ schools:
     name: "江苏科技大学"
     initial: "J"
     resource_folder: "JUST"
+
+  - id: "HUUC"
+    name: "河南城建学院"
+    initial: "H"
+    resource_folder: "HUUC"
