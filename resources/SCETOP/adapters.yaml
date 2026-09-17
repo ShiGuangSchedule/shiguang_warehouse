@@ -1,0 +1,9 @@
+# resources/SCETOP/adapters.yaml
+adapters:
+  - adapter_id: "SCETOP_01"
+    adapter_name: "四川托普信息技术职业学院-老正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "scetop_zf_legacy.js"
+    import_url: "http://zf.scetop.com"
+    maintainer: "psenY"
+    description: "适配 zf.scetop.com 老版正方（ASP.NET default2.aspx）。登录后打开「学生个人课表」或「班级课表查询」，待周课表显示后执行导入。解析 Table6/blacktab 网格；实践课（无固定时间）导入后需手动补充。"
