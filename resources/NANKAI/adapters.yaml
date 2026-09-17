@@ -1,0 +1,9 @@
+# resources/NKU/adapters.yaml
+adapters:
+  - adapter_id: "NKU"
+    adapter_name: "南开大学研究生教育综合管理系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "nku.js"
+    import_url: "https://yjs.nankai.edu.cn/allogene/page/home.htm"
+    maintainer: "Cure"
+    description: "南开大学研究生院(yjs.nankai.edu.cn)适配, 登录后即可直接导入, 无需先进入'培养-我的课表'。系统为服务端渲染页面, 无 JSON 接口; 脚本先请求一次不带参数的课表页, 从这一份响应里读齐学年学期(即服务器给出的学校默认学期)、周次列表与作息时间, 再用一个只读确认框列出学年 / 学期 / 开学日期三项后直接导入(不给用户挑, 需要换学期请先在教务系统里切换), 随后逐周抓取并把每周抓到的课程原子化, 合并去重交给官方 mergeAndDistinctCourses; 开学日期系统未提供校历, 按学期类型的惯例日期推算第 1 周周一(第一学期为 9 月 1 日之后、第二学期为次年 2 月 20 日之后、短学期为 7 月 1 日之后的第一个周一)。课程时间地点待定的课程没有星期与节次, 无法写入课表。"
