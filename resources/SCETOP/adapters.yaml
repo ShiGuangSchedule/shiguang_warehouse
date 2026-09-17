@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "scetop_zf_legacy.js"
     import_url: "http://zf.scetop.com"
     maintainer: "psenY"
-    description: "适配 zf.scetop.com 老版正方（ASP.NET default2.aspx）。登录后打开「学生个人课表」或「班级课表查询」，待周课表显示后执行导入。解析 Table6/blacktab 网格；实践课（无固定时间）导入后需手动补充。"
+    description: "适配 zf.scetop.com 老版正方。登录后打开「学生个人课表」或「班级课表查询」，周课表显示后导入。解析 Table6；无上课时间实践课忽略。作息含 A/非A 第3/4节差异，周五下午13:30提前半小时，差异时段写入课程自定义时间。"

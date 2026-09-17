@@ -158,23 +158,104 @@
     return unique;
   }
 
-  function collectPracticeCourses() {
-    // 实践课(或无上课时间)信息 DataGrid1: 课程名称 教师 学分 起止周 上课时间 上课地点
-    var grid = document.getElementById('DataGrid1');
-    if (!grid) return [];
-    var rows = grid.querySelectorAll('tr');
-    var out = [];
-    for (var i = 1; i < rows.length; i++) {
-      var tds = rows[i].querySelectorAll('td');
-      if (tds.length < 4) continue;
-      var name = stripTags(tds[0].innerHTML).trim();
-      var teacher = stripTags(tds[1].innerHTML).trim();
-      var weekRange = stripTags(tds[3].innerHTML).trim();
-      var position = tds.length > 5 ? stripTags(tds[5].innerHTML).trim() : '';
-      if (!name || name === '课程名称') continue;
-      out.push({ name: name, teacher: teacher, weekRange: weekRange, position: position });
+  // 四川托普作息：课时 45 分钟；普通节间休息 5 分钟。
+  // 第 3/4 节 A 教学区与区外不同；其余节次两区相同。
+  // 默认作息写入 A 教学区；非 A 区且落在第 3/4 节的课程使用 customTime。
+  var SCETOP_TIME_SLOTS_A = [
+    { number: 1, startTime: '08:30', endTime: '09:15' },
+    { number: 2, startTime: '09:20', endTime: '10:05' },
+    { number: 3, startTime: '10:20', endTime: '11:05' },
+    { number: 4, startTime: '11:10', endTime: '11:55' },
+    { number: 5, startTime: '14:00', endTime: '14:45' },
+    { number: 6, startTime: '14:50', endTime: '15:35' },
+    { number: 7, startTime: '15:50', endTime: '16:35' },
+    { number: 8, startTime: '16:40', endTime: '17:25' },
+    { number: 9, startTime: '18:30', endTime: '19:15' },
+    { number: 10, startTime: '19:20', endTime: '20:05' }
+  ];
+
+  var SCETOP_TIME_SLOTS_NON_A = [
+    { number: 1, startTime: '08:30', endTime: '09:15' },
+    { number: 2, startTime: '09:20', endTime: '10:05' },
+    { number: 3, startTime: '10:40', endTime: '11:25' },
+    { number: 4, startTime: '11:30', endTime: '12:15' },
+    { number: 5, startTime: '14:00', endTime: '14:45' },
+    { number: 6, startTime: '14:50', endTime: '15:35' },
+    { number: 7, startTime: '15:50', endTime: '16:35' },
+    { number: 8, startTime: '16:40', endTime: '17:25' },
+    { number: 9, startTime: '18:30', endTime: '19:15' },
+    { number: 10, startTime: '19:20', endTime: '20:05' }
+  ];
+
+  // 周五下午（第5–8节）两区相同，整体比平日下午提前 30 分钟，13:30 上课。
+  var SCETOP_TIME_SLOTS_FRIDAY_PM = {
+    5: { startTime: '13:30', endTime: '14:15' },
+    6: { startTime: '14:20', endTime: '15:05' },
+    7: { startTime: '15:20', endTime: '16:05' },
+    8: { startTime: '16:10', endTime: '16:55' }
+  };
+
+  function isATeachingArea(position) {
+    var p = String(position || '').trim();
+    if (!p) return true;
+    return /^A\d/i.test(p) || /^A-/i.test(p) || /^A区/i.test(p);
+  }
+
+  function slotAt(slots, section) {
+    return slots[section - 1] || null;
+  }
+
+  function hasSpecificClassTime(course) {
+    return Boolean(
+      course &&
+        course.startSection != null &&
+        course.endSection != null &&
+        course.startSection > 0 &&
+        course.endSection >= course.startSection &&
+        course.weeks &&
+        course.weeks.length > 0
+    );
+  }
+
+  function isFridayAfternoon(course) {
+    return course.day === 5 && course.startSection >= 5 && course.startSection <= 8;
+  }
+
+  function slotForCourseSection(course, section) {
+    if (isFridayAfternoon(course) && SCETOP_TIME_SLOTS_FRIDAY_PM[section]) {
+      var fri = SCETOP_TIME_SLOTS_FRIDAY_PM[section];
+      return { number: section, startTime: fri.startTime, endTime: fri.endTime };
     }
-    return out;
+    var table = isATeachingArea(course.position) ? SCETOP_TIME_SLOTS_A : SCETOP_TIME_SLOTS_NON_A;
+    return slotAt(table, section);
+  }
+
+  // 差异时段写 customTime：
+  // 1) 非 A 区第 3/4 节
+  // 2) 周五下午第 5–8 节（整体提前半小时）
+  function applyCourseCustomTimes(courses) {
+    return courses.map(function (course) {
+      var startSlot = slotForCourseSection(course, course.startSection);
+      var endSlot = slotForCourseSection(course, course.endSection);
+      var defaultStart = slotAt(SCETOP_TIME_SLOTS_A, course.startSection);
+      var defaultEnd = slotAt(SCETOP_TIME_SLOTS_A, course.endSection);
+      if (!startSlot || !endSlot || !defaultStart || !defaultEnd) return course;
+      if (startSlot.startTime === defaultStart.startTime && endSlot.endTime === defaultEnd.endTime) {
+        return course;
+      }
+      return {
+        name: course.name,
+        teacher: course.teacher,
+        position: course.position,
+        day: course.day,
+        weeks: course.weeks,
+        startSection: course.startSection,
+        endSection: course.endSection,
+        isCustomTime: true,
+        customStartTime: startSlot.startTime,
+        customEndTime: endSlot.endTime
+      };
+    });
   }
 
   async function saveCourses(parsedCourses) {
@@ -184,10 +265,41 @@
     );
   }
 
+  async function trySaveTimeSlots() {
+    try {
+      var result = await window.shiguangBridgePromise.savePresetTimeSlots(
+        JSON.stringify(SCETOP_TIME_SLOTS_A)
+      );
+      return result === true;
+    } catch (error) {
+      console.warn('[SCETOP 作息时间设置失败]', error);
+      return false;
+    }
+  }
+
+  function buildCompletionMessage(courses, timeSlotsSaved) {
+    var customCount = 0;
+    for (var i = 0; i < courses.length; i++) {
+      if (courses[i].isCustomTime) customCount++;
+    }
+    var base =
+      '已导入 ' +
+      courses.length +
+      ' 条课程记录（无具体上课时间的实践课已忽略）。\n' +
+      '默认作息按 A 教学区平日写入；自定义时间 ' +
+      customCount +
+      ' 条（非A区第3/4节、周五下午提前半小时）。\n请在预览中核对后保存。';
+    return timeSlotsSaved
+      ? base + '\n学校作息时间写入成功。'
+      : base + '\n作息时间写入失败，请在课表设置中手动填写。';
+  }
+
   async function runImportFlow() {
     var alertConfirmed = await window.shiguangBridgePromise.showAlert(
       '四川托普 · 老正方课表导入',
-      '请先登录教务系统，打开「学生个人课表」或「班级课表查询」，并确认页面已显示完整周课表格（含星期一~星期日）。\n\n本适配解析 id=Table6 的周课表；实践课若无上课时间，可能需导入后手动添加。',
+      '请先登录教务系统，打开「学生个人课表」或「班级课表查询」，并确认页面已显示完整周课表格（含星期一~星期日）。\n\n' +
+        '解析 id=Table6；无具体上课时间的实践课将忽略。\n' +
+        '作息：A区第3节10:20/区外10:40；周五下午13:30起（提前半小时）。',
       '好的，开始导入'
     );
     if (!alertConfirmed) {
@@ -219,40 +331,24 @@
       return;
     }
 
-    var courses = collectFromTable(table);
+    var parsedAll = collectFromTable(table);
+    var courses = applyCourseCustomTimes(parsedAll.filter(hasSpecificClassTime));
     if (!courses.length) {
-      window.shiguangBridge.showToast('未解析到课程，请确认学年学期是否正确，或本学期是否无课。');
+      window.shiguangBridge.showToast('未解析到有具体上课时间的课程，请确认学年学期是否正确。');
       await window.shiguangBridgePromise.showAlert(
         '未找到课程',
-        '课表格存在，但没有解析到课程数据。\n请检查所选学年/学期，或确认页面已显示本周课程。',
+        '课表格存在，但没有解析到带明确节次的课程数据。\n请检查所选学年/学期；无上课时间的实践课不会被导入。',
         '确定'
       );
       return;
     }
 
     await saveCourses(courses);
-
-    var practice = collectPracticeCourses();
-    var extra = '';
-    if (practice.length) {
-      extra =
-        '\n\n另检测到 ' +
-        practice.length +
-        ' 条实践课/无固定时间课程：\n' +
-        practice
-          .map(function (p) {
-            return '- ' + p.name + '（' + (p.weekRange || '周次未知') + '）';
-          })
-          .join('\n') +
-        '\n这些课程通常没有网格时间，导入后请手动补充。';
-    }
+    var timeSlotsSaved = await trySaveTimeSlots();
+    var message = buildCompletionMessage(courses, timeSlotsSaved);
 
     window.shiguangBridge.showToast('课程导入成功，共导入 ' + courses.length + ' 条！');
-    await window.shiguangBridgePromise.showAlert(
-      '导入完成',
-      '已导入 ' + courses.length + ' 条课程记录。\n请在预览中核对周次、节次与教室，确认无误后保存。' + extra,
-      '确定'
-    );
+    await window.shiguangBridgePromise.showAlert('导入完成', message, '确定');
     if (window.shiguangBridge && window.shiguangBridge.notifyTaskCompletion) {
       window.shiguangBridge.notifyTaskCompletion();
     }
