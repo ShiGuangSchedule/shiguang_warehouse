@@ -1,9 +1,10 @@
 // 四川托普信息技术职业学院 · 老版正方教务课表导入
 //
-// 支持两个页面（两页的课表格子文本格式不同，必须分别解析）：
-//   1. 学生个人课表  xskbcx.aspx   格内第二行形如「周一第1,2节{第1-17周}」
-//   2. 班级课表查询  tjkbcx.aspx   格内第二行形如「1-14(1,2)」
-// 开学初期学生个人课表通常还没有排出来，此时只有班级课表有数据。
+// 一次导入会同时读取两个课表页并合并：
+//   1. 学生个人课表 xskbcx.aspx（优先，格子格式「周一第1,2节{第1-17周}」）
+//   2. 班级课表查询 tjkbcx.aspx（只用于补录，格子格式「1-14(1,2)」）
+// 开学初期学生个人课表通常还没排出来，这时班级课表会把整份课表补全。
+// 从任意一个课表页点导入都可以，脚本会自己去读另一个页面。
 //
 // 作息取自学校作息时间表：A 教学区的第 3/4 节与其它教学区不同，周五下午整体提前半小时。
 // 没有固定上课时间的课程（实践、实训类）不导入，只在提示里告知数量。
@@ -159,7 +160,6 @@
   /**
    * 一个格子里可能排了多门课，用空行分隔（班级课表里用 <br><br><br> 分隔）。
    * 以「周次(节次)」那一行为锚点：上一行是课程名，下面两行是教师和地点。
-   * 这样既不依赖行的位置，也能处理只用单个换行分隔的情况。
    */
   function parseCellBlocks(text, stats) {
     var lines = String(text).split('\n')
@@ -193,7 +193,7 @@
     return blocks;
   }
 
-  // ---------------- 表格解析 ----------------
+  // ---------------- 表格解析（对任意 Document 生效） ----------------
 
   /**
    * 把表格展开成网格，处理 rowspan / colspan，拿到每个格子的真实列号。
@@ -249,14 +249,14 @@
     return null;
   }
 
-  /** 依次尝试候选表格，取第一个能找到周课表的 */
-  function findCourseTable() {
+  /** 在指定文档里依次尝试候选表格，取第一个能找到周课表的 */
+  function findCourseTable(doc) {
     var candidates = [];
     ['Table6', 'Table1'].forEach(function (id) {
-      var el = document.getElementById(id);
+      var el = doc.getElementById(id);
       if (el && el.tagName && el.tagName.toLowerCase() === 'table') candidates.push(el);
     });
-    [].slice.call(document.querySelectorAll('table.blacktab')).forEach(function (t) {
+    [].slice.call(doc.querySelectorAll('table.blacktab')).forEach(function (t) {
       if (candidates.indexOf(t) === -1) candidates.push(t);
     });
 
@@ -266,8 +266,7 @@
       if (header) return { grid: grid, header: header };
     }
 
-    // 兜底：页面上任何含星期表头的表格
-    var tables = [].slice.call(document.querySelectorAll('table'));
+    var tables = [].slice.call(doc.querySelectorAll('table'));
     for (var j = 0; j < tables.length; j++) {
       if (candidates.indexOf(tables[j]) !== -1) continue;
       var g = buildGrid(tables[j]);
@@ -277,25 +276,22 @@
     return null;
   }
 
-  function isClassTimetablePage() {
-    var url = String(window.location.href || '');
-    return /tjkbcx/i.test(url) || Boolean(document.querySelector('select[name="kb"]'));
-  }
-
   /** 统计「实践课(或无上课时间)」「未安排上课时间的课程」有多少条，只用于提示 */
-  function countCoursesWithoutTime() {
+  function countCoursesWithoutTime(doc) {
     var count = 0;
     ['DataGrid1', 'Datagrid2'].forEach(function (id) {
-      var table = document.getElementById(id);
+      var table = doc.getElementById(id);
       if (!table || !table.rows) return;
-      for (var r = 1; r < table.rows.length; r++) {            // 跳过表头
+      for (var r = 1; r < table.rows.length; r++) {
         if (String(table.rows[r].textContent || '').trim()) count++;
       }
     });
     return count;
   }
 
-  function collectCourses(found, stats) {
+  function collectCourses(doc, stats) {
+    var found = findCourseTable(doc);
+    if (!found) return [];
     var grid = found.grid;
     var courses = [];
 
@@ -371,15 +367,114 @@
     });
   }
 
-  // ---------------- 保存 ----------------
+  // ---------------- 两个课表页的取数 ----------------
+
+  function getStudentId() {
+    var m = String(window.location.search || '').match(/[?&]xh=([^&#]+)/);
+    if (m) return decodeURIComponent(m[1]);
+    var text = document.body ? String(document.body.textContent || '') : '';
+    var m2 = text.match(/学号[：:]\s*([0-9A-Za-z]+)/);
+    return m2 ? m2[1] : '';
+  }
+
+  /** 从页面里读出当前选中的学年 / 学期（两个页面的控件名分别是 xnd/xqd 与 xn/xq） */
+  function readTerm(doc) {
+    var yearSelect = doc.querySelector('select[name="xnd"], select[name="xn"]');
+    var termSelect = doc.querySelector('select[name="xqd"], select[name="xq"]');
+    if (!yearSelect || !termSelect) return null;
+    return {
+      yearField: yearSelect.name, year: yearSelect.value,
+      termField: termSelect.name, term: termSelect.value
+    };
+  }
+
+  async function fetchDocument(url) {
+    var response = await fetch(url, { credentials: 'include' });
+    if (response && response.ok === false) throw new Error('HTTP ' + response.status);
+    var html = await response.text();
+    return new DOMParser().parseFromString(html, 'text/html');
+  }
+
+  /** 页面上的学年/学期是下拉框，改了要回发一次才会重排；这里按页面自己的表单字段回发 */
+  async function repostWithTerm(doc, url, term) {
+    var form = doc.querySelector('form');
+    if (!form) return null;
+
+    var pairs = [];
+    [].slice.call(form.querySelectorAll('input[type="hidden"]')).forEach(function (input) {
+      if (input.name) pairs.push([input.name, input.value || '']);
+    });
+    [].slice.call(form.querySelectorAll('select[name]')).forEach(function (select) {
+      pairs.push([select.name, select.value || '']);
+    });
+
+    function setPair(key, value) {
+      for (var i = 0; i < pairs.length; i++) {
+        if (pairs[i][0] === key) { pairs[i][1] = value; return; }
+      }
+      pairs.push([key, value]);
+    }
+    setPair(term.yearField, term.year);
+    setPair(term.termField, term.term);
+    setPair('__EVENTTARGET', term.yearField);
+    setPair('__EVENTARGUMENT', '');
+
+    var body = pairs.map(function (pair) {
+      return encodeURIComponent(pair[0]) + '=' + encodeURIComponent(pair[1]);
+    }).join('&');
+
+    var response = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body
+    });
+    if (response && response.ok === false) throw new Error('HTTP ' + response.status);
+    return new DOMParser().parseFromString(await response.text(), 'text/html');
+  }
+
+  /** 读取一个课表页：先直接取；当前页选的学期和它不一致时再回发一次 */
+  async function loadTimetable(kind, studentId, liveTerm) {
+    var url = (kind === 'student' ? 'xskbcx.aspx' : 'tjkbcx.aspx') + '?xh=' + encodeURIComponent(studentId);
+    var doc = await fetchDocument(url);
+
+    var pageTerm = readTerm(doc);
+    if (liveTerm && pageTerm && (pageTerm.year !== liveTerm.year || pageTerm.term !== liveTerm.term)) {
+      var rerendered = await repostWithTerm(doc, url, {
+        yearField: pageTerm.yearField, year: liveTerm.year,
+        termField: pageTerm.termField, term: liveTerm.term
+      });
+      if (rerendered) doc = rerendered;
+    }
+    return doc;
+  }
+
+  /**
+   * 合并：个人课表优先，班级课表只补录个人课表里没有的课程。
+   * 判据用课程名——同一门课两个页面的周次/教室可能不一样，以个人课表为准。
+   */
+  function mergeWithPersonalPriority(personal, classCourses, stats) {
+    var known = {};
+    personal.forEach(function (course) { known[course.name] = true; });
+
+    var added = classCourses.filter(function (course) {
+      if (known[course.name]) { stats.supplementedSkip++; return false; }
+      stats.supplementedAdd++;
+      return true;
+    });
+    return personal.concat(added);
+  }
+
+  // ---------------- 主流程 ----------------
 
   async function runImportFlow() {
     var confirmed = await window.shiguangBridgePromise.showAlert(
       '四川托普课表导入',
-      '请先登录教务系统，进入「信息查询」里的「学生个人课表」或「班级课表查询」，' +
+      '请先登录教务系统，打开「学生个人课表」或「班级课表查询」中的任意一个，' +
         '等页面上显示出周课表（能看到「星期一」到「星期日」）再点下面的按钮。\n\n' +
-        '开学初期学生个人课表可能还没有排出来，这时请使用「班级课表查询」。\n\n' +
-        '导入只读取当前页面，不会修改教务系统里的任何数据。',
+        '导入会自动读取两个课表页：学生个人课表优先，班级课表只用来补齐个人课表里没有的课程；' +
+        '开学初期个人课表还没排出来时，就完全按班级课表导入。\n\n' +
+        '导入只读取课表，不会修改教务系统里的任何数据。',
       '开始导入'
     );
     if (!confirmed) {
@@ -387,30 +482,48 @@
       return;
     }
 
-    var found = findCourseTable();
-    if (!found) {
+    var studentId = getStudentId();
+    if (!studentId) {
       await window.shiguangBridgePromise.showAlert(
         '导入失败',
-        '当前页面上没有找到周课表。\n' +
-          '请先登录教务系统，进入「信息查询 → 学生个人课表」或「信息查询 → 班级课表查询」，' +
-          '确认课表已经显示出来（页面上能看到「星期一」到「星期日」）后再点导入。',
+        '没有识别出学号。\n请从教务系统里的「学生个人课表」或「班级课表查询」页面点导入。',
         '确定'
       );
       return;
     }
 
-    var stats = { unrecognized: [], incomplete: 0, dayMismatch: 0, sectionOverflow: 0 };
-    var courses = applyCustomTimes(collectCourses(found, stats));
-    var onClassPage = isClassTimetablePage();
+    var liveTerm = readTerm(document);
+    var stats = {
+      unrecognized: [], incomplete: 0, dayMismatch: 0, sectionOverflow: 0,
+      supplementedAdd: 0, supplementedSkip: 0, failedPages: []
+    };
+
+    var personal = [];
+    var classCourses = [];
+
+    try {
+      personal = collectCourses(await loadTimetable('student', studentId, liveTerm), stats);
+    } catch (error) {
+      stats.failedPages.push('学生个人课表');
+      console.warn('[四川托普] 学生个人课表读取失败：', error);
+    }
+
+    try {
+      classCourses = collectCourses(await loadTimetable('class', studentId, liveTerm), stats);
+    } catch (error) {
+      stats.failedPages.push('班级课表');
+      console.warn('[四川托普] 班级课表读取失败：', error);
+    }
+
+    var courses = applyCustomTimes(mergeWithPersonalPriority(personal, classCourses, stats));
+    var fromClassOnly = personal.length === 0 && courses.length > 0;
 
     if (!courses.length) {
-      window.shiguangBridge.showToast('这个页面上还没有排课。');
+      window.shiguangBridge.showToast('两个课表页都还没有排课。');
       await window.shiguangBridgePromise.showAlert(
         '没有读到课程',
-        '页面上的周课表是空的。\n\n' +
-          (onClassPage
-            ? '请确认页面顶部选的是本学期的学年和学期，并选对了班级。'
-            : '开学初期学生个人课表通常还没有排出来，可以改用「班级课表查询」；\n如果选错了学年学期，请在页面顶部改好再试。'),
+        '学生个人课表和班级课表都是空的。\n\n' +
+          '请确认教务系统里选的是本学期的学年和学期；开学初期课表可能还没排出来，过几天再试。',
         '确定'
       );
       return;
@@ -457,18 +570,26 @@
     }
 
     var customCount = courses.filter(function (course) { return course.isCustomTime; }).length;
-    var untimedCount = countCoursesWithoutTime();
+    var untimedCount = countCoursesWithoutTime(document);
 
-    var message = ['已导入 ' + courses.length + ' 门课程。'];
+    var message = [];
+    if (fromClassOnly) {
+      message.push('学生个人课表还没有排出来，本次按班级课表导入了 ' + courses.length + ' 门课程。');
+      message.push('班级课表包含全班一起上的课程，你个人选的课可能不在其中，可以自己补充。');
+    } else {
+      message.push('已导入 ' + courses.length + ' 门课程。');
+      message.push('其中学生个人课表 ' + personal.length + ' 门' +
+        (stats.supplementedAdd ? '，另有 ' + stats.supplementedAdd + ' 门只在班级课表里，已经补上。' : '。'));
+    }
     message.push(timeSlotsSaved ? '上课时间已按学校作息设置。' : '作息时间没有写进去，请在「课表设置」里手动填写。');
     if (customCount) {
       message.push('其中 ' + customCount + ' 门课的上课时间与默认作息不同，已经单独设置。');
     }
-    if (onClassPage) {
-      message.push('这是班级课表，包含全班一起上的课程；你个人选的课可能不在其中，可以自己补充。');
-    }
     if (untimedCount) {
       message.push('另有 ' + untimedCount + ' 门课程没有固定上课时间（实践、实训类），没有导入，可以自己手动添加。');
+    }
+    if (stats.failedPages.length) {
+      message.push('（' + stats.failedPages.join('、') + '这次没有读到，课表可能不完整，可以重试一次。）');
     }
     if (stats.unrecognized.length) {
       message.push('有 ' + stats.unrecognized.length + ' 处内容没能识别，课表可能不完整。');
@@ -483,7 +604,8 @@
       window.shiguangBridge.notifyTaskCompletion();
     }
 
-    console.log('[四川托普] 导入完成：' + courses.length + ' 门课程，自定义时间 ' + customCount + ' 条');
+    console.log('[四川托普] 导入完成：' + courses.length + ' 门课程（学生个人课表 ' + personal.length +
+      '，班级课表补录 ' + stats.supplementedAdd + '，班级课表被跳过的重复课 ' + stats.supplementedSkip + '）');
     if (stats.unrecognized.length) console.warn('[四川托普] 没能识别的内容：', stats.unrecognized);
     if (stats.dayMismatch) console.warn('[四川托普] 有 ' + stats.dayMismatch + ' 条课程的星期与所在列不一致，已按格内文字处理');
     if (stats.incomplete) console.warn('[四川托普] 有 ' + stats.incomplete + ' 条课程缺少教师或地点');
