@@ -451,11 +451,10 @@ async function confirmTerm(page) {
     if (!bridgeSupports('showAlert')) return true;
 
     const content = '即将导入以下内容，请确认：\n\n'
-        + `　　学年　　　${page.xnLabel}\n`
-        + `　　学期　　　${page.xjLabel}\n`
-        + `　　开学日期　${page.startDate}（周一）\n\n`
-        + '学年与学期取自教务系统的默认学期，开学日期按学期规则推算。\n'
-        + '如需导入其他学期，请先在教务系统里切换后重新导入。';
+        + `　学年　　　${page.xnLabel}\n`
+        + `　学期　　　${page.xjLabel}\n`
+        + `　开学日期　${page.startDate}（周一）\n\n`
+        + '学年与学期取自教务系统的默认学期，开学日期按学期规则推算。;
     try {
         return await window.shiguangBridgePromise.showAlert('确认导入信息', content, '开始导入') === true;
     } catch {
@@ -529,8 +528,7 @@ async function importFlow() {
         firstDayOfWeek: 1
     }, '保存课表配置失败');
 
-    // 5. 只报一句结果
-    showToast('课表导入成功');
+    // 5. 完成
     notifyTaskCompletion();
 }
 
