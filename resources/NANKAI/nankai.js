@@ -454,7 +454,7 @@ async function confirmTerm(page) {
         + `　学年　　　${page.xnLabel}\n`
         + `　学期　　　${page.xjLabel}\n`
         + `　开学日期　${page.startDate}（周一）\n\n`
-        + '学年与学期取自教务系统的默认学期，开学日期按学期规则推算。;
+        + '学年与学期取自教务系统的默认学期，开学日期按学期规则推算。';
     try {
         return await window.shiguangBridgePromise.showAlert('确认导入信息', content, '开始导入') === true;
     } catch {
