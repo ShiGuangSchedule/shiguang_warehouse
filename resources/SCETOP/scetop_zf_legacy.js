@@ -369,12 +369,40 @@
 
   // ---------------- 两个课表页的取数 ----------------
 
+  function pickStudentId(text) {
+    var m = String(text || '').match(/[?&]xh=([0-9A-Za-z]+)/);
+    return m ? m[1] : '';
+  }
+
+  /**
+   * 学号可能出现在：当前地址、页面文字（「学号：xxx」）、左侧菜单里的课表链接。
+   * 老正方的课表是框架页，脚本有可能跑在顶层框架上，那里没有课表也没有学号文字，
+   * 所以同源的其它框架也要扫一遍。
+   */
   function getStudentId() {
-    var m = String(window.location.search || '').match(/[?&]xh=([^&#]+)/);
-    if (m) return decodeURIComponent(m[1]);
-    var text = document.body ? String(document.body.textContent || '') : '';
-    var m2 = text.match(/学号[：:]\s*([0-9A-Za-z]+)/);
-    return m2 ? m2[1] : '';
+    var found = pickStudentId(window.location.search) || pickStudentId(window.location.href);
+    if (found) return found;
+
+    var windows = [window];
+    try { if (window.top && window.top !== window) windows.push(window.top); } catch (e) {}
+    try { if (window.parent && window.parent !== window) windows.push(window.parent); } catch (e) {}
+
+    for (var i = 0; i < windows.length && !found; i++) {
+      var doc = null;
+      try { doc = windows[i].document; } catch (e) { doc = null; }
+      if (!doc) continue;
+
+      var text = doc.body ? String(doc.body.textContent || '') : '';
+      var m = text.match(/学号[：:]\s*([0-9A-Za-z]+)/);
+      if (m) { found = m[1]; break; }
+
+      var links = doc.querySelectorAll('a[href*="xh="]');
+      for (var j = 0; j < links.length; j++) {
+        found = pickStudentId(links[j].getAttribute('href') || '');
+        if (found) break;
+      }
+    }
+    return found || '';
   }
 
   /** 从页面里读出当前选中的学年 / 学期（两个页面的控件名分别是 xnd/xqd 与 xn/xq） */
@@ -390,9 +418,15 @@
 
   async function fetchDocument(url) {
     var response = await fetch(url, { credentials: 'include' });
-    if (response && response.ok === false) throw new Error('HTTP ' + response.status);
     var html = await response.text();
-    return new DOMParser().parseFromString(html, 'text/html');
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.__fetchInfo = {
+      status: (response && response.status) || 0,
+      length: html.length,
+      title: String(doc.title || '').slice(0, 24)
+    };
+    if (response && response.ok === false) throw new Error('HTTP ' + response.status);
+    return doc;
   }
 
   /** 页面上的学年/学期是下拉框，改了要回发一次才会重排；这里按页面自己的表单字段回发 */
@@ -435,7 +469,8 @@
 
   /** 读取一个课表页：先直接取；当前页选的学期和它不一致时再回发一次 */
   async function loadTimetable(kind, studentId, liveTerm) {
-    var url = (kind === 'student' ? 'xskbcx.aspx' : 'tjkbcx.aspx') + '?xh=' + encodeURIComponent(studentId);
+    var path = (kind === 'student' ? 'xskbcx.aspx' : 'tjkbcx.aspx') + '?xh=' + encodeURIComponent(studentId);
+    var url = String(window.location.origin || '') + '/' + path;
     var doc = await fetchDocument(url);
 
     var pageTerm = readTerm(doc);
@@ -486,7 +521,8 @@
     if (!studentId) {
       await window.shiguangBridgePromise.showAlert(
         '导入失败',
-        '没有识别出学号。\n请从教务系统里的「学生个人课表」或「班级课表查询」页面点导入。',
+        '没有识别出学号。\n请从教务系统里的「学生个人课表」或「班级课表查询」页面点导入。\n\n' +
+          '（诊断：当前地址 ' + String(window.location.href || '').slice(0, 110) + '）',
         '确定'
       );
       return;
@@ -498,34 +534,36 @@
       supplementedAdd: 0, supplementedSkip: 0, failedPages: []
     };
 
-    var personal = [];
-    var classCourses = [];
+    var pageInfo = [];
+    var loadOne = async function (kind, label) {
+      try {
+        var doc = await loadTimetable(kind, studentId, liveTerm);
+        var courses = collectCourses(doc, stats);
+        var info = doc.__fetchInfo || {};
+        pageInfo.push(label + '：HTTP ' + info.status + '，' +
+          Math.round((info.length || 0) / 1024) + ' KB，读到 ' + courses.length + ' 门');
+        return courses;
+      } catch (error) {
+        stats.failedPages.push(label);
+        pageInfo.push(label + '：读取失败（' + (error && error.message ? error.message : error) + '）');
+        console.warn('[四川托普] ' + label + '读取失败：', error);
+        return [];
+      }
+    };
 
-    try {
-      personal = collectCourses(await loadTimetable('student', studentId, liveTerm), stats);
-    } catch (error) {
-      stats.failedPages.push('学生个人课表');
-      console.warn('[四川托普] 学生个人课表读取失败：', error);
-    }
-
-    try {
-      classCourses = collectCourses(await loadTimetable('class', studentId, liveTerm), stats);
-    } catch (error) {
-      stats.failedPages.push('班级课表');
-      console.warn('[四川托普] 班级课表读取失败：', error);
-    }
+    var personal = await loadOne('student', '学生个人课表');
+    var classCourses = await loadOne('class', '班级课表');
 
     var courses = applyCustomTimes(mergeWithPersonalPriority(personal, classCourses, stats));
     var fromClassOnly = personal.length === 0 && courses.length > 0;
 
     if (!courses.length) {
       window.shiguangBridge.showToast('两个课表页都还没有排课。');
-      await window.shiguangBridgePromise.showAlert(
-        '没有读到课程',
-        '学生个人课表和班级课表都是空的。\n\n' +
-          '请确认教务系统里选的是本学期的学年和学期；开学初期课表可能还没排出来，过几天再试。',
-        '确定'
-      );
+      var emptyLines = ['学生个人课表和班级课表都没有读到课程。', ''];
+      pageInfo.forEach(function (line) { emptyLines.push(line); });
+      emptyLines.push('');
+      emptyLines.push('请确认教务系统里选的是本学期的学年和学期；开学初期课表可能还没排出来，过几天再试。');
+      await window.shiguangBridgePromise.showAlert('没有读到课程', emptyLines.join('\n'), '确定');
       return;
     }
 
@@ -604,6 +642,7 @@
       window.shiguangBridge.notifyTaskCompletion();
     }
 
+    console.log('[四川托普] 取数明细：' + pageInfo.join('；'));
     console.log('[四川托普] 导入完成：' + courses.length + ' 门课程（学生个人课表 ' + personal.length +
       '，班级课表补录 ' + stats.supplementedAdd + '，班级课表被跳过的重复课 ' + stats.supplementedSkip + '）');
     if (stats.unrecognized.length) console.warn('[四川托普] 没能识别的内容：', stats.unrecognized);
