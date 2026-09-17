@@ -136,16 +136,14 @@
         };
     }
 
-    // kbList 与 sjkList 通用：能排课的进 entries，排不了的进 unplaced
+    // kbList 与 sjkList 通用：只取有固定星期与节次的记录，其余（实践课程、网络课程等）忽略
     function collectCourses(list) {
         const entries = [];
-        const unplaced = [];
         for (const raw of (Array.isArray(list) ? list : [])) {
             const entry = toCourseEntry(raw);
             if (entry) entries.push(entry);
-            else unplaced.push(raw);
         }
-        return { entries: entries, unplaced: unplaced };
+        return entries;
     }
 
     // 校区作息：jcmc=节次，qssj/jssj=起止时间
@@ -336,14 +334,14 @@
         };
     }
 
+    // 返回该校区节次作息数组；接口取不到时用教务处公布的作息，未知校区返回 null（跳过作息导入）
     async function fetchTimeSlots(campus, term) {
         if (campus.id !== '0') {
             const slots = parseTimeSlots(await request(API.timeSlots,
                 Object.assign({ xqh_id: campus.id }, term)));
-            if (slots.length) return { slots: slots, real: true };
+            if (slots.length) return slots;
         }
-        // 接口取不到时用教务处公布的作息，未知校区不猜（返回 null 则跳过作息导入）
-        return { slots: fallbackSlots(campus.name), real: false };
+        return fallbackSlots(campus.name);
     }
 
     // ---------- 4. 主流程 ----------
@@ -375,9 +373,7 @@
         }
 
         // sjkList 是实践/集中教学安排，其中带星期与节次的同样可以排进课表
-        const fromKbList = collectCourses(courseData.kbList);
-        const fromSjkList = collectCourses(courseData.sjkList);
-        const entries = fromKbList.entries.concat(fromSjkList.entries);
+        const entries = collectCourses(courseData.kbList).concat(collectCourses(courseData.sjkList));
         if (!entries.length) {
             await bridge.showAlert('没有可导入的课程', '所选学期没有解析出已排课程。', '知道了');
             return;
@@ -409,13 +405,12 @@
             campusIndex = index;
         }
         const presetCampus = campuses[campusIndex];
-        const preset = slotsMap.get(presetCampus.id) || { slots: null, real: false };
-        const presetSlots = preset.slots;
+        const presetSlots = slotsMap.get(presetCampus.id) || null;
 
         // 与默认作息不同的校区，课程改用自定义时间
         const courses = entries.map((entry) => {
             const course = Object.assign({}, entry.course);
-            const slots = (slotsMap.get(entry.campusId) || {}).slots || presetSlots;
+            const slots = slotsMap.get(entry.campusId) || presetSlots;
             if (presetSlots && slots && JSON.stringify(slots) !== JSON.stringify(presetSlots)) {
                 const first = slots[course.startSection - 1];
                 const last = slots[course.endSection - 1];
@@ -451,38 +446,12 @@
         if (presetSlots) await bridge.savePresetTimeSlots(JSON.stringify(presetSlots));
         await bridge.saveCourseConfig(JSON.stringify(config));
 
-        // 课表下方"无固定星期与节次"的安排（实践课程、网络课程等）无法排进课表，如实告知
-        const unplacedMap = new Map();
-        for (const item of fromKbList.unplaced.concat(fromSjkList.unplaced)) {
-            const name = text(item.kcmc);
-            if (name) unplacedMap.set(`${name}|${text(item.qsjsz)}`, item);
-        }
-        const unplaced = [...unplacedMap.values()];
-        const importedNames = new Set(merged.map((course) => course.name));
-        let sameNameCount = 0;
-        for (const item of unplaced) {
-            if (importedNames.has(text(item.kcmc))) sameNameCount++;
-        }
-
-        if (unplaced.length || !presetSlots) {
-            const summary = [`${term.xnmText} 学年第 ${term.xqmText} 学期：已导入 ${merged.length} 条排课记录。`,
-                presetSlots
-                    ? `节次作息：${presetCampus.name || presetCampus.id}（${preset.real ? '教务系统实时数据' : '教务处公布作息表'}，共 ${presetSlots.length} 节）。`
-                    : '未能读取本校区节次作息，已跳过作息导入，请在应用内手动设置节次时间。'];
-
-            if (unplaced.length) {
-                const shown = unplaced.slice(0, 15).map((item) => {
-                    const span = text(item.qsjsz);
-                    return `· ${text(item.kcmc) || '未命名课程'}${span ? `（${span}）` : ''}`;
-                });
-                if (unplaced.length > shown.length) shown.push(`…（共 ${unplaced.length} 项）`);
-                summary.push(`教务课表下方另有 ${unplaced.length} 项没有固定星期与节次的安排（实践/网络课程等），` +
-                    '它们不会出现在课表格子里，完整清单请以教务课表页面为准。' +
-                    (sameNameCount
-                        ? `其中 ${sameNameCount} 项与已导入的课程同名，是同一门课的实践/其他环节，不影响上面已经导入的课表。`
-                        : ''), shown.join('\n'));
-            }
-            await bridge.showAlert('导入完成', summary.join('\n\n'), '知道了');
+        // 课表下方"未确认上课节次"的安排（实践课程、网络课程等）无法排进课表，直接忽略；
+        // 只有本校区作息没取到时才提示一次
+        if (!presetSlots) {
+            await bridge.showAlert('导入完成',
+                `${term.xnmText} 学年第 ${term.xqmText} 学期：已导入 ${merged.length} 条排课记录。\n\n` +
+                '未能读取本校区节次作息，已跳过作息导入，请在应用内手动设置节次时间。', '知道了');
         }
 
         native.showToast(`课程导入成功，共导入 ${merged.length} 条排课记录！`);
