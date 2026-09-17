@@ -1077,3 +1077,8 @@ schools:
     name: "江苏科技大学"
     initial: "J"
     resource_folder: "JUST"
+    
+  - id: "NANKAI"
+    name: "南开大学"
+    initial: "N"
+    resource_folder: "NANKAI"
