@@ -1082,3 +1082,8 @@ schools:
     name: "大连理工大学"
     initial: "D"
     resource_folder: "DLUT"
+
+  - id: "HUUC"
+    name: "河南城建学院"
+    initial: "H"
+    resource_folder: "HUUC"
