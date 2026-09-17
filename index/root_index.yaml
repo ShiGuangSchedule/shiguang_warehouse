@@ -58,6 +58,11 @@ schools:
     initial: "C"
     resource_folder: "CQUT"
 
+  - id: "CQUST"
+    name: "重庆科技大学"
+    initial: "C"
+    resource_folder: "CQUST"
+
   - id: "CQTBI"
     name: "重庆工商职业学院"
     initial: "C"
@@ -1062,6 +1067,11 @@ schools:
     name: "浙江树人学院"
     initial: "Z"
     resource_folder: "ZJSRU"
+
+  - id: "JSEI"
+    name: "江苏电子信息职业学院"
+    initial: "J"
+    resource_folder: "JSEI"
 
   - id: "JUST"
     name: "江苏科技大学"

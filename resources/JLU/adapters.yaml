@@ -3,6 +3,14 @@ adapters: #固定字段
     adapter_name: "吉林大学（新）教务管理系统"
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "JLU_01.js" #相对路径
+    import_url: "https://iedu.jlu.edu.cn/"
+    maintainer: "Leimeng52mc"
+    description: "直接打开 iedu.jlu.edu.cn 登录（统一身份认证），进入(新)教务管理系统后定位到我的课表页面，点击导出按钮即可导出课表数据。\n校内、校外均可直接访问，推荐优先使用。若该地址在你的网络下打不开，请改用本页的 WebVPN 入口。"
+
+  - adapter_id: "JLU_02"
+    adapter_name: "吉林大学（新）教务管理系统 (WebVPN)"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "JLU_01.js"
     import_url: "https://vpn.jlu.edu.cn/login"
     maintainer: "Leimeng52mc"
-    description: "在网页版VPN系统登录后，打开(新)教务管理系统，定位到我的课表页面，点击导出按钮即可导出课表数据。"
+    description: "网页版 VPN（WebVPN）入口，与直连入口共用同一份适配脚本。登录 WebVPN 后打开(新)教务管理系统，定位到我的课表页面，点击导出按钮即可导出课表数据。\n该入口通常仅在校外网络可用（校内访问异常），校内请使用直连入口。"
