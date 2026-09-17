@@ -416,9 +416,41 @@
     };
   }
 
+  /**
+   * 教务页面是 GB2312，而 response.text() 在部分 WebView 里一律按 UTF-8 解码，
+   * 中文会变成乱码、一条课程都解析不出来（表现为 HTTP 200、字节数正常、读到 0 门）。
+   * 所以自己拿字节解码：两种解都试，取含中文关键词多的那个。
+   */
+  function decodeBytes(buffer) {
+    function tryDecode(label) {
+      try { return new TextDecoder(label).decode(buffer); } catch (e) { return ''; }
+    }
+    function score(text) {
+      if (!text) return -1;
+      var hits = 0;
+      ['星期', '课程', '节', '周', '教师', '教室', '学号'].forEach(function (kw) {
+        var at = text.indexOf(kw);
+        while (at !== -1 && hits < 60) { hits++; at = text.indexOf(kw, at + 1); }
+      });
+      return hits - (text.split('\uFFFD').length - 1) * 3;   // 乱码字符要扣分
+    }
+    var gbk = tryDecode('gbk');
+    var utf8 = tryDecode('utf-8');
+    return score(gbk) >= score(utf8) ? gbk : utf8;
+  }
+
+  async function readResponseText(response) {
+    try {
+      var buffer = await response.arrayBuffer();
+      return decodeBytes(buffer);
+    } catch (error) {
+      return await response.text();     // 老 WebView 不支持 arrayBuffer 时退回原样
+    }
+  }
+
   async function fetchDocument(url) {
     var response = await fetch(url, { credentials: 'include' });
-    var html = await response.text();
+    var html = await readResponseText(response);
     var doc = new DOMParser().parseFromString(html, 'text/html');
     doc.__fetchInfo = {
       status: (response && response.status) || 0,
@@ -464,7 +496,7 @@
       body: body
     });
     if (response && response.ok === false) throw new Error('HTTP ' + response.status);
-    return new DOMParser().parseFromString(await response.text(), 'text/html');
+    return new DOMParser().parseFromString(await readResponseText(response), 'text/html');
   }
 
   /** 读取一个课表页：先直接取；当前页选的学期和它不一致时再回发一次 */
