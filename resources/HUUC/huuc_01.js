@@ -367,43 +367,72 @@ function formatTime(timeStr) {
     if (typeof timeStr !== 'string') return null;
     const match = timeStr.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/);
     if (!match) return null;
-    let [ , hour, minute ] = match.map(Number);
+    const [, hour, minute, second] = match.map(Number);
+    if (hour > 23 || minute > 59 || (second !== undefined && second > 59)) return null;
     return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-/**
- * 从节次时间数据生成时间段列表。
- * @param {Array} jcsjszList - 节次时间数组，来自 getZclistByXnxq 接口
- * @returns {Array<Object>|null} - 时间段列表，格式不合法时返回 null
- */
+// 用户提供的河南城建学院夏季作息。午间及傍晚加课未提供节次编号，不推测映射。
+const HUUC_SUMMER_TIME_SLOTS = [
+    { number: 1, startTime: "08:00", endTime: "08:45" },
+    { number: 2, startTime: "08:50", endTime: "09:35" },
+    { number: 3, startTime: "10:05", endTime: "10:50" },
+    { number: 4, startTime: "10:55", endTime: "11:40" },
+    { number: 5, startTime: "14:30", endTime: "15:15" },
+    { number: 6, startTime: "15:20", endTime: "16:05" },
+    { number: 7, startTime: "16:35", endTime: "17:20" },
+    { number: 8, startTime: "17:25", endTime: "18:10" },
+    { number: 9, startTime: "19:00", endTime: "19:45" },
+    { number: 10, startTime: "19:50", endTime: "20:35" },
+    { number: 11, startTime: "20:40", endTime: "21:25" }
+];
+
+function getSummerTimeSlots() {
+    return HUUC_SUMMER_TIME_SLOTS.map(slot => ({ ...slot }));
+}
+
+// 冬季仅第5至8节提前30分钟，上午及晚间保持不变。
+function getWinterTimeSlots() {
+    const advanceHalfHour = time => {
+        const [hour, minute] = time.split(":").map(Number);
+        const total = hour * 60 + minute - 30;
+        return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    };
+    return getSummerTimeSlots().map(slot => slot.number >= 5 && slot.number <= 8
+        ? { ...slot, startTime: advanceHalfHour(slot.startTime), endTime: advanceHalfHour(slot.endTime) }
+        : slot);
+}
+
+async function selectSchoolTimeSlots() {
+    const selected = await window.shiguangBridgePromise.showSingleSelection(
+        "请选择本学期作息（第1至11节）",
+        JSON.stringify(["夏季：下午14:30开始", "冬季：下午14:00开始"]),
+        -1
+    );
+    if (selected === 0) return getSummerTimeSlots();
+    if (selected === 1) return getWinterTimeSlots();
+    return null; // 用户取消，主流程在保存前退出。
+}
+
+/** 将接口作息转换为节次列表；数据无效时提供夏季备用作息。 */
 function generateTimeSlots(jcsjszList) {
-    if (!jcsjszList || !Array.isArray(jcsjszList)) {
-        console.warn("JS: 节次时间数据为空或格式错误。");
-        return [];
-    }
-
+    const fallback = () => ({ timeSlots: getSummerTimeSlots(), usesFallback: true });
+    if (!Array.isArray(jcsjszList) || jcsjszList.length === 0) return fallback();
     const timeSlots = [];
-
+    const numbers = new Set();
     for (const item of jcsjszList) {
-        const startTime = formatTime(item.kssj);
-        const endTime = formatTime(item.jssj);
-
-        if (!startTime || !endTime) {
-            console.warn("JS: 节次时间格式不合法，跳过生成时间段列表。", item);
-            return null;
+        const startTime = formatTime(item?.kssj);
+        const endTime = formatTime(item?.jssj);
+        const number = Number(item?.jc);
+        if (!startTime || !endTime || startTime >= endTime ||
+            !Number.isInteger(number) || number < 1 || numbers.has(number)) {
+            return fallback();
         }
-
-        timeSlots.push({
-            number: Number(item.jc),
-            startTime,
-            endTime
-        });
+        numbers.add(number);
+        timeSlots.push({ number, startTime, endTime });
     }
-
     timeSlots.sort((a, b) => a.number - b.number);
-
-    console.log(`JS: 生成了 ${timeSlots.length} 个时间段。`);
-    return timeSlots;
+    return { timeSlots, usesFallback: false };
 }
 
 /**
@@ -451,7 +480,7 @@ async function extractPageParams() {
  * 获取节次时间和开学日期信息。
  * @param {string} xnxq - 学年学期参数
  * @param {string} xqdm - 校区代码
- * @returns {Promise<Object>} - 包含 timeSlots 和 semesterStartDate，请求失败时返回空配置继续流程
+ * @returns {Promise<Object>} - 包含 timeSlots 和 semesterStartDate，请求失败时提供夏季备用作息，待用户确认后使用
  */
 async function fetchTimeAndWeekData(xnxq, xqdm) {
     console.log(`JS: 正在请求节次时间和周次数据...`);
@@ -482,7 +511,7 @@ async function fetchTimeAndWeekData(xnxq, xqdm) {
         }
 
         // 提取节次时间和开学日期
-        const timeSlots = generateTimeSlots(jsonData.data?.jcsjszList);
+        const { timeSlots, usesFallback } = generateTimeSlots(jsonData.data?.jcsjszList);
         const semesterStartDate = getSemesterStartDate(jsonData.data?.zclist);
 
         if (!timeSlots) {
@@ -494,13 +523,14 @@ async function fetchTimeAndWeekData(xnxq, xqdm) {
         }
 
         console.log(`JS: 成功获取节次时间（${Array.isArray(timeSlots) ? timeSlots.length : 0}个）和开学日期（${semesterStartDate}）。`);
-        return { timeSlots, semesterStartDate };
+        return { timeSlots, semesterStartDate, usesFallback };
 
     } catch (error) {
         window.shiguangBridge.showToast(`获取配置信息失败，将继续导入课程: ${error.message}`);
         console.error('JS: fetchTimeAndWeekData Error:', error);
         return {
-            timeSlots: null,
+            timeSlots: getSummerTimeSlots(),
+            usesFallback: true,
             semesterStartDate: null
         };
     }
@@ -692,11 +722,31 @@ async function runImportFlow() {
 
     // 6. 获取节次时间和开学日期
     const timeData = await fetchTimeAndWeekData(xnxq, xqdm);
-    const { timeSlots, semesterStartDate } = timeData;
+    const { semesterStartDate } = timeData;
 
     // 7. 获取课程数据
     const courses = await fetchCourseData(xnxq, xhid, xqdm);
     if (!courses) {
+        return;
+    }
+
+    // 始终使用用户确认的本校作息，接口时间格式正确也可能不适用。
+    const timeSlots = await selectSchoolTimeSlots();
+    if (!timeSlots) return;
+
+    // 未确认编号的午间、傍晚加课不能自行映射。
+    const coversCourses = slots => courses.every(course => {
+        if (!Number.isInteger(course.startSection) || !Number.isInteger(course.endSection) ||
+            course.startSection < 1 || course.endSection < course.startSection) return false;
+        const numbers = new Set(slots.map(slot => slot.number));
+        for (let n = course.startSection; n <= course.endSection; n++) {
+            if (!numbers.has(n)) return false;
+        }
+        return true;
+    });
+    if (!coversCourses(timeSlots)) {
+        await window.shiguangBridgePromise.showAlert("无法确定节次时间",
+            "课程包含第1至11节以外的节次，请向维护者提供对应节次的作息。此次未保存课程。", "知道了");
         return;
     }
 
@@ -708,7 +758,10 @@ async function runImportFlow() {
 
     // 9. 导入预设时间段
     if (Array.isArray(timeSlots) && timeSlots.length > 0) {
-        await importPresetTimeSlots(timeSlots);
+        if (!await importPresetTimeSlots(timeSlots)) {
+            window.shiguangBridge.showToast("课程已保存，但作息保存失败，请重试或手动设置作息。");
+            return;
+        }
     } else {
         console.log("JS: 未生成有效时间段，跳过预设时间段导入。");
     }
