@@ -498,6 +498,11 @@ schools:
     initial: "H"
     resource_folder: "HBMZU"
 
+  - id: "HBUAS"
+    name: "湖北文理学院"
+    initial: "H"
+    resource_folder: "HBUAS"
+
   - id: "TONGJI"
     name: "同济大学"
     initial: "T"
