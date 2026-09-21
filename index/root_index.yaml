@@ -1096,5 +1096,9 @@ schools:
   - id: "DLUT"
     name: "大连理工大学"
     initial: "D"
-    resource_folder: "DLUT"    
-    
+    resource_folder: "DLUT"
+
+  - id: "SCETOP"
+    name: "四川托普信息技术职业学院"
+    initial: "S"
+    resource_folder: "SCETOP"
