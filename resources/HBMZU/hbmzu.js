@@ -79,6 +79,12 @@ function parseWeeksText(weekStr) {
     return weeks;
 }
 
+// 是否为周次文本（"3-14周" / "3-13单周" / "4-14双周" / "12-12周"）
+// 用于在 3 个 span 时区分"无教室（名-周次-教师）"和"无教师（名-教室-周次）"两种结构
+function isWeeksText(text) {
+    return /^\d+-\d+(单|双)?周$/.test(String(text || "").replace(/\s+/g, ""));
+}
+
 // 解析课表表格
 // 每行首 td 为节次文本（"上午1-2节"→1-2），其后 7 个 td 依次为周一~周日
 function parseCourseTable(container) {
@@ -97,15 +103,28 @@ function parseCourseTable(container) {
             if (!dayTd) continue;
             const blocks = dayTd.querySelectorAll(".course-block");
             for (const block of blocks) {
-                const spans = block.querySelectorAll("span");
-                if (spans.length < 3) continue;
-                const name = (spans[0].textContent || "").trim();
+                const cells = [];
+                block.querySelectorAll("span").forEach(function (s) {
+                    cells.push((s.textContent || "").trim());
+                });
+                if (cells.length < 3) continue;
+                const name = cells[0];
                 if (!name) continue;
-                // span 结构：[名称, 教室?, 周次, 教师]；无教室时仅 [名称, 周次, 教师]
-                const hasRoom = spans.length >= 4;
-                const position = hasRoom ? (spans[1].textContent || "").trim() : "";
-                const weekStr = (spans[hasRoom ? 2 : 1].textContent || "").trim();
-                const teacher = (spans[spans.length - 1].textContent || "").trim();
+                // span 结构：[名称, 教室?, 周次, 教师]，教室或教师可能缺失：
+                //   3 个 span 可能是 [名称, 周次, 教师]（无教室），也可能是 [名称, 教室, 周次]（无教师）
+                // 先找出长得像周次的 span：它前面的第一个 span 是教室，后面的第一个 span 是教师
+                let weekIndex = -1;
+                let weekStr = "";
+                for (let j = 1; j < cells.length; j++) {
+                    if (isWeeksText(cells[j])) {
+                        weekIndex = j;
+                        weekStr = cells[j];
+                        break;
+                    }
+                }
+                if (weekIndex < 0) continue;
+                const position = weekIndex >= 2 ? cells[weekIndex - 1] : "";
+                const teacher = weekIndex + 1 < cells.length ? cells[weekIndex + 1] : "";
                 const weeks = parseWeeksText(weekStr);
                 if (weeks.length === 0) continue;
                 courses.push({
