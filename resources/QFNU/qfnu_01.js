@@ -293,32 +293,90 @@ function parseTimetable(doc) {
     return courses;
 }
 
-// 合并连续节次、合并单双周、去除完全重复记录
-function mergeCourses(courses) {
-    if (courses.length <= 1) return courses;
+// 节次与周次合并去重函数
+// 来源：官方 Wiki《课程合并与去重函数》
+// https://github.com/XingHeYuZhuan/shiguangschedule/wiki/课程合并与去重函数
+// 阶段一按名称、教师、地点、星期、周次一致合并连续节次并去除完全重复，阶段二按相同节次合并周次
+function mergeAndDistinctCourses(courses) {
+    if (!Array.isArray(courses) || courses.length <= 1) return courses;
 
-    const list = courses.slice().sort(function (a, b) {
-        return a.name.localeCompare(b.name) || a.teacher.localeCompare(b.teacher) ||
-            a.position.localeCompare(b.position) || a.day - b.day ||
-            a.weeks.join(',').localeCompare(b.weeks.join(',')) || a.startSection - b.startSection;
+    const list = courses.map(c => ({
+        ...c,
+        name: c.name || '',
+        teacher: c.teacher || '',
+        position: c.position || '',
+        weeks: Array.isArray(c.weeks) ? [...c.weeks].sort((a, b) => a - b) : []
+    }));
+
+    list.sort((a, b) => {
+        return a.name.localeCompare(b.name) ||
+            a.teacher.localeCompare(b.teacher) ||
+            a.position.localeCompare(b.position) ||
+            (a.day || 0) - (b.day || 0) ||
+            a.weeks.join(',').localeCompare(b.weeks.join(',')) ||
+            (a.startSection || 0) - (b.startSection || 0);
     });
 
-    const merged = [list[0]];
-    for (let i = 1; i < list.length; i++) {
-        const current = merged[merged.length - 1];
-        const next = list[i];
-        const sameCourse = current.name === next.name && current.teacher === next.teacher &&
-            current.position === next.position && current.day === next.day;
+    const step1Merged = [];
+    let current = list[0];
 
-        if (sameCourse && current.weeks.join(',') === next.weeks.join(',') && current.endSection + 1 === next.startSection) {
+    for (let i = 1; i < list.length; i++) {
+        const next = list[i];
+
+        const isSameCourseAndWeeks =
+            current.name === next.name &&
+            current.teacher === next.teacher &&
+            current.position === next.position &&
+            current.day === next.day &&
+            current.weeks.join(',') === next.weeks.join(',');
+
+        const isContinuous = current.endSection + 1 === next.startSection;
+        const isDuplicate = current.startSection === next.startSection && current.endSection === next.endSection;
+
+        if (isSameCourseAndWeeks && isContinuous) {
             current.endSection = next.endSection;
-        } else if (sameCourse && current.startSection === next.startSection && current.endSection === next.endSection) {
-            current.weeks = Array.from(new Set(current.weeks.concat(next.weeks))).sort(function (a, b) { return a - b; });
+        } else if (isSameCourseAndWeeks && isDuplicate) {
+            continue;
         } else {
-            merged.push(next);
+            step1Merged.push(current);
+            current = next;
         }
     }
-    return merged;
+    step1Merged.push(current);
+
+    step1Merged.sort((a, b) => {
+        return a.name.localeCompare(b.name) ||
+            a.teacher.localeCompare(b.teacher) ||
+            a.position.localeCompare(b.position) ||
+            (a.day || 0) - (b.day || 0) ||
+            (a.startSection || 0) - (b.startSection || 0) ||
+            (a.endSection || 0) - (b.endSection || 0);
+    });
+
+    const step2Merged = [];
+    let merged = step1Merged[0];
+
+    for (let i = 1; i < step1Merged.length; i++) {
+        const next = step1Merged[i];
+
+        const isSameCourseAndSection =
+            merged.name === next.name &&
+            merged.teacher === next.teacher &&
+            merged.position === next.position &&
+            merged.day === next.day &&
+            merged.startSection === next.startSection &&
+            merged.endSection === next.endSection;
+
+        if (isSameCourseAndSection) {
+            merged.weeks = Array.from(new Set([...merged.weeks, ...next.weeks])).sort((a, b) => a - b);
+        } else {
+            step2Merged.push(merged);
+            merged = next;
+        }
+    }
+    step2Merged.push(merged);
+
+    return step2Merged;
 }
 
 // ==================== 流程编排 ====================
@@ -356,7 +414,7 @@ async function runImportFlow() {
             return;
         }
 
-        const courses = mergeCourses(parseTimetable(tableDoc));
+        const courses = mergeAndDistinctCourses(parseTimetable(tableDoc));
         if (courses.length === 0) {
             await alertUser('未解析到课程', semester.label + ' 页面中没有课程内容，该学期可能尚未发布课表。');
             return;
