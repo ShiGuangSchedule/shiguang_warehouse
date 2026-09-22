@@ -4,6 +4,29 @@
 // 出现问题请提issues或者提交pr更改,这更加快速
 
 /**
+ * 基础域名配置
+ * 根据当前页面域名自动选择校园网直连或 WebVPN
+ */
+const BASE_URLS = {
+    // 校园网直连
+    campus: "https://jwpd.jsei.edu.cn/jwglxt",
+    // WebVPN 代理
+    webvpn: "https://jwpd-443.webvpn.jsei.edu.cn/jwglxt"
+};
+
+/**
+ * 根据当前页面域名自动判断使用哪个基础地址
+ * - 当前在 webvpn 域名下 -> 用 webvpn
+ * - 否则 -> 用校园网直连
+ */
+function getBaseUrl() {
+    if (window.location.hostname.includes("webvpn")) {
+        return BASE_URLS.webvpn;
+    }
+    return BASE_URLS.campus;
+}
+
+/**
  * 节次与周次合并去重函数
  * @param {Array<Object>} courses 原始解析课程数组
  * @returns {Array<Object>} 合并去重后的课程数组
@@ -198,7 +221,7 @@ async function promptUserToStart() {
  * 学年：以选中项为中心，取前2年+后2年，共5个选项
  */
 async function fetchAcademicOptions() {
-    const url = "https://jwpd-443.webvpn.jsei.edu.cn/jwglxt/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
+    const url = `${getBaseUrl()}/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default`;
     
     try {
         const response = await fetch(url, {
@@ -306,7 +329,7 @@ async function selectAcademicYearAndSemester() {
  * 获取学期开学日期
  */
 async function fetchSemesterStartDate(academicYear, semesterCode) {
-    const url = "https://jwpd-443.webvpn.jsei.edu.cn/jwglxt/kbcx/xskbcxZccx_cxZcByXnxq.html?gnmkdm=N2154";
+    const url = `${getBaseUrl()}/kbcx/xskbcxZccx_cxZcByXnxq.html?gnmkdm=N2154`;
     const requestBody = `xnm=${academicYear}&xqm=${semesterCode}`;
 
     try {
@@ -357,7 +380,7 @@ async function fetchSemesterStartDate(academicYear, semesterCode) {
  * @returns {Promise<Array<{number: number, startTime: string, endTime: string}>>}
  */
 async function fetchTimeSlots(academicYear, semesterCode) {
-    const url = "https://jwpd-443.webvpn.jsei.edu.cn/jwglxt/jzgl/skxxMobile_cxRsdjc.html?gnmkdm=N2154";
+    const url = `${getBaseUrl()}/jzgl/skxxMobile_cxRsdjc.html?gnmkdm=N2154`;
     const requestBody = `xnm=${academicYear}&xqm=${semesterCode}&xqh_id=1`;
 
     try {
@@ -398,7 +421,7 @@ async function fetchTimeSlots(academicYear, semesterCode) {
  */
 async function fetchAndParseCourses(academicYear, semesterCode) {
     const requestBody = `xnm=${academicYear}&xqm=${semesterCode}&kzlx=ck&xsdm=&kclbdm=`;
-    const targetUrl = "https://jwpd-443.webvpn.jsei.edu.cn/jwglxt/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151";
+    const targetUrl = `${getBaseUrl()}/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151`;
 
     // 并行获取课程数据、开学日期、作息时间
     const [courseResponse, semesterStartDate, fetchedTimeSlots] = await Promise.all([
