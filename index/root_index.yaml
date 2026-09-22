@@ -1102,3 +1102,8 @@ schools:
     name: "曲阜师范大学"
     initial: "Q"
     resource_folder: "QFNU"
+
+    - id: "HAUE"
+    name: "河南工程学院"
+    initial: "H"
+    resource_folder: "HAUE"
