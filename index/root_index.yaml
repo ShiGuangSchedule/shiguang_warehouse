@@ -1103,7 +1103,7 @@ schools:
     initial: "Q"
     resource_folder: "QFNU"
 
-    - id: "HAUE"
+  - id: "HAUE"
     name: "河南工程学院"
     initial: "H"
     resource_folder: "HAUE"
