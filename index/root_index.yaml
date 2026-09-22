@@ -1098,3 +1098,7 @@ schools:
     initial: "D"
     resource_folder: "DLUT"    
     
+  - id: "QFNU"
+    name: "曲阜师范大学"
+    initial: "Q"
+    resource_folder: "QFNU"

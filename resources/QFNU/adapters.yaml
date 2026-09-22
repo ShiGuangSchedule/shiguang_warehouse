@@ -1,0 +1,9 @@
+# resources/QFNU/adapters.yaml
+adapters:
+  - adapter_id: "QFNU_01"
+    adapter_name: "曲阜师范大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "qfnu_01.js"
+    import_url: "http://zhjw.qfnu.edu.cn/jsxsd/"
+    maintainer: "Yumu-banxia"
+    description: "曲阜师范大学强智教务课表导入。登录教务系统后停留在任意页面即可执行导入，自动读取学期列表（默认当前学期）与教学周历（开学日期、总周数），支持单双周与格内连排节次解析。\n教务系统不提供节次时间，导入后需在软件内设置上课时间；教学周历读取失败时会提示在软件内手动校准开学日期。"
