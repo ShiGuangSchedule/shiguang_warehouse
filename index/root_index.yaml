@@ -1102,3 +1102,8 @@ schools:
     name: "曲阜师范大学"
     initial: "Q"
     resource_folder: "QFNU"
+
+  - id: "SCEMI"
+    name: "四川机电职业技术学院"
+    initial: "S"
+    resource_folder: "SCEMI"
