@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HAUE_01"
+    adapter_name: "河南工程学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "haue_01.js"
+    import_url: "http://106.system.haue.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "拉里"
+    description: "材料刘浩宇nb"
