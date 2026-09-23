@@ -1,12 +1,4 @@
 adapters:
-  - adapter_id: "WBU_01"
-    adapter_name: "武汉商学院-超星教务系统"
-    category: "BACHELOR_AND_ASSOCIATE"
-    asset_js_path: "wbu_01.js"
-    import_url: "https://webvpn.wbu.edu.cn/"   # 这里放真实登录页
-    maintainer: "Foraes"
-    description: "武汉商学院教务系统课表导入适配"
-
   - adapter_id: "WBU_02"
     adapter_name: "武汉商学院-校园网访问"
     category: "BACHELOR_AND_ASSOCIATE"
