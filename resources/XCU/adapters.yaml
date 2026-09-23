@@ -5,5 +5,5 @@ adapters:
     asset_js_path: "xcu_01.js"
     import_url: "https://jwglxt.xcu.edu.cn/jwglxt/xtgl/login_slogin.html"
     maintainer: "拉里"
-    description: "登录教务系统，进入个人课表页面并选择学年、学期后导入。支持自动获取课程及全校统一作息；未排定具体时间的实践课需另行核对，开学日期请手动设置。--gynb...XCU教务课表一坨"
+    description: "登录教务系统，进入个人课表页面并选择学年、学期后导入。自动获取课程及校区作息，尝试获取开学日期和学期总周数；获取失败或未排定时间的课程会提示，请核对后保存。"
 
