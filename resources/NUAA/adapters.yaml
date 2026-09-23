@@ -1,0 +1,9 @@
+# resources/NUAA/adapters.yaml
+adapters:
+  - adapter_id: "NUAA_01"
+    adapter_name: "南京航空航天大学树维教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nuaa_01.js"
+    import_url: "https://aao-eas.nuaa.edu.cn/eams/login.action"
+    maintainer: "kemi-20"
+    description: "南京航空航天大学旧树维教务适配。请在登录后直接点击导入。脚本通过 API 获取学期与课程，并按课表第一节课所在校区自动选择天目湖或明故宫/将军路作息。"

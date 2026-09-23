@@ -160,8 +160,8 @@ function parseJsonData(jsonData) {
 }
 
 function getNjuptApiBasePath() {
-    const isTeachingSystemPage = ["/kbcx/", "/xtgl/"]
-        .some(marker => window.location.pathname.includes(marker));
+    // 直接匹配路径，避免依赖教务页面可能改写的数组和字符串方法。
+    const isTeachingSystemPage = /\/(?:kbcx|xtgl)\//.test(window.location.pathname);
     if (!isTeachingSystemPage) return null;
 
     // 南邮 WebVPN 会拦截并改写根相对请求。若传入已经带 WebVPN
@@ -195,20 +195,20 @@ async function fetchAcademicOptions(appBasePath) {
 
         const html = await response.text();
         const document = new DOMParser().parseFromString(html, "text/html");
-        const allYearOptions = Array.from(document.querySelectorAll("#xnm option"))
-            .filter(option => option.value !== "")
-            .map(option => ({
-                value: option.value,
-                text: option.textContent.trim(),
-                selected: option.selected
-            }));
-        const semesterOptions = Array.from(document.querySelectorAll("#xqm option"))
-            .filter(option => option.value !== "")
-            .map(option => ({
-                value: option.value,
-                text: option.textContent.trim(),
-                selected: option.selected
-            }));
+        const readOptions = selector => {
+            const nodes = document.querySelectorAll(selector);
+            const options = [];
+            for (let index = 0; index < nodes.length; index++) {
+                const option = nodes[index];
+                const value = String(option.value || "").trim();
+                const text = String(option.textContent || "").trim();
+                if (value === "" || text === "") continue;
+                options.push({ value, text, selected: option.selected });
+            }
+            return options;
+        };
+        const allYearOptions = readOptions("#xnm option");
+        const semesterOptions = readOptions("#xqm option");
 
         if (allYearOptions.length === 0 || semesterOptions.length === 0) return null;
 

@@ -1,0 +1,9 @@
+# resources/NKU/adapters.yaml
+adapters:
+  - adapter_id: "NANKAI"
+    adapter_name: "南开大学研究生教育综合管理系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "nankai.js"
+    import_url: "https://yjs.nankai.edu.cn/py/page/student/grkcb.htm"
+    maintainer: "Cure"
+    description: "南开大学研究生院(yjs.nankai.edu.cn)适配, 需校园网环境，登录后即可直接导入, "

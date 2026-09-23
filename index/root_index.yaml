@@ -63,6 +63,11 @@ schools:
     initial: "C"
     resource_folder: "CQUT"
 
+  - id: "CQUST"
+    name: "重庆科技大学"
+    initial: "C"
+    resource_folder: "CQUST"
+
   - id: "CQTBI"
     name: "重庆工商职业学院"
     initial: "C"
@@ -237,6 +242,11 @@ schools:
     name: "南京邮电大学"
     initial: "N"
     resource_folder: "NJUPT"
+
+  - id: "NUAA"
+    name: "南京航空航天大学"
+    initial: "N"
+    resource_folder: "NUAA"
 
   - id: "XMCU"
     name: "厦门城市职业学院"
@@ -492,6 +502,11 @@ schools:
     name: "湖北民族大学"
     initial: "H"
     resource_folder: "HBMZU"
+
+  - id: "HBUAS"
+    name: "湖北文理学院"
+    initial: "H"
+    resource_folder: "HBUAS"
 
   - id: "TONGJI"
     name: "同济大学"
@@ -1057,3 +1072,43 @@ schools:
     name: "梧州职业学院"
     initial: "W"
     resource_folder: "WZZY"
+
+  - id: "ZJSRU"
+    name: "浙江树人学院"
+    initial: "Z"
+    resource_folder: "ZJSRU"
+
+  - id: "JSEI"
+    name: "江苏电子信息职业学院"
+    initial: "J"
+    resource_folder: "JSEI"
+
+  - id: "JUST"
+    name: "江苏科技大学"
+    initial: "J"
+    resource_folder: "JUST"
+
+  - id: "HUUC"
+    name: "河南城建学院"
+    initial: "H"
+    resource_folder: "HUUC"
+
+  - id: "NANKAI"
+    name: "南开大学"
+    initial: "N"
+    resource_folder: "NANKAI"
+    
+  - id: "DLUT"
+    name: "大连理工大学"
+    initial: "D"
+    resource_folder: "DLUT"    
+    
+  - id: "QFNU"
+    name: "曲阜师范大学"
+    initial: "Q"
+    resource_folder: "QFNU"
+
+  - id: "SCEMI"
+    name: "四川机电职业技术学院"
+    initial: "S"
+    resource_folder: "SCEMI"
