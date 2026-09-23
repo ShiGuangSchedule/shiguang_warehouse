@@ -1107,3 +1107,8 @@ schools:
     name: "河南工程学院"
     initial: "H"
     resource_folder: "HAUE"
+    
+  - id: "XCU"
+    name: "许昌学院"
+    initial: "X"
+    resource_folder: "XCU"
