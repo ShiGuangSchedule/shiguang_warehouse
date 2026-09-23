@@ -3,6 +3,22 @@
 (function () {
     "use strict";
 
+    // 福建师范大学作息时间，由本校使用者核对提供；每节课 45 分钟。
+    const presetTimeSlots = [
+        { number: 1, startTime: "08:20", endTime: "09:05" },
+        { number: 2, startTime: "09:15", endTime: "10:00" },
+        { number: 3, startTime: "10:20", endTime: "11:05" },
+        { number: 4, startTime: "11:15", endTime: "12:00" },
+        { number: 5, startTime: "14:00", endTime: "14:45" },
+        { number: 6, startTime: "14:55", endTime: "15:40" },
+        { number: 7, startTime: "15:50", endTime: "16:35" },
+        { number: 8, startTime: "16:45", endTime: "17:30" },
+        { number: 9, startTime: "18:30", endTime: "19:15" },
+        { number: 10, startTime: "19:25", endTime: "20:10" },
+        { number: 11, startTime: "20:20", endTime: "21:05" },
+        { number: 12, startTime: "21:15", endTime: "22:00" }
+    ];
+
     function text(element) {
         return (element ? element.textContent : "").replace(/\u00a0/g, " ").trim();
     }
@@ -148,13 +164,19 @@
         const confirmed = await bridge.showAlert("福建师范大学研究生课表",
             "当前学期：" + semesterName + "\n识别到 " + courses.length +
             " 条课程安排，最晚上课周为第 " + lastWeek + " 周。将替换所选课表中的课程。" +
-            "\n\n本页不提供每节课的起止时间和第1周日期。导入后请在课表设置中手动核对作息时间、学期开始日期和总周数。", "确认并导入");
+            "\n\n同时导入学校作息时间，共 12 节（08:20—22:00），替换所选课表的节次时间。" +
+            "本页不提供第1周日期，导入后请在课表设置中核对学期开始日期和总周数。", "确认并导入");
         if (!confirmed) return;
         if (table.outerHTML !== snapshot || semester.value !== semesterName || !table.isConnected) {
             throw new Error("导入期间课表发生变化，请等待加载完成后重新导入。");
         }
         // saveCourseConfig 会重置未提供的日期/时长字段，因此保留用户手动设置的配置。
         await bridge.saveImportedCourses(JSON.stringify(courses));
+        try {
+            await bridge.savePresetTimeSlots(JSON.stringify(presetTimeSlots));
+        } catch (error) {
+            throw new Error("课程已保存，但作息时间导入失败，请重新执行导入：" + error.message);
+        }
         window.shiguangBridge.showToast("福建师范大学研究生课表导入成功。");
         window.shiguangBridge.notifyTaskCompletion();
     }
