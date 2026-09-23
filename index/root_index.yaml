@@ -1107,3 +1107,8 @@ schools:
     name: "四川机电职业技术学院"
     initial: "S"
     resource_folder: "SCEMI"
+
+  - id: "FJNU"
+    name: "福建师范大学"
+    initial: "F"
+    resource_folder: "FJNU"
