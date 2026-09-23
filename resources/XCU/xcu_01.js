@@ -1,4 +1,4 @@
-// 河南工程学院正方 V9：依据本校实际课表、作息响应适配。
+// 许昌学院正方 V9：依据本校实际课表、作息响应适配。
 // 参考 resources/JSEI/jsei_01.js（星河欲转）的网络请求方案。
 // 登录后进入个人课表页面，选择学年、学期后导入。
 
@@ -50,7 +50,7 @@ function parseTimeSlots(data) {
     return slots;
 }
 
-async function requestHaue(path, params) {
+async function requestXcu(path, params) {
     const response = await fetch('/jwglxt/' + path + '?gnmkdm=N2151', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
@@ -61,28 +61,53 @@ async function requestHaue(path, params) {
     catch (_) { throw new Error('教务未返回 JSON 数据，请重新登录后重试'); }
 }
 
-// 用户确认河南工程学院各校区作息一致。
-// 使用已实测的校区参数 3 获取统一作息，时间仍由教务接口返回。
+// 校区缺字段时使用页面选择；仍无法识别时由用户确认已验证的校区参数。
 async function resolveTimeSlots(data, xnm, xqm, bridge) {
-    const slots = parseTimeSlots(await requestHaue('kbcx/xskbcx_cxRjc.html', {
-        xnm, xqm, xqh_id: '3'
-    }));
-    return { slots, campusName: '全校统一', note: '' };
+    const ids = Array.from(new Set(data.kbList.map(row => String(row.xqh_id == null ? '' : row.xqh_id).trim()).filter(Boolean)));
+    let missing = false;
+    for (const row of data.kbList) {
+        if (!String(row.xqh_id == null ? '' : row.xqh_id).trim()) missing = true;
+    }
+    const pageCampus = document.querySelector('#xqh_id');
+    const pageId = pageCampus ? String(pageCampus.value || '').trim() : '';
+    if (missing && pageId && !ids.includes(pageId)) ids.push(pageId);
+    if (!ids.length) {
+        const confirmed = await bridge.showAlert('确认作息校区', '本次课程没有返回校区编号，页面也未提供校区。此前已验证许昌学院校区参数 1 的作息。是否获取该作息供你核对？确认前不会保存课程。', '获取并核对');
+        if (!confirmed) return null;
+        ids.push('1');
+    }
+    const results = await Promise.all(ids.map(async id => ({ id, slots: parseTimeSlots(await requestXcu('kbcx/xskbcx_cxRjc.html', { xnm, xqm, xqh_id: id })) })));
+    // 单校区不做跨校区比较；逐字段比较避免依赖宿主页的 some/toJSON 实现。
+    const baseline = results[0].slots;
+    for (let i = 1; i < results.length; i++) {
+        const candidate = results[i].slots;
+        let equal = candidate.length === baseline.length;
+        for (let j = 0; equal && j < baseline.length; j++) {
+            equal = candidate[j].number === baseline[j].number
+                && candidate[j].startTime === baseline[j].startTime
+                && candidate[j].endTime === baseline[j].endTime;
+        }
+        if (!equal) {
+            throw new Error('涉及校区 ' + ids.join('、') + '，返回的作息不同，无法保存为同一套作息。请联系维护者；本次尚未保存。');
+        }
+    }
+    const note = missing ? '\n部分课程未提供校区，以下作息来自校区参数 ' + ids.join('、') + '，请特别核对这些课程的时间。' : '';
+    return { slots: results[0].slots, campusName: '校区（' + ids.join('、') + '）', note };
 }
 
 async function runImportFlow() {
     const bridge = window.shiguangBridgePromise;
     let coursesSaved = false;
     try {
-        if (window.location.hostname !== '106.system.haue.edu.cn') throw new Error('请在河南工程学院教务系统内导入');
+        if (window.location.hostname !== 'jwglxt.xcu.edu.cn') throw new Error('请在许昌学院教务系统内导入');
         const year = document.querySelector('#xnm');
         const semester = document.querySelector('#xqm');
         if (!year || !semester || !year.value || !semester.value) throw new Error('请先进入个人课表查询页面，选择学年和学期后再导入');
         const xnm = year.value, xqm = semester.value;
         const label = element => element.options && element.selectedIndex >= 0 ? element.options[element.selectedIndex].text : element.value;
-        if (!await bridge.showAlert('河南工程学院课表导入（统一作息版）', '将请求 ' + label(year) + ' / ' + label(semester) + ' 的课程及校区作息。开学日期请在软件内核对设置。', '开始获取')) return;
+        if (!await bridge.showAlert('许昌学院课表导入（校区兼容修订版）', '将请求 ' + label(year) + ' / ' + label(semester) + ' 的课程及校区作息。开学日期请在软件内核对设置。', '开始获取')) return;
         window.shiguangBridge.showToast('正在获取课程和作息…');
-        const data = await requestHaue('kbcx/xskbcx_cxXsgrkb.html', { xnm, xqm, kzlx: 'ck', xsdm: '', kclbdm: '', kclxdm: '' });
+        const data = await requestXcu('kbcx/xskbcx_cxXsgrkb.html', { xnm, xqm, kzlx: 'ck', xsdm: '', kclbdm: '', kclxdm: '' });
         const courses = parseCourses(data);
         if (!courses.length) throw new Error('所选学期没有已排定星期和节次的课程，请核对学期');
         const resolved = await resolveTimeSlots(data, xnm, xqm, bridge);
@@ -109,3 +134,4 @@ async function runImportFlow() {
 }
 
 runImportFlow();
+
