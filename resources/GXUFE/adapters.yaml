@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "GXUFE"
+    adapter_name: "广西财经学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gxufe.js"
+    import_url: "https://jwglxt.gxufe.edu.cn/"
+    maintainer: "cc"
+    description: "广西财经学院教务,请使用二维表导入"
