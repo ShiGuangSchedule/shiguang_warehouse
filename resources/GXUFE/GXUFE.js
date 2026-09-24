@@ -141,62 +141,6 @@ const SCHOOL_TIME_TABLE = [
   { section: 12, startTime: '20:30', endTime: '21:10' },
 ];
 
-/**
- * 生成并导入时间段配置
- * 格式对齐拾光课程表规范：totalWeek / startSemester / startWithSunday / showWeekend
- *                       / forenoon / afternoon / night / sections
- */
-async function importTimeSlots() {
-    // 明确划分：上午 5 节、下午 4 节、晚上 3 节
-    const forenoon = 5;
-    const afternoon = 4;
-    const night = 3;
-
-    // 节数配置对象（主流拾光版本：直接传对象，会读取 forenoon/afternoon/night）
-    const timeConfig = {
-        totalWeek: 20,
-        startSemester: '',
-        startWithSunday: false,
-        showWeekend: false,
-        forenoon: forenoon,   // 上午 5 节（前 5 个时间点归上午）
-        afternoon: afternoon, // 下午 4 节
-        night: night,         // 晚上 3 节
-        sections: SCHOOL_TIME_TABLE
-    };
-
-    // 兼容旧版桥接：{number, startTime, endTime} 纯数组格式
-    const presetTimeSlots = SCHOOL_TIME_TABLE.map(t => ({
-        number: t.section,
-        startTime: t.startTime,
-        endTime: t.endTime
-    }));
-
-    // 方案 A：传完整配置对象（推荐，能正确按 forenoon=5 划分上午）
-    try {
-        if (typeof window.shiguangBridge !== 'undefined'
-            && typeof window.shiguangBridge.savePresetTimeSlots === 'function') {
-            window.shiguangBridge.savePresetTimeSlots(timeConfig);
-            console.log('时间配置导入成功（对象模式）:', timeConfig);
-            return true;
-        }
-    } catch (e) {
-        console.warn('对象模式失败，尝试数组模式:', e);
-    }
-
-    // 方案 B：传纯数组（兼容旧版，节数划分依赖 App 默认，可能需要手动把上午设为 5）
-    try {
-        if (typeof window.shiguangBridgePromise !== 'undefined') {
-            await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(presetTimeSlots));
-            window.shiguangBridge.showToast('时间点已保存，请确认上午节数为5');
-            return true;
-        }
-    } catch (error) {
-        console.error('导入时间段失败:', error);
-        window.shiguangBridge.showToast('时间段配置导入失败，课程将继续导入');
-        return false;
-    }
-}
-
 async function runImportFlow() {
     try {
         window.shiguangBridge.showToast("正在合并课表数据...");
@@ -205,10 +149,6 @@ async function runImportFlow() {
             window.shiguangBridge.showToast("未找到可导入课程");
             return;
         }
-
-        // 先导入时间段配置，再保存课程
-        await importTimeSlots();
-
         await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(courses));
         window.shiguangBridge.showToast(`成功：已优化合并为 ${courses.length} 个课块`);
         window.shiguangBridge.notifyTaskCompletion();
