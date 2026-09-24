@@ -1112,3 +1112,8 @@ schools:
     name: "福建师范大学"
     initial: "F"
     resource_folder: "FJNU"
+
+  - id: "GXUFE"
+    name: "广西财经学院"
+    initial: "G"
+    resource_folder: "GXUFE"
