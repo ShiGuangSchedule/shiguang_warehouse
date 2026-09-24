@@ -1,6 +1,6 @@
 // 河南工程学院正方 V9：依据本校实际课表、作息响应适配。
 // 参考 resources/JSEI/jsei_01.js（星河欲转）的网络请求方案。
-// 登录后进入个人课表页面，选择学年、学期后导入。
+// 登录教务后即可导入；通过请求获取学年学期及默认值，随后在桥接弹窗中选择。
 
 
 function normalizeText(value) {
@@ -17,7 +17,7 @@ function normalizeTime(value) {
 function getBaseUrl() {
     const current = new URL(window.location.href);
     const index = current.pathname.indexOf('/jwglxt/');
-    if (index < 0) throw new Error('请进入教务系统个人课表页面后导入（WebVPN 需先打开教务系统）');
+    if (index < 0) throw new Error('请先登录并进入教务系统（WebVPN 需先打开教务系统应用）');
     return current.origin + current.pathname.slice(0, index) + '/jwglxt/';
 }
 
@@ -27,13 +27,18 @@ function parseSemesterConfig(rows) {
     const weeks = new Set();
     for (const row of rows) {
         const m = normalizeText(row.zs == null ? row.zsmc : row.zs).trim().match(/^(?:第)?(\d+)(?:周)?$/);
-        if (!m || +m[1] < 1 || +m[1] > 60) continue;
+        if (!m || +m[1] < 1) continue;
         const week = +m[1]; weeks.add(week); max = Math.max(max, week);
         if (week === 1) first = row;
     }
     const config = {};
-    // 只有完整的连续周次列表才能作为学期总周数，不能以最后一门课代替。
-    if (max && weeks.size === max) config.semesterTotalWeeks = max;
+    // 校历允许从非第 1 周开始；仅接受连续且最大周次为 10～60 的列表。
+    const sortedWeeks = Array.from(weeks).sort((a, b) => a - b);
+    let continuous = sortedWeeks.length > 0;
+    for (let i = 1; i < sortedWeeks.length; i++) {
+        if (sortedWeeks[i] - sortedWeeks[i - 1] !== 1) { continuous = false; break; }
+    }
+    if (continuous && max >= 10 && max <= 60) config.semesterTotalWeeks = max;
     if (first) {
         for (const key of ['rq', 'zcrq', 'ksrq']) {
             const m = normalizeText(first[key]).match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?=$|[\s/至~\-])/);
@@ -56,126 +61,126 @@ async function fetchSemesterConfig(xnm, xqm, warnings) {
     return config;
 }
 
-async function resolveTimeSlots(data, xnm, xqm, bridge) {
-    const ids = [];
-    const add = value => {
-        const id = normalizeText(value).trim();
-        if (id && id !== '-1' && id !== '0' && ids.indexOf(id) < 0) ids.push(id);
+// 全局变量、URL 参数都必须匹配接口提供的有效选项；不匹配则继续回退。
+function getDefaultOptionIndex(options, key) {
+    const match = value => {
+        if (typeof value !== 'string' && typeof value !== 'number') return -1;
+        const text = String(value).trim();
+        if (!text) return -1;
+        return options.findIndex(option => option.value === text);
     };
-    for (const row of data.kbList) { if (row) add(row.xqh_id); }
-    const campus = document.querySelector('#xqh_id');
-    if (campus) add(campus.value);
-    if (!ids.length && campus && campus.options) {
-        const choices = Array.from(campus.options).filter(o => o.value && o.value !== '-1' && o.value !== '0');
-        if (choices.length) {
-            const selected = await bridge.showSingleSelection('选择作息校区', JSON.stringify(choices.map(o => o.text)), 0);
-            if (selected == null || !choices[selected]) return null;
-            add(choices[selected].value);
-        }
-    }
-    if (!ids.length) throw new Error('课程和页面均未提供校区编号，请先在课表页面选择校区后重试');
-    const results = await Promise.all(ids.map(async id => parseTimeSlots(await requestHaue('kbcx/xskbcx_cxRjc.html', { xnm, xqm, xqh_id: id }))));
-    for (let i = 1; i < results.length; i++) {
-        const a = results[0], b = results[i];
-        let equal = a.length === b.length;
-        for (let n = 0; equal && n < a.length; n++) equal = a[n].number === b[n].number && a[n].startTime === b[n].startTime && a[n].endTime === b[n].endTime;
-        if (!equal) throw new Error('校区 ' + ids.join('、') + ' 的作息不同，无法合用同一套作息，本次未保存');
-    }
-    return { slots: results[0], campusName: '校区（' + ids.join('、') + '）', note: '' };
+    let index = match(window[key]);
+    if (index >= 0) return index;
+    index = match(new URL(window.location.href).searchParams.get(key));
+    if (index >= 0) return index;
+    index = options.findIndex(option => option.selected);
+    return index >= 0 ? index : 0;
 }
 
+function assertNotLoginPage(text) {
+    if (/login_slogin|用户登录|统一身份认证/i.test(text)) {
+        throw new Error('登录已过期，请重新登录教务系统后再导入');
+    }
+}
+
+// 只解析新请求返回的文档，不依赖当前页面是否已经打开课表。
+function parseAcademicOptions(doc) {
+    const read = selector => Array.from(doc.querySelectorAll(selector))
+        .filter(option => !option.disabled && String(option.value).trim() !== '')
+        .map(option => ({ value: String(option.value).trim(), text: option.textContent.trim(), selected: option.selected }));
+    const allYears = read('#xnm option');
+    const semesterOptions = read('#xqm option');
+    if (!allYears.length || !semesterOptions.length) {
+        // 正常教务页也可能包含登录跳转脚本，仅缺少有效选项时判定登录页。
+        const html = doc.documentElement ? doc.documentElement.outerHTML : '';
+        assertNotLoginPage(html || (doc.body ? doc.body.textContent : '') || '');
+        throw new Error('未获取到学年学期选项，请确认已登录教务系统后重试');
+    }
+    const selectedYear = getDefaultOptionIndex(allYears, 'xnm');
+    const start = Math.max(0, selectedYear - 2);
+    const yearOptions = allYears.slice(start, selectedYear + 3);
+    const selectedSemester = getDefaultOptionIndex(semesterOptions, 'xqm');
+    return { yearOptions, semesterOptions, defaultYearIndex: selectedYear - start, defaultSemesterIndex: selectedSemester };
+}
+
+async function fetchAcademicOptions() {
+    const response = await fetch(getBaseUrl() + 'kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default', {
+        method: 'GET', credentials: 'same-origin'
+    });
+    if (!response.ok) throw new Error('获取学年学期失败（HTTP ' + response.status + '）');
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    return parseAcademicOptions(doc);
+}
+
+async function selectAcademicYearAndSemester(bridge) {
+    const options = await fetchAcademicOptions();
+    const select = async (title, entries, defaultIndex) => {
+        const result = await bridge.showSingleSelection(title, JSON.stringify(entries.map(item => item.text)), defaultIndex);
+        if (result == null || !/^\d+$/.test(String(result).trim()) || String(result) === '-1') return null;
+        const index = String(result).trim();
+        return entries[+index] || null;
+    };
+    const year = await select('选择学年', options.yearOptions, options.defaultYearIndex);
+    if (!year) return null;
+    const semester = await select('选择学期', options.semesterOptions, options.defaultSemesterIndex);
+    if (!semester) return null;
+    return { xnm: year.value, xqm: semester.value, label: year.text + ' / ' + semester.text };
+}
+
+// 参考 JSEI 的移动端作息接口，以当前登录会话请求，不从课程推断校区。
+// 两校省略 xqh_id 时的返回结果仍需账号实测，失败时明确提示，不猜测校区。
+async function fetchTimeSlots(xnm, xqm) {
+    try {
+        return parseTimeSlots(await requestHaue('jzgl/skxxMobile_cxRsdjc.html', { xnm, xqm }, 'N2154'));
+    } catch (error) {
+        const serverError = String(error.message || error).match(/HTTP 5\d\d\b/);
+        if (serverError) throw new Error('教务作息接口异常（' + serverError[0] + '），请稍后重试或联系维护者');
+        throw new Error('获取教务作息失败：' + error.message + '。请检查登录状态，或将该作息请求的响应提供给维护者核对');
+    }
+}
+
+// 参考 JSEI 的合并规则；按课程、星期、周次先合并重叠/连续区间，避免重复排课。
 function mergeAndDistinctCourses(courses) {
-    if (!Array.isArray(courses) || courses.length <= 1) return courses;
-
-    // 1. 深拷贝并规范周次数据，过滤无效项
-    const list = courses.map(c => ({
-        ...c,
-        name: c.name || '',
-        teacher: c.teacher || '',
-        position: c.position || '',
-        weeks: Array.isArray(c.weeks) ? [...c.weeks].sort((a, b) => a - b) : []
-    }));
-
-    // 阶段 1：合并连续节次与完全重复记录（前提：名称、教师、地点、星期、周次一致）
-    list.sort((a, b) => {
-        return a.name.localeCompare(b.name) ||
-               a.teacher.localeCompare(b.teacher) ||
-               a.position.localeCompare(b.position) ||
-               (a.day || 0) - (b.day || 0) ||
-               a.weeks.join(',').localeCompare(b.weeks.join(',')) ||
-               (a.startSection || 0) - (b.startSection || 0);
-    });
-
-    const step1Merged = [];
-    let current = list[0];
-
-    for (let i = 1; i < list.length; i++) {
-        const next = list[i];
-
-        const isSameCourseAndWeeks =
-            current.name === next.name &&
-            current.teacher === next.teacher &&
-            current.position === next.position &&
-            current.day === next.day &&
-            current.weeks.join(',') === next.weeks.join(',');
-
-        const isContinuous = current.endSection + 1 === next.startSection;
-        const isDuplicate = current.startSection === next.startSection && current.endSection === next.endSection;
-
-        if (isSameCourseAndWeeks && isContinuous) {
-            // 节次连续：延长结束节次 (如 1-2 节 + 3-4 节 -> 1-4 节)
-            current.endSection = next.endSection;
-        } else if (isSameCourseAndWeeks && isDuplicate) {
-            // 完全重复：跳过
-            continue;
-        } else {
-            step1Merged.push(current);
-            current = next;
+    if (!Array.isArray(courses)) return courses;
+    if (courses.length <= 1) return courses.map(c => ({ ...c, weeks: [...(c.weeks || [])] }));
+    const groups = new Map();
+    for (const course of courses) {
+        const key = JSON.stringify([course.name, course.teacher, course.position, course.day]);
+        if (!groups.has(key)) groups.set(key, { course, byWeek: new Map() });
+        const group = groups.get(key);
+        for (const week of new Set(course.weeks)) {
+            if (!group.byWeek.has(week)) group.byWeek.set(week, []);
+            group.byWeek.get(week).push({ start: course.startSection, end: course.endSection });
         }
     }
-    step1Merged.push(current);
-
-    // 阶段 2：合并同节次的周次（前提：名称、教师、地点、星期、开始/结束节次一致）
-    step1Merged.sort((a, b) => {
-        return a.name.localeCompare(b.name) ||
-               a.teacher.localeCompare(b.teacher) ||
-               a.position.localeCompare(b.position) ||
-               (a.day || 0) - (b.day || 0) ||
-               (a.startSection || 0) - (b.startSection || 0) ||
-               (a.endSection || 0) - (b.endSection || 0);
-    });
-
-    const step2Merged = [];
-    let cur = step1Merged[0];
-
-    for (let i = 1; i < step1Merged.length; i++) {
-        const nxt = step1Merged[i];
-
-        const isSameCourseAndSection =
-            cur.name === nxt.name &&
-            cur.teacher === nxt.teacher &&
-            cur.position === nxt.position &&
-            cur.day === nxt.day &&
-            cur.startSection === nxt.startSection &&
-            cur.endSection === nxt.endSection;
-
-        if (isSameCourseAndSection) {
-            // 周次合并去重 (如 1-8 周 + 9-16 周 -> 1-16 周)
-            cur.weeks = Array.from(new Set([...cur.weeks, ...nxt.weeks])).sort((a, b) => a - b);
-        } else {
-            step2Merged.push(cur);
-            cur = nxt;
+    const result = [];
+    for (const group of groups.values()) {
+        const bySection = new Map();
+        for (const [week, intervals] of group.byWeek) {
+            intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+            const merged = [];
+            for (const interval of intervals) {
+                const previous = merged[merged.length - 1];
+                if (previous && interval.start <= previous.end + 1) previous.end = Math.max(previous.end, interval.end);
+                else merged.push({ ...interval });
+            }
+            for (const interval of merged) {
+                const key = interval.start + '-' + interval.end;
+                if (!bySection.has(key)) bySection.set(key, { ...group.course, startSection: interval.start, endSection: interval.end, weeks: [] });
+                bySection.get(key).weeks.push(week);
+            }
+        }
+        for (const course of bySection.values()) {
+            course.weeks.sort((a, b) => a - b);
+            result.push(course);
         }
     }
-    step2Merged.push(cur);
-
-    return step2Merged;
+    return result;
 }
-
 
 function parseWeeks(value) {
     const weeks = new Set();
-    const text = normalizeText(value).replace(/（/g, '(').replace(/）/g, ')').replace(/周/g, '').replace(/[，、]/g, ',').replace(/[～~—–]/g, '-');
+    const text = normalizeText(value).replace(/（/g, '(').replace(/）/g, ')').replace(/周/g, '').replace(/[，、]/g, ',');
     for (const part of text.split(',')) {
         const match = part.trim().match(/^(\d+)\s*(?:-\s*(\d+))?\s*(?:\(([单双])\))?$/);
         if (!match) throw new Error('无法识别周次：' + value);
@@ -191,6 +196,10 @@ function parseWeeks(value) {
     return Array.from(weeks).sort((a, b) => a - b);
 }
 
+function joinField(value) {
+    return Array.isArray(value) ? value.join('、') : String(value || '').trim();
+}
+
 function parseCourses(data, warnings = []) {
     if (!data || !Array.isArray(data.kbList)) throw new Error('未收到课表数据，请确认登录状态及所在页面');
     const courses = [];
@@ -202,7 +211,7 @@ function parseCourses(data, warnings = []) {
         if (!name || !section || !/^[1-7]$/.test(normalizeText(row.xqj))) throw new Error('课程排课信息异常：' + (name || '未命名课程'));
         const startSection = +section[1], endSection = +(section[2] || section[1]);
         if (startSection < 1 || endSection < startSection || endSection > 30) throw new Error('节次异常：' + name);
-        courses.push({ name, day, weeks: parseWeeks(row.zcd), teacher: String(row.xm || '').trim(), position: String(row.cdmc || '').trim(), startSection, endSection });
+        courses.push({ name, day, weeks: parseWeeks(row.zcd), teacher: joinField(row.xm), position: joinField(row.cdmc), startSection, endSection });
       } catch (error) { warnings.push('跳过课程 ' + String(row && row.kcmc || '未命名') + '：' + error.message); }
     }
     return mergeAndDistinctCourses(courses);
@@ -228,12 +237,22 @@ function parseTimeSlots(data) {
 async function requestHaue(path, params, moduleId = 'N2151') {
     const response = await fetch(getBaseUrl() + path + '?gnmkdm=' + encodeURIComponent(moduleId), {
         method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: new URLSearchParams(params).toString()
     });
     if (!response.ok) throw new Error('教务请求失败（HTTP ' + response.status + '）');
-    try { return await response.json(); }
-    catch (_) { throw new Error('教务未返回 JSON 数据，请重新登录后重试'); }
+    const text = await response.text();
+    try { return JSON.parse(text); }
+    catch (_) {
+        // 有效 JSON 中的课程名可能含登录关键词，不能按内容关键词拦截。
+        assertNotLoginPage(text);
+        throw new Error('教务未返回 JSON 数据，请重新登录后重试');
+    }
+}
+
+async function saveWithConfirmation(bridge, method, data, label) {
+    const result = await bridge[method](JSON.stringify(data));
+    if (result !== true && result !== 'true') throw new Error(label + '保存未成功，请重试并核对');
 }
 
 async function runImportFlow() {
@@ -241,21 +260,18 @@ async function runImportFlow() {
     let coursesSaved = false;
     let saveStage = '课程';
     try {
-        const year = document.querySelector('#xnm');
-        const semester = document.querySelector('#xqm');
-        if (!year || !semester || !year.value || !semester.value) throw new Error('请先进入个人课表查询页面，选择学年和学期后再导入');
-        const xnm = year.value, xqm = semester.value;
-        const label = element => element.options && element.selectedIndex >= 0 ? element.options[element.selectedIndex].text : element.value;
-        if (!await bridge.showAlert('河南工程学院课表导入（接口增强版）', '将请求 ' + label(year) + ' / ' + label(semester) + ' 的课程及校区作息。将尝试获取校历，保存前请核对。', '开始获取')) return;
-        window.shiguangBridge.showToast('正在获取课程和作息…');
-        const data = await requestHaue('kbcx/xskbcx_cxXsgrkb.html', { xnm, xqm, kzlx: 'ck', xsdm: '', kclbdm: '', kclxdm: '' });
+        const selection = await selectAcademicYearAndSemester(bridge);
+        if (!selection) return;
+        const { xnm, xqm } = selection;
+        window.shiguangBridge.showToast('正在获取课程、校历和作息…');
         const warnings = [];
+        const [data, config, slots] = await Promise.all([
+            requestHaue('kbcx/xskbcx_cxXsgrkb.html', { xnm, xqm, kzlx: 'ck', xsdm: '', kclbdm: '', kclxdm: '' }),
+            fetchSemesterConfig(xnm, xqm, warnings),
+            fetchTimeSlots(xnm, xqm)
+        ]);
         let courses = parseCourses(data, warnings);
-        const config = await fetchSemesterConfig(xnm, xqm, warnings);
         if (!courses.length) throw new Error('没有可导入的有效课程，请核对学期。\n' + warnings.join('\n'));
-        const resolved = await resolveTimeSlots(data, xnm, xqm, bridge);
-        if (!resolved) return;
-        const { slots, campusName, note } = resolved;
         const numbers = new Set(slots.map(slot => slot.number));
         courses = courses.filter(course => {
             for (let n = course.startSection; n <= course.endSection; n++) {
@@ -275,17 +291,16 @@ async function runImportFlow() {
         }
         const practices = Array.isArray(data.sjkList) ? data.sjkList : [];
         const practiceNote = practices.length ? '\n\n以下实践课没有具体星期和节次，本次不导入，请另行核对安排：\n' + practices.map(row => String(row.kcmc || '未命名实践课') + '（' + String(row.qsjsz || '周次未定') + '）').join('\n') : '';
-        const message = '共 ' + courses.length + ' 条排课记录。教务返回的' + campusName + '作息如下，请与实际作息核对；若不符请取消并联系维护者：\n' + slots.map(slot => '第' + slot.number + '节 ' + slot.startTime + '–' + slot.endTime).join('\n') + note + practiceNote + '\n\n开学日期：' + (config.semesterStartDate || '需手动设置') + '\n学期总周数：' + (config.semesterTotalWeeks || '需手动设置') + (warnings.length ? '\n\n注意：\n' + warnings.join('\n') : '');
-        if (!await bridge.showAlert('核对课程与作息', message, '确认并保存')) return;
-        await bridge.saveImportedCourses(JSON.stringify(courses));
+        const message = selection.label + '\n共 ' + courses.length + ' 条排课记录。教务返回的作息如下，请核对：\n' + slots.map(slot => '第' + slot.number + '节 ' + slot.startTime + '–' + slot.endTime).join('\n') + practiceNote + '\n\n开学日期：' + (config.semesterStartDate || '需手动设置') + '\n学期总周数：' + (config.semesterTotalWeeks || '需手动设置') + (warnings.length ? '\n\n注意：\n' + warnings.join('\n') : '');
+        const confirmed = await bridge.showAlert('核对课程与作息', message, '确认并保存');
+        if (confirmed !== true && confirmed !== 'true') return;
+        await saveWithConfirmation(bridge, 'saveImportedCourses', courses, '课程');
         coursesSaved = true;
         saveStage = '作息';
-        await bridge.savePresetTimeSlots(JSON.stringify(slots));
-        if (Object.keys(config).length) {
-            saveStage = '学期配置';
-            await bridge.saveCourseConfig(JSON.stringify(config));
-        }
-        window.shiguangBridge.showToast('已导入 ' + courses.length + ' 条排课记录及校区作息，请核对开学日期');
+        await saveWithConfirmation(bridge, 'savePresetTimeSlots', slots, '作息');
+        saveStage = '学期配置';
+        await saveWithConfirmation(bridge, 'saveCourseConfig', config, '学期配置');
+        window.shiguangBridge.showToast('已导入 ' + courses.length + ' 条排课记录及作息，请核对学期配置');
         window.shiguangBridge.notifyTaskCompletion();
     } catch (error) {
         await bridge.showAlert('导入未完成', (coursesSaved ? '课程已保存，但' + saveStage + '未保存成功，请重试并核对。\n' : '') + error.message, '确定');
