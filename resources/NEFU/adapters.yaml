@@ -1,0 +1,9 @@
+# resources/NEFU/adapters.yaml
+adapters:
+  - adapter_id: "NEFU_01"
+    adapter_name: "东北林业大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nefu.js"
+    import_url: "https://jwxt-443.webvpn.nefu.edu.cn/dist/#/new/tableIndex"
+    maintainer: "StarryHui"
+    description: "东北林业大学新版教务系统课表导入，支持全学期课程解析、作息时间与开学日期校准"

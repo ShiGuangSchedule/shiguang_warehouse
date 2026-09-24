@@ -1118,3 +1118,8 @@ schools:
     initial: "H"
     resource_folder: "HAUE"
     
+  - id: "NEFU"
+    name: "东北林业大学"
+    initial: "D"
+    resource_folder: "NEFU"
+
