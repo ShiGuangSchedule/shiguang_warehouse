@@ -1,18 +1,17 @@
 async function importPresetTimeSlots() {
     const slots = [
-        { "number": 1,  "startTime": "08:00", "endTime": "08:40" },
-        { "number": 2,  "startTime": "08:50", "endTime": "09:30" },
-        { "number": 3,  "startTime": "09:50", "endTime": "10:30" },
-        { "number": 4,  "startTime": "10:40", "endTime": "11:20" },
-        { "number": 5,  "startTime": "11:30", "endTime": "12:10" },
+        { "number": 1,  "startTime": "08:20", "endTime": "09:00" },
+        { "number": 2,  "startTime": "09:05", "endTime": "09:45" },
+        { "number": 3,  "startTime": "10:05", "endTime": "10:45" },
+        { "number": 4,  "startTime": "10:50", "endTime": "11:30" },
+        { "number": 5,  "startTime": "11:35", "endTime": "12:15" },
         { "number": 6,  "startTime": "14:30", "endTime": "15:10" },
-        { "number": 7,  "startTime": "15:20", "endTime": "16:00" },
-        { "number": 8,  "startTime": "16:10", "endTime": "16:50" },
+        { "number": 7,  "startTime": "15:15", "endTime": "15:55" },
+        { "number": 8,  "startTime": "16:15", "endTime": "16:55" },
         { "number": 9,  "startTime": "17:00", "endTime": "17:40" },
-        { "number": 10, "startTime": "18:45", "endTime": "19:25" },
-        { "number": 11, "startTime": "19:35", "endTime": "20:15" },
-        { "number": 12, "startTime": "20:25", "endTime": "21:05" },
-        { "number": 13, "startTime": "21:15", "endTime": "21:55" }
+        { "number": 10, "startTime": "19:00", "endTime": "19:40" },
+        { "number": 11, "startTime": "19:45", "endTime": "20:25" },
+        { "number": 12, "startTime": "20:30", "endTime": "21:10" }
     ];
     await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(slots)).catch(() => {});
 }
