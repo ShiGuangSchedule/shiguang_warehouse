@@ -1112,3 +1112,9 @@ schools:
     name: "福建师范大学"
     initial: "F"
     resource_folder: "FJNU"
+
+  - id: "HAUE"
+    name: "河南工程学院"
+    initial: "H"
+    resource_folder: "HAUE"
+    
