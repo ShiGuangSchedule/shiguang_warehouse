@@ -1,7 +1,7 @@
 /**
- * 拾光课程表 - 东北林业大学教务系统适配脚本 (v2)
+ * 拾光课程表 - 东北林业大学 (NEFU) 教务系统适配脚本
  *
- * 适用系统：东北林业大学新版教务系统 (强智/青果移动端系统 /dist/#/new/tableIndex)
+ * 适用系统：强智新版教务系统 (/dist/#/new/tableIndex)
  * 支持环境：校内直连 (jwxt.nefu.edu.cn) 及校外 WebVPN (jwxt-443.webvpn.nefu.edu.cn)
  * 适配规范：拾光课程表 V2 桥接 API
  * 维护者：StarryHui
@@ -10,36 +10,21 @@
 // ========== 1. 基础工具函数 ==========
 
 /**
- * 获取当前登录 Token
- */
-function getAuthToken() {
-    let token = sessionStorage.getItem("Token");
-    if (token) return token;
-
-    try {
-        const userInfoStr = sessionStorage.getItem("userInfo");
-        if (userInfoStr) {
-            const userInfo = JSON.parse(userInfoStr);
-            if (userInfo && userInfo.token) {
-                return userInfo.token;
-            }
-        }
-    } catch (e) {
-        console.warn("读取 userInfo token 异常:", e);
-    }
-    return "";
-}
-
-/**
- * 封装 API POST 请求
+ * 封装 API POST 请求 (自动携带 Cookie 会话凭据)
  */
 async function postApi(url, data = null) {
-    const token = getAuthToken();
     const headers = {
         "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/x-www-form-urlencoded",
-        ...(token ? { "token": token } : {})
+        "Content-Type": "application/x-www-form-urlencoded"
     };
+
+    // 若当前会话存在 token 字段则兼容附带，但不做强制依赖
+    try {
+        const token = sessionStorage.getItem("Token");
+        if (token) {
+            headers["token"] = token;
+        }
+    } catch (_) {}
 
     let body = null;
     if (data && typeof data === "object") {
@@ -198,22 +183,10 @@ async function runImportFlow() {
     try {
         window.shiguangBridge.showToast("正在准备导入东北林业大学课表...");
 
-        // 1. 登录前置检查
-        const token = getAuthToken();
-        const isInDist = window.location.href.includes("/dist");
-        if (!token && !isInDist) {
-            await window.shiguangBridgePromise.showAlert(
-                "请先登录",
-                "未检测到教务系统的有效登录凭证。\n请先在页面中完成统一身份认证并进入【课程表】界面后再点击导入。",
-                "我知道了"
-            );
-            return;
-        }
-
-        // 2. 导入确认弹窗
+        // 1. 导入确认弹窗 (假设用户已进入教务系统环境)
         const startConfirmed = await window.shiguangBridgePromise.showAlert(
             "东北林业大学教务导入",
-            "已检测到教务系统环境。\n点击开始后将自动获取学期、作息及全部课程数据。",
+            "点击开始后将自动获取学期、作息及全部课程数据。请确保您已进入教务系统页面。是否继续？",
             "开始导入"
         );
         if (!startConfirmed) {
