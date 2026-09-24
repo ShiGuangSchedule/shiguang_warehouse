@@ -1,0 +1,9 @@
+# resources/SCEMI/adapters.yaml
+adapters:
+  - adapter_id: "SCEMI_01"
+    adapter_name: "四川机电职业技术学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "scemi_01.js"
+    import_url: "http://192.168.73.155/personal-center"
+    maintainer: "小漫君"
+    description: "四川机电职业技术学院正方新一代教务适配，仅校园网内可用：请在校园网环境下从校内门户 192.168.73.155/personal-center 登录，教务服务为 192.168.73.166/jwglxt（公网 zhjw.scemi.com 会被 webproxy 按来源网段拦截）。登录并进入教务后，在任意页面执行导入即可，无需进入课表查询页面；脚本自动读取学年学期并获取课表与真实节次作息。"
