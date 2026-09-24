@@ -120,23 +120,34 @@ async function selectAcademicYearAndSemester(bridge) {
         const index = String(result).trim();
         return entries[+index] || null;
     };
+    const makeSelection = (year, semester) => ({ xnm: year.value, xqm: semester.value, label: year.text + ' / ' + semester.text });
+    const defaultSelection = makeSelection(options.yearOptions[options.defaultYearIndex], options.semesterOptions[options.defaultSemesterIndex]);
+    const action = await select('确认导入学期', [
+        { value: 'default', text: '导入：' + defaultSelection.label },
+        { value: 'change', text: '更换学年、学期' }
+    ], 0);
+    if (!action) return null;
+    if (action.value === 'default') return defaultSelection;
     const year = await select('选择学年', options.yearOptions, options.defaultYearIndex);
     if (!year) return null;
     const semester = await select('选择学期', options.semesterOptions, options.defaultSemesterIndex);
     if (!semester) return null;
-    return { xnm: year.value, xqm: semester.value, label: year.text + ' / ' + semester.text };
+    return makeSelection(year, semester);
 }
 
 // 参考 JSEI 的移动端作息接口，以当前登录会话请求，不从课程推断校区。
 // 两校省略 xqh_id 时的返回结果仍需账号实测，失败时明确提示，不猜测校区。
 async function fetchTimeSlots(xnm, xqm) {
+    let data;
     try {
-        return parseTimeSlots(await requestHaue('jzgl/skxxMobile_cxRsdjc.html', { xnm, xqm }, 'N2154'));
+        data = await requestHaue('jzgl/skxxMobile_cxRsdjc.html', { xnm, xqm }, 'N2154');
     } catch (error) {
         const serverError = String(error.message || error).match(/HTTP 5\d\d\b/);
         if (serverError) throw new Error('教务作息接口异常（' + serverError[0] + '），请稍后重试或联系维护者');
         throw new Error('获取教务作息失败：' + error.message + '。请检查登录状态，或将该作息请求的响应提供给维护者核对');
     }
+    try { return parseTimeSlots(data); }
+    catch (error) { throw new Error('作息数据无法解析：' + error.message + '。本次尚未保存，请将此提示或作息接口响应提供给维护者核对'); }
 }
 
 // 参考 JSEI 的合并规则；按课程、星期、周次先合并重叠/连续区间，避免重复排课。
@@ -218,18 +229,32 @@ function parseCourses(data, warnings = []) {
 }
 
 function parseTimeSlots(data) {
-    if (!Array.isArray(data) || !data.length) throw new Error('未收到作息数据');
-    const seen = new Set();
-    const slots = data.map(row => {
-        const number = +normalizeText(row.jcmc);
-        const startTime = normalizeTime(row.qssj), endTime = normalizeTime(row.jssj);
-        const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-        if (!/^\d+$/.test(normalizeText(row.jcmc)) || number < 1 || number > 30 || seen.has(number) || !timePattern.test(startTime) || !timePattern.test(endTime) || startTime >= endTime) throw new Error('教务返回的作息格式异常');
-        seen.add(number);
-        return { number, startTime, endTime };
-    }).sort((a, b) => a.number - b.number);
+    if (!Array.isArray(data) || !data.length) throw new Error('未收到有效的作息列表');
+    const byNumber = new Map();
+    const describe = value => String(value == null ? '缺失' : value).slice(0, 60);
+    for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        if (!row || typeof row !== 'object') throw new Error('第 ' + (i + 1) + ' 条作息不是有效记录');
+        const section = normalizeText(row.jcmc).trim();
+        const number = +section;
+        if (!/^\d+$/.test(section) || number < 1 || number > 30) {
+            throw new Error('第 ' + (i + 1) + ' 条作息的节次无法识别（jcmc=' + describe(row.jcmc) + '）');
+        }
+        let startTime, endTime;
+        try { startTime = normalizeTime(row.qssj); endTime = normalizeTime(row.jssj); }
+        catch (_) { throw new Error('第 ' + number + ' 节时间无法识别（qssj=' + describe(row.qssj) + '，jssj=' + describe(row.jssj) + '）'); }
+        if (startTime >= endTime) throw new Error('第 ' + number + ' 节起止时间异常：' + startTime + '–' + endTime);
+        const existing = byNumber.get(number);
+        if (existing) {
+            // 接口可能重复返回同一节次；完全相同的作息只保留一条，不选择相互冲突的时间。
+            if (existing.startTime === startTime && existing.endTime === endTime) continue;
+            throw new Error('第 ' + number + ' 节返回不同时间：' + existing.startTime + '–' + existing.endTime + ' 与 ' + startTime + '–' + endTime);
+        }
+        byNumber.set(number, { number, startTime, endTime });
+    }
+    const slots = Array.from(byNumber.values()).sort((a, b) => a.number - b.number);
     for (let i = 1; i < slots.length; i++) {
-        if (slots[i].startTime < slots[i - 1].endTime) throw new Error('教务返回的作息时间重叠');
+        if (slots[i].startTime < slots[i - 1].endTime) throw new Error('第 ' + slots[i - 1].number + ' 节与第 ' + slots[i].number + ' 节作息时间重叠');
     }
     return slots;
 }
