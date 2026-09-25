@@ -1113,6 +1113,16 @@ schools:
     initial: "F"
     resource_folder: "FJNU"
 
+  - id: "HAUE"
+    name: "河南工程学院"
+    initial: "H"
+    resource_folder: "HAUE"
+    
+  - id: "XCU"
+    name: "许昌学院"
+    initial: "X"
+    resource_folder: "XCU"
+    
   - id: "GDKM"
     name: "广东科贸职业学院"
     initial: "G"
