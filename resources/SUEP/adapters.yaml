@@ -1,0 +1,9 @@
+# resources/SUEP/adapters.yaml
+adapters:
+  - adapter_id: "SUEP_01"
+    adapter_name: "上海电力大学本科教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "SUEP.js"
+    import_url: "https://jw.shiep.edu.cn/eams/index.action"
+    maintainer: "zt11125"
+    description: "从统一身份认证入口登录后，进入「我的课表」页面，并把「学年学期」切换到要导入的学期。\n注意：不要直接访问课表网址，未登录时它会被统一身份认证以「应用未注册」拦截。"
