@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "NEFU_01"
+    adapter_name: "东北林业大学本部本科生院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nefu.js"
+    import_url: "https://jwxt.nefu.edu.cn/jsxsd/"
+    maintainer: "Chr0n0stasis"
+    description: "本部本科个人课表。登录后选择学期导入，保留原有作息和学期设置。"

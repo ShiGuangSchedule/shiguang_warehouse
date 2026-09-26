@@ -1127,3 +1127,8 @@ schools:
     name: "广东科贸职业学院"
     initial: "G"
     resource_folder: "GDKM"
+
+  - id: "NEFU"
+    name: "东北林业大学"
+    initial: "D"
+    resource_folder: "NEFU"
