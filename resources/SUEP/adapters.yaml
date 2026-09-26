@@ -1,9 +1,9 @@
 # resources/SUEP/adapters.yaml
 adapters:
-  - adapter_id: "SUEP_01"
+  - adapter_id: "SHIEP_01"
     adapter_name: "上海电力大学本科教务系统"
     category: "BACHELOR_AND_ASSOCIATE"
-    asset_js_path: "SUEP.js"
+    asset_js_path: "SHIEP.js"
     import_url: "https://jw.shiep.edu.cn/eams/index.action"
     maintainer: "zt11125"
     description: "从统一身份认证入口登录进入教务系统后开始使用"
