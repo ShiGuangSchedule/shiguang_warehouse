@@ -1123,3 +1123,7 @@ schools:
     initial: "X"
     resource_folder: "XCU"
     
+  - id: "GDKM"
+    name: "广东科贸职业学院"
+    initial: "G"
+    resource_folder: "GDKM"
