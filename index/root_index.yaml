@@ -1123,7 +1123,13 @@ schools:
     initial: "X"
     resource_folder: "XCU"
     
+  - id: "GDKM"
+    name: "广东科贸职业学院"
+    initial: "G"
+    resource_folder: "GDKM"
+
   - id: "SHIEP"
     name: "上海电力大学"
     initial: "S"
     resource_folder: "SHIEP"
+    
