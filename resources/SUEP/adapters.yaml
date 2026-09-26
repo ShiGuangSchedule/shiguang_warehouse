@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "SUEP.js"
     import_url: "https://jw.shiep.edu.cn/eams/index.action"
     maintainer: "zt11125"
-    description: "从统一身份认证入口登录进入教务系统后开始使用\n注意：不要直接访问课表网址，未登录时它会被统一身份认证以「应用未注册」拦截。"
+    description: "从统一身份认证入口登录进入教务系统后开始使用"
