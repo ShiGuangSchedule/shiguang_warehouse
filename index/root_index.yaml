@@ -1123,7 +1123,7 @@ schools:
     initial: "X"
     resource_folder: "XCU"
     
-  - id: "SUEP"
+  - id: "SHIEP"
     name: "上海电力大学"
     initial: "S"
-    resource_folder: "SUEP"
+    resource_folder: "SHIEP"
