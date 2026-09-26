@@ -37,6 +37,69 @@
     const b = emptyCells(); b.splice(2, 1); b[2] = cell(card('2周[3-4节]', '示例晚课'));
     equal(api.parseHTML(fixture([row(1,a),row(3,b)])).courses.map(c => c.day), [3,4]);
   });
+  test('rowspan 跨三行的源卡片只统计一次', () => {
+    const top = emptyCells();
+    top[0] = cell(card('1周[1-6节]', '跨行甲') + card('2周[1-6节]', '跨行乙'), 3);
+    const middle = Array.from({length:6}, () => cell());
+    middle[0] = cell(card('1周[3-4节]', '相邻课程'));
+    const doc = new DOMParser().parseFromString(fixture([
+      row(1, top), row(3, middle), row(5, Array.from({length:6}, () => cell()))
+    ]), 'text/html');
+    const rows = [...doc.querySelector('table').tBodies[0].rows];
+    const spanningCell = rows[0].cells[1];
+    equal(rows.map(r => r.cells.length), [8, 7, 7]);
+    assert(![...rows[1].cells, ...rows[2].cells].includes(spanningCell));
+    const parsed = api.parseDocument(doc);
+    equal(parsed.statistics.sourceCards, 3);
+    equal(parsed.statistics.sourceCards, doc.querySelectorAll('li.courselists-item').length);
+    equal(parsed.courses.map(c => c.day), [1, 1, 2]);
+  });
+  test('交错 rowspan 不重复统计卡片，覆盖结束后星期正确', () => {
+    const top = emptyCells();
+    top[0] = cell(card('1周[1-6节]', '跨三行'), 3);
+    top[2] = cell(card('1周[1-4节]', '跨两行甲') + card('2周[1-4节]', '跨两行乙'), 2);
+    top[6] = cell(card('1周[1节]', '周日课程'));
+    const middle = Array.from({length:5}, () => cell());
+    middle[0] = cell(card('1周[3-6节]', '周二跨行'), 2);
+    middle[2] = cell(card('1周[3节]', '周五课程'));
+    const bottom = Array.from({length:5}, () => cell());
+    bottom[0] = cell(card('1周[5-6节]', '下方周三'));
+    const parsed = api.parseHTML(fixture([row(1, top), row(3, middle), row(5, bottom)]));
+    equal(parsed.statistics.sourceCards, 7);
+    equal(parsed.courses.map(c => c.day), [1, 3, 3, 7, 2, 5, 3]);
+  });
+  test('内容相同的两个 DOM 卡片仍计为两个源卡片', () => {
+    const top = emptyCells(); top[0] = cell(card('1周[1-6节]') + card('1周[1-6节]'), 3);
+    const parsed = api.parseHTML(fixture([
+      row(1, top), row(3, Array.from({length:6}, () => cell())), row(5, Array.from({length:6}, () => cell()))
+    ]));
+    equal(parsed.statistics.sourceCards, 2);
+    equal(parsed.statistics.courseRecords, 1);
+  });
+  test('一个卡片拆成不连续节次时，源卡片数仍为一', () => {
+    const parsed = api.parseHTML(single(card('1周[1、3节]')));
+    equal(parsed.statistics.sourceCards, 1);
+    equal(parsed.statistics.courseRecords, 2);
+  });
+  test('七个星期列与二至六行跨度的 35 种组合逐卡计数', () => {
+    for (let day = 0; day < 7; day++) for (let height = 2; height <= 6; height++) {
+      const top = emptyCells();
+      top[day] = cell(card('1周[1-' + (height * 2) + '节]', '跨行课程'), height);
+      const rows = [row(1, top)];
+      const adjacentDay = (day + 1) % 7;
+      for (let i = 1; i < height; i++) {
+        const cells = Array.from({length:6}, () => cell());
+        const physicalColumn = adjacentDay > day ? adjacentDay - 1 : adjacentDay;
+        cells[physicalColumn] = cell(card('1周[' + (i * 2 + 1) + '节]', '单行课程' + i));
+        rows.push(row(i * 2 + 1, cells));
+      }
+      const doc = new DOMParser().parseFromString(fixture(rows), 'text/html');
+      const parsed = api.parseDocument(doc);
+      equal(parsed.statistics.sourceCards, height);
+      equal(parsed.statistics.sourceCards, doc.querySelectorAll('li.courselists-item').length);
+      equal(parsed.courses.map(c => c.day), [day + 1, ...Array(height - 1).fill(adjacentDay + 1)]);
+    }
+  });
   test('按星期表头映射而非固定列次序', () => {
     const html = single().replace('星期一','交换').replace('星期二','星期一').replace('交换','星期二');
     equal(api.parseHTML(html).courses[0].day, 2);

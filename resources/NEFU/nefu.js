@@ -78,6 +78,8 @@
     let cardCount = 0;
     rows.forEach((row, rowIndex) => {
       let column = 0;
+      // row.cells 只含当前 tr 的实际子单元格；rowspan 占位仅写入 grid。
+      // 下方行跳过占位，不会再次遍历或统计同一个 td。
       for (const cell of row.cells) {
         while (column < 8 && grid[rowIndex][column]) column++;
         const height = cell.rowSpan, width = cell.colSpan;
