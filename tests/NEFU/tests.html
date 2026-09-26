@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>NEFU 适配器测试</title>
+<style>body{font:16px/1.6 system-ui;margin:24px}pre{white-space:pre-wrap}.pass{color:#166534}.fail{color:#b91c1c}</style>
+<h1>东北林业大学适配器测试</h1><p>仅使用虚构数据和模拟桥接，不访问教务系统。</p><pre id="results">测试中……</pre>
+<script>
+(async () => {
+  try {
+    const response = await fetch('/resources/NEFU/nefu.js');
+    if (!response.ok) throw new Error('无法加载正式脚本');
+    window.NEFUSource = await response.text();
+    const module = { exports: {} };
+    new Function('module', window.NEFUSource)(module);
+    window.NEFUAdapter = module.exports;
+    const script = document.createElement('script');
+    script.src = '/tests/NEFU/tests.js';
+    document.body.appendChild(script);
+  } catch (error) { document.getElementById('results').textContent = String(error); }
+})();
+</script></html>
