@@ -1248,3 +1248,7 @@ schools:
     initial: "H"
     resource_folder: "HNU"
 
+  - id: "CCSUT"
+    name: "长沙工业学院"
+    initial: "C"
+    resource_folder: "CCSUT"
