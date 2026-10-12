@@ -6,17 +6,15 @@
 //   统一身份认证（CAS）：https://cas.cugb.edu.cn/login?service=...
 //   登录入口：https://jwglxt.cugb.edu.cn/academic/login/cugb/loginIds6Valid.jsp
 //
-// 取数策略（依次尝试，取第一个成功的）：
-//   A. 接口取数（首选）
-//      1) GET  /academic/student/currcourse/currcourse.jsdo
-//         解析 <eduaffair:CTRT studentid=.. year=.. term=..> 拿到当前学年/学期/学号
-//      2) 交互确认学年/学期：默认当前学期，可点「我要修改」选其它学年/学期（导入往期课表）
-//      3) GET  /academic/manager/coursearrange/showTimetable.do?id=&yearid=&termid=&timetableType=STUDENT&sectionType=BASE
-//         解析 id=timetable 的周课表网格
-//      4) POST /academic/manager/coursearrange/studentWeeklyTimetable.do（whichWeek=1）
-//         解析开学日期与学期总周数（按所选学年/学期）
-//   B. 页面取数（兜底）
-//      直接解析当前 WebView 页面（含 iframe）中 id=timetable 的网格课表
+// 取数策略：**全部通过接口**，不解析当前页面 DOM（便于解耦、不依赖停留页面）。
+//   1) GET  /academic/student/currcourse/currcourse.jsdo
+//      解析 <eduaffair:CTRT studentid=.. year=.. term=..> 拿到当前学年/学期/学号
+//   2) 交互确认学年/学期：默认当前学期，可点「我要修改」选其它学年/学期（导入往期课表）
+//   3) GET  /academic/manager/coursearrange/showTimetable.do?id=&yearid=&termid=&timetableType=STUDENT&sectionType=BASE
+//      解析 id=timetable 的周课表网格
+//   4) POST /academic/manager/coursearrange/studentWeeklyTimetable.do（whichWeek=1）
+//      解析开学日期与学期总周数（按所选学年/学期）
+//   登录教务系统后停在任意教务页面即可导入；取数失败会弹出诊断信息。
 //
 // 作息时间：优先从课表表头（第X节 + 起止时间）动态读取；
 //           读不到时回退到内置作息（14 节，来源见下方常量注释）。
@@ -725,68 +723,17 @@ async function getSemesterMeta(info) {
 }
 
 // ---------------------------------------------------------------------------
-// 策略 B：解析当前页面（含 iframe）
-// ---------------------------------------------------------------------------
-
-function allDocuments() {
-  const docs = [];
-  const seen = [];
-  (function walk(doc) {
-    if (!doc || seen.indexOf(doc) >= 0) return;
-    seen.push(doc);
-    docs.push(doc);
-    try {
-      const frames = doc.querySelectorAll("iframe, frame");
-      for (let i = 0; i < frames.length; i++) {
-        try { walk(frames[i].contentDocument); } catch (e) {}
-      }
-    } catch (e) {}
-  })(document);
-  return docs;
-}
-
-async function collectFromDocument() {
-  const docs = allDocuments();
-  for (let i = 0; i < docs.length; i++) {
-    const table = findTimetableTable(docs[i]);
-    if (table) {
-      const parsed = parseGridTable(table);
-      if (parsed.courses.length) {
-        let meta = { startDate: null, totalWeeks: null };
-        // 若当前课表页 URL 带 yearid/termid，则据此补全开学日期与周数
-        try {
-          const q = new URLSearchParams(window.location.search);
-          const year = q.get("yearid") || q.get("year");
-          const term = q.get("termid") || q.get("term");
-          if (year && term) meta = await getSemesterMeta({ year: year, term: term });
-        } catch (e) { cugbLog("页面 URL 取学期信息失败:", e && e.message); }
-        return {
-          courses: parsed.courses, slotTimes: parsed.slotTimes,
-          startDate: meta.startDate, totalWeeks: meta.totalWeeks, label: "当前页面"
-        };
-      }
-    }
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// 诊断
+// 诊断（纯接口取数失败时输出，便于反馈）
 // ---------------------------------------------------------------------------
 
 function collectDiagnostics() {
-  const lines = [];
-  const docs = allDocuments();
-  let tables = 0, trs = 0, tds = 0, timetableFound = 0;
-  docs.forEach(function (doc) {
-    tables += doc.querySelectorAll("table").length;
-    trs += doc.querySelectorAll("tr").length;
-    tds += doc.querySelectorAll("td,th").length;
-    if (findTimetableTable(doc)) timetableFound++;
-  });
-  lines.push("文档数=" + docs.length + " 表格=" + tables + " 行=" + trs + " 格=" + tds + " 含课表=" + timetableFound);
-  lines.push("URL=" + String(window.location.href).slice(0, 120));
-  return lines.join("\n");
+  return [
+    "URL=" + String(window.location.href).slice(0, 120),
+    "取数接口：",
+    "  GET  /academic/student/currcourse/currcourse.jsdo",
+    "  GET  /academic/manager/coursearrange/showTimetable.do",
+    "  POST /academic/manager/coursearrange/studentWeeklyTimetable.do"
+  ].join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -872,15 +819,10 @@ async function runImportFlow() {
     }
 
     if (!result || !result.courses.length) {
-      cugbLog("回退到页面解析");
-      result = await collectFromDocument();
-    }
-
-    if (!result || !result.courses.length) {
       await window.shiguangBridgePromise.showAlert(
         "未获取到课程数据",
         collectDiagnostics() +
-        "\n\n请确认：\n1. 已成功登录教务系统；\n2. 处于【学生课表】页面（或稍后重试）；\n3. 该学期已排课。\n\n可将以上信息反馈给适配维护者。",
+        "\n\n请确认：\n1. 已成功登录教务系统；\n2. 该学期已排课；\n3. 登录状态是否已失效（可刷新重登后重试）。\n\n可将以上信息反馈给适配维护者。",
         "知道了"
       );
       return;
