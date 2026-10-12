@@ -1,6 +1,7 @@
 /**
  * 山东财经大学 教务适配脚本(强智教务系统)
  * 数据来源:/jsxsd/xskb/xskb_list.do(学期理论课表)
+ *           /jsxsd/jxzl/jxzl_query(教学周历,用于获取任意学期的开学日期与总周数)
  */
 
 // 山东财经大学作息时间(来源:https://www.sdufe.edu.cn/xyfw/zxxl.htm 日常教学时刻表)。
@@ -21,7 +22,7 @@ const TIME_SLOTS = [
 ];
 
 const TIMETABLE_URL = "/jsxsd/xskb/xskb_list.do";
-const WEEK_INFO_URL = "/jsxsd/framework/main_index_loadkb.jsp";
+const SEMESTER_CALENDAR_URL = "/jsxsd/jxzl/jxzl_query"; // 教学周历
 
 const FORM_HEADERS = { "Content-Type": "application/x-www-form-urlencoded" };
 const TEACHER_TITLE_RE = /(副教授|教授|讲师（高校）|讲师|助教|副研究员|研究员|高级实验师|实验师)$/;
@@ -184,30 +185,53 @@ async function fetchTimetable(semester) {
     return new DOMParser().parseFromString(await res.text(), "text/html");
 }
 
-/** 尽力获取开学日期和总周数(失败返回 null,不影响课程导入) */
-async function fetchSemesterConfig() {
+/** 解析教学周历页面,返回 { startDate, totalWeeks },取不到的字段为 null */
+function parseSemesterCalendar(doc) {
+    const info = { startDate: null, totalWeeks: null };
+    const table = doc.getElementById("kbtable");
+    if (!table) return info;
+    const rows = Array.from(table.querySelectorAll("tr")).filter((r) => r.querySelector("td"));
+    if (!rows.length) return info;
+
+    // 第一行第一个带日期的单元格 = 第一周的起始日期,title 形如 “2026年08月24”
+    const dateCell = rows[0].querySelector("td[title]");
+    const m = ((dateCell && dateCell.getAttribute("title")) || "").match(/(\d{4})年(\d{1,2})月(\d{1,2})/);
+    if (m) info.startDate = m[1] + "-" + pad2(m[2]) + "-" + pad2(m[3]);
+
+    // 总周数:每行第一个单元格是周次,取最大值
+    rows.forEach((row) => {
+        const n = parseInt(row.querySelector("td").textContent.trim(), 10);
+        if (n > 0 && (info.totalWeeks === null || n > info.totalWeeks)) info.totalWeeks = n;
+    });
+    return info;
+}
+
+/** 获取指定学期(形如 2025-2026-2)的开学日期与总周数;失败返回全 null,不抛错 */
+async function fetchSemesterCalendar(semester) {
+    const empty = { startDate: null, totalWeeks: null };
+    if (!semester) return empty;
     try {
-        const today = new Date();
-        const res = await fetch(WEEK_INFO_URL, {
+        const res = await fetch(SEMESTER_CALENDAR_URL, {
             method: "POST",
             headers: FORM_HEADERS,
-            body: "rq=" + formatDate(today),
+            body: "xnxq01id=" + encodeURIComponent(semester),
             credentials: "include",
         });
-        const text = await res.text();
-        const m = text.match(/第(\d+)周<\/span>\/(\d+)周/);
-        if (!m) return null;
-        const week = parseInt(m[1], 10);
-        const total = parseInt(m[2], 10);
-        const monday = new Date(
-            today.getFullYear(),
-            today.getMonth(),
-            today.getDate() - ((today.getDay() + 6) % 7) - (week - 1) * 7
-        );
-        return { semesterStartDate: formatDate(monday), semesterTotalWeeks: total };
+        if (!res.ok) return empty;
+        return parseSemesterCalendar(new DOMParser().parseFromString(await res.text(), "text/html"));
     } catch (e) {
-        return null;
+        return empty;
     }
+}
+
+/** showPrompt 的校验函数(须在全局作用域):合法返回 false,否则返回错误信息 */
+function validateDateInput(input) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(input).trim());
+    if (!m) return "请按 YYYY-MM-DD 格式输入,例如 2026-08-24";
+    const y = +m[1], mo = +m[2], d = +m[3];
+    const dt = new Date(y, mo - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return "日期不存在,请重新输入";
+    return false;
 }
 
 // ---------- 保存 ----------
@@ -275,7 +299,7 @@ async function runImportFlow() {
 
         // 3. 选择学期
         const semesters = parseSemesters(doc);
-        let isCurrentSemester = true;
+        let semesterValue = "";
         if (semesters.length) {
             const defIdx = Math.max(0, semesters.findIndex((s) => s.selected));
             const idx = await window.shiguangBridgePromise.showSingleSelection(
@@ -287,9 +311,9 @@ async function runImportFlow() {
                 window.shiguangBridge.showToast("导入已取消。");
                 return;
             }
+            semesterValue = semesters[idx].value;
             if (idx !== defIdx) {
-                doc = await fetchTimetable(semesters[idx].value);
-                isCurrentSemester = false;
+                doc = await fetchTimetable(semesterValue);
                 if (!doc.getElementById("kbtable")) {
                     window.shiguangBridge.showToast("该学期没有课表数据。");
                     return;
@@ -314,11 +338,21 @@ async function runImportFlow() {
         // 5. 保存课程
         if (!(await saveCourses(result.courses))) return;
 
-        // 6. [可选] 开学日期与总周数(只在导入当前学期时可靠)
-        if (isCurrentSemester) {
-            const config = await fetchSemesterConfig();
-            if (config) await saveConfig(config);
+        // 6. 开学日期与总周数:来自教学周历,任意学期都可获取;取不到时让用户手动输入开学日期
+        const info = await fetchSemesterCalendar(semesterValue);
+        if (!info.startDate) {
+            const input = await window.shiguangBridgePromise.showPrompt(
+                "无法自动获取开学日期",
+                "请输入该学期第一周周一的日期(YYYY-MM-DD),取消则不设置:",
+                "",
+                "validateDateInput"
+            );
+            if (input) info.startDate = input.trim();
         }
+        const config = {};
+        if (info.startDate) config.semesterStartDate = info.startDate;
+        if (info.totalWeeks) config.semesterTotalWeeks = info.totalWeeks;
+        if (Object.keys(config).length) await saveConfig(config);
 
         // 7. [可选] 作息时间(失败不阻止流程完成)
         await importPresetTimeSlots();
