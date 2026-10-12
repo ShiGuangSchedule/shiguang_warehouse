@@ -1073,6 +1073,11 @@ schools:
     initial: "Z"
     resource_folder: "CUG"
 
+  - id: "CUGB"
+    name: "中国地质大学(北京)"
+    initial: "Z"
+    resource_folder: "CUGB"
+
   - id: "HUALIXY"
     name: "广州华立学院"
     initial: "G"

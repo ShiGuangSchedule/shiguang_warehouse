@@ -1,0 +1,13 @@
+# resources/CUGB/adapters.yaml
+# 中国地质大学（北京）· 新版教务（/academic/）适配声明
+# 放置位置：shiguang_warehouse 仓库 resources/CUGB/ 目录下，
+#           并在 index/root_index.yaml 中登记该学校条目（见仓库根目录 root_index.entry.yaml），
+#           之后由 CI 编译索引生效。
+adapters:
+  - adapter_id: "CUGB_01"
+    adapter_name: "中国地质大学（北京）教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cugb.js"
+    import_url: "https://jwglxt.cugb.edu.cn/academic/login/cugb/loginIds6Valid.jsp"
+    maintainer: "ChinsaaWei"
+    description: "适配中国地质大学（北京）新版教务系统（/academic/）。登录统一身份认证并进入教务系统任意页面即可一键导入当前学期课表，自动识别开学日期与学期周数，内置现行 14 节作息（上午/下午/晚上，第3-5节含两套错峰），并优先从课表表头动态读取作息时间。"
