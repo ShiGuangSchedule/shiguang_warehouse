@@ -1,7 +1,8 @@
 // 长沙工业学院教务适配，适配作者：小漫君
 // 派生自拾光 resources/chaoxing_jiaowu/chaoxing.js，原作者 b1n23，MIT。
 // 上游基线：174396aca3edaa0d2df72a55d28a93a2e71c8272。
-// 登录统一认证后进入 tls.ccsut.cn 学生课表，再按系统选项选择学期与校区。
+// 登录统一认证并进入 tls.ccsut.cn 后即可导入，无需打开课表页面。
+// 参数请求参考 resources/HBUAS/hbuas_01.js（salt-fishes，MIT）；仅解析请求响应，完全不读取当前页面 DOM。
 // 超星教务系统拾光课程表适配脚本
 // 理论上使用超星教务系统的学校通用
 // 课程数据处理部分来自sxgcxy_01.js，由GitHub Copilot生成
@@ -158,100 +159,12 @@ function parseCourseData(jsonData) {
 }
 
 /**
- * 生成学年学期选项列表。
- * @returns {Object} - 包含 labels（显示文本）、values（参数值）、defaultIndex（默认选项）
- */
-function getSemesterOptions() {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-
-    // 根据当前月份判断默认学期（9月前为第二学期，9月后为第一学期）
-    const defaultSemester = currentMonth < 9 ? 2 : 1;
-    const defaultYear = currentMonth < 9 ? currentYear - 1 : currentYear;
-
-    // 生成前后三年的学年学期选项
-    const years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
-    const semesterCodes = ["1", "2"];
-
-    let labels = [];
-    let values = [];
-    let defaultIndex = -1;
-
-    let index = 0;
-    for (let i = 0; i < years.length; i++) {
-        const startYear = years[i];
-        const endYear = startYear + 1;
-        const yearStr = `${startYear}-${endYear}`;
-
-        for (let j = 0; j < semesterCodes.length; j++) {
-            const code = semesterCodes[j];
-            const apiValue = `${yearStr}-${code}`;
-            const semesterName = code === "1" ? "第一学期" : "第二学期";
-
-            labels.push(`${yearStr}学年 ${semesterName}`);
-            values.push(apiValue);
-
-            // 设置默认选项
-            if (startYear === defaultYear && Number(code) === defaultSemester) {
-                defaultIndex = index;
-            }
-
-            index++;
-        }
-    }
-
-    return { labels, values, defaultIndex };
-}
-
-/**
- * 从学年学期下拉框 HTML 中解析选项。
- * @param {string} selectHtml - id=xnxq1 的 select 元素 HTML
- * @returns {Object|null} - 包含 labels、values、defaultIndex，失败返回 null
- */
-function parseSemesterOptionsFromHtml(selectHtml) {
-    if (!selectHtml || typeof selectHtml !== 'string') {
-        return null;
-    }
-
-    try {
-        const doc = new DOMParser().parseFromString(selectHtml, "text/html");
-        const selectElement = doc.querySelector('#xnxq1') || doc.querySelector('select[name="xnxq"]');
-        if (!selectElement) {
-            return null;
-        }
-
-        const optionElements = Array.from(selectElement.querySelectorAll('option'));
-        const validOptions = optionElements.filter(option => (option.value || '').trim() !== '');
-        if (validOptions.length === 0) {
-            return null;
-        }
-
-        const labels = validOptions.map(option => (option.textContent || option.value || '').trim());
-        const values = validOptions.map(option => (option.value || '').trim());
-
-        let defaultIndex = validOptions.findIndex(option => option.selected);
-        if (defaultIndex < 0) {
-            defaultIndex = 0;
-        }
-
-        return { labels, values, defaultIndex };
-    } catch (error) {
-        console.warn("JS: 解析学年学期下拉 HTML 失败", error);
-        return null;
-    }
-}
-
-/**
  * 提示用户选择学年学期。
- * @param {string|null|undefined} xnxqSelectHtml - 页面中 id=xnxq1 的 select 元素 HTML
+ * @param {Object} options - 网络响应中取得的系统学期选项
  * @returns {Promise<string|null>} - 选中的学年学期参数（如 "2025-2026-1"），或 null（取消）
  */
-async function selectAcademicYearAndSemester(xnxqSelectHtml) {
+async function selectAcademicYearAndSemester(options) {
     console.log("JS: 提示用户选择学年学期。");
-    let options = parseSemesterOptionsFromHtml(xnxqSelectHtml);
-    if (!options) {
-        throw new Error("未读取到教务系统的学期选项，请打开学生课表页面后重试");
-    }
     const { labels, values, defaultIndex } = options;
 
     const selectedIndex = await window.shiguangBridgePromise.showSingleSelection(
@@ -331,7 +244,7 @@ async function fetchCampusList() {
 async function selectCampus(defaultXqdm) {
     const campusList = await fetchCampusList();
     if (!campusList) {
-        console.warn(`JS: 获取校区列表失败，使用页面参数 xqdm=${defaultXqdm} 继续导入。`);
+        console.warn("JS: 获取校区列表失败，使用课表入口响应中的账号默认校区。");
         window.shiguangBridge.showToast("获取校区列表失败，使用默认校区继续导入。");
         return {
             xqdm: defaultXqdm,
@@ -409,46 +322,31 @@ function generateTimeSlots(jcsjszList) {
 }
 
 /**
- * 从页面中提取必要的参数。
- * @returns {Object|null} - 包含 xhid、xqdm 和 xnxqSelectHtml 的对象，或 null（提取失败）
+ * 主动请求固定入口，读取同一次响应中的账号参数与系统学期选项。
+ * 响应是服务端 HTML，但这里只提取请求参数，不解析课程或读取当前页面。
+ * @returns {Object} - xhid、xqdm 和 semesterOptions；缺失时停止，不回退到当前 DOM。
  */
-async function extractPageParams() {
-    console.log("JS: 尝试从页面中提取参数...");
-
-    // 方法1：从隐藏的 input 元素中获取
-    let xhid = document.querySelector('#xhid')?.value;
-    let xqdm = document.querySelector('#xqdm')?.value;
-    let xnxqSelectHtml = document.querySelector('#xnxq1')?.outerHTML;
-
-    // 方法2：如果页面上找不到，尝试抓取课表页并解析
-    if (!xhid || !xqdm || !xnxqSelectHtml) {
-        console.log("JS: 尝试抓取课表页并解析...");
-        const path = "/admin/pkgl/xskb/queryKbForXsd";
-
-        try {
-            // 获取课表页的 HTML 文档
-            const response = await fetch(path, { credentials: "include" });
-            if (!response.ok) throw new Error(`课表页面请求失败（HTTP ${response.status}）`);
-            const htmlText = await response.text();
-            const contentDom = new DOMParser().parseFromString(htmlText, "text/html");
-
-            // 从转换后的 HTML 文档中获取 xhid 和 xqdm 的值
-            xhid = contentDom.querySelector("#xhid")?.value ||  xhid;
-            xqdm = contentDom.querySelector("#xqdm")?.value || xqdm;
-            xnxqSelectHtml = contentDom.querySelector("#xnxq1")?.outerHTML || xnxqSelectHtml;
-        } catch (error) {
-            console.warn("JS: 通过抓取课表页提取参数失败", error);
-        }
+async function fetchImportParams() {
+    const response = await fetch("/admin/pkgl/xskb/queryKbForXsd", {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "text/html,application/xhtml+xml,*/*;q=0.8" }
+    });
+    if (!response.ok) throw new Error(`课表入口请求失败（HTTP ${response.status}）`);
+    const responseDoc = new DOMParser().parseFromString(await response.text(), "text/html");
+    const xhid = responseDoc.querySelector('#xhid')?.value.trim();
+    const xqdm = responseDoc.querySelector('#xqdm')?.value.trim();
+    const select = responseDoc.querySelector('#xnxq1') || responseDoc.querySelector('select[name="xnxq"]');
+    const options = [...(select?.querySelectorAll('option') || [])].filter(option => option.value.trim());
+    if (!xhid || !xqdm || !options.length) {
+        throw new Error("课表入口未返回完整的账号参数或学期选项，请确认已登录超星教务后重试");
     }
-
-    console.log("JS: 已检查课表页面参数。");
-
-    if (!xhid || !xqdm) {
-        console.warn("JS: 无法从页面中提取必要参数。");
-        return null;
-    }
-
-    return { xhid, xqdm, xnxqSelectHtml };
+    const semesterOptions = {
+        labels: options.map(option => (option.textContent || option.value).trim()),
+        values: options.map(option => option.value.trim()),
+        defaultIndex: Math.max(options.findIndex(option => option.selected), 0)
+    };
+    return { xhid, xqdm, semesterOptions };
 }
 
 /**
@@ -461,7 +359,7 @@ async function fetchTimeAndWeekData(xnxq, xqdm) {
     console.log(`JS: 正在请求节次时间和周次数据...`);
     window.shiguangBridge.showToast("正在获取课表配置信息...");
 
-    const url = `/admin/api/getZclistByXnxq?xnxq=${xnxq}&xqid=${xqdm}`;
+    const url = `/admin/api/getZclistByXnxq?${new URLSearchParams({ xnxq, xqid: xqdm })}`;
 
     const requestOptions = {
         "headers": {
@@ -521,7 +419,7 @@ async function fetchCourseData(xnxq, xhid, xqdm) {
     console.log(`JS: 正在请求课程数据...`);
     window.shiguangBridge.showToast(`正在获取 ${xnxq} 的课程数据...`);
 
-    const url = `/admin/xsd/pkgl/xskb/sdpkkbList?xnxq=${xnxq}&xhid=${xhid}&xqdm=${xqdm}&xskbxslx=0`;
+    const url = `/admin/xsd/pkgl/xskb/sdpkkbList?${new URLSearchParams({ xnxq, xhid, xqdm, xskbxslx: '0' })}`;
 
     const requestOptions = {
         "headers": {
@@ -632,22 +530,13 @@ async function saveCourseConfig(semesterStartDate) {
 }
 
 /**
- * 检查是否在登录页面。
- * @returns {boolean}
- */
-function isLoginPage() {
-    const url = window.location.href;
-    return url.includes('login') || url.includes('slogin');
-}
-
-/**
  * 提示用户开始导入。
  * @returns {Promise<boolean>} - 用户是否确认
  */
 async function promptUserToStart() {
     return await window.shiguangBridgePromise.showAlert(
         "长沙工业学院课表导入",
-        "导入前请确保您已在成功登录教务系统，并打开课表页面。\n\n本脚本将自动获取作息时间、开学日期和课程数据。",
+        "请先登录超星教务系统，无需打开课表页面。\n\n本脚本将通过网络请求获取学期、校区和课程数据，并尝试获取作息时间及开学日期。",
         "开始导入"
     );
 }
@@ -657,15 +546,9 @@ async function promptUserToStart() {
  */
 async function runImportFlow() {
     if (window.location.hostname !== "tls.ccsut.cn") {
-        throw new Error("请在智慧校园中进入超星教务系统（tls.ccsut.cn）的学生课表页面，再点击导入");
+        throw new Error("请先通过智慧校园进入超星教务系统（tls.ccsut.cn），再点击导入，无需打开课表页面");
     }
     console.log("JS: 开始执行超星教务系统课表导入流程...");
-
-    // 1. 检查是否在登录页面
-    if (isLoginPage()) {
-        window.shiguangBridge.showToast("导入失败：请先登录教务系统！");
-        return;
-    }
 
     // 2. 提示用户确认开始导入
     const alertConfirmed = await promptUserToStart();
@@ -674,24 +557,18 @@ async function runImportFlow() {
         return;
     }
 
-    // 3. 提取页面参数
-    const params = await extractPageParams();
-    if (!params) {
-        window.shiguangBridge.showToast("无法从页面获取必要参数，请确保在正确的页面执行脚本。");
-        return;
-    }
-
-    const { xhid, xqdm: pageXqdm, xnxqSelectHtml } = params;
+    // 3. 主动请求参数，和用户当前打开的页面无关
+    const { xhid, xqdm: defaultXqdm, semesterOptions } = await fetchImportParams();
 
     // 4. 让用户选择学年学期
-    const xnxq = await selectAcademicYearAndSemester(xnxqSelectHtml);
+    const xnxq = await selectAcademicYearAndSemester(semesterOptions);
     if (xnxq === null) {
         window.shiguangBridge.showToast("导入已取消，未选择学年学期。");
         return;
     }
 
-    // 5. 让用户选择校区（默认使用页面参数中的 xqdm，若校区接口失败则自动回退使用页面 xqdm）
-    const selectedCampus = await selectCampus(pageXqdm);
+    // 5. 选择校区；列表接口失败时保留本次入口响应中的账号默认校区
+    const selectedCampus = await selectCampus(defaultXqdm);
     if (!selectedCampus) {
         window.shiguangBridge.showToast("导入已取消，未选择校区。");
         return;
