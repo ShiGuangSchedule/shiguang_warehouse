@@ -256,7 +256,6 @@ function parseCourses(rawCourses){
 
     const courses = [];
     for (const raw of rawCourses) {
-
         const sectionMatch = raw.jcdm.match(/\d{2}/g);
         if (!sectionMatch) {
             console.error(`课程节次解析失败，原始数据：${raw.jcdm}。`);
@@ -311,9 +310,7 @@ async function saveCourses(courses){
     try {
         console.log("正在尝试导入课程...");
         const result = await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(courses));
-        if (result === true) {
-            console.log("课程导入成功！");
-        } else {
+        if (result !== true) {
             console.log("课程导入未成功，结果：" + result);
             window.shiguangBridge.showToast("课程导入失败，请查看日志。");
         }
@@ -347,9 +344,7 @@ async function setPresetTimeSlots() {
     try {
         console.log("正在尝试导入预设时间段...");
         const result = await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(presetTimeSlots));
-        if (result === true) {
-            console.log("预设时间段导入成功！");
-        } else {
+        if (result !== true) {
             console.log("预设时间段导入未成功，结果：" + result);
             window.shiguangBridge.showToast("预设时间段导入失败，请查看日志。");
         }
@@ -367,12 +362,8 @@ async function saveConfig(config) {
     try {
         console.log("正在尝试导入课表配置...");
         const configJsonString = JSON.stringify(config);
-
         const result = await window.shiguangBridgePromise.saveCourseConfig(configJsonString);
-
-        if (result === true) {
-            console.log("课表配置导入成功！");
-        } else {
+        if (result !== true) {
             console.log("课表配置导入未成功，结果：" + result);
             window.shiguangBridge.showToast("课表配置导入失败，请查看日志。");
         }
