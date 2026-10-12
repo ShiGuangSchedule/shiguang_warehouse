@@ -728,30 +728,47 @@ function collectDiagnostics() {
 // 作息选择
 // ---------------------------------------------------------------------------
 
-/** 按课程所在楼栋推测默认作息：综合楼/教五楼 → 0；否则 → 1 */
-function inferScheduleIndex(courses) {
-  let zong = 0, other = 0;
-  (courses || []).forEach(function (c) {
-    const p = c.position || "";
-    if (p.indexOf("综合楼") >= 0 || p.indexOf("教五") >= 0) zong++; else other++;
-  });
-  return zong > other ? 0 : 1;
+/** 该课程是否落在两套作息有差异的第 3–5 节区间内 */
+function touches345(c) {
+  return c.startSection <= 5 && c.endSection >= 3;
 }
 
-async function chooseTimeSlots(courses) {
-  const options = [
-    { name: "综合楼 / 教五楼（第3节 10:00 起）", slots: CUGB_SLOTS_ZONGHE },
-    { name: "其他教室（第3节 09:50 起）", slots: CUGB_SLOTS_OTHER }
-  ];
-  const labels = options.map(function (o) { return o.name; });
-  const def = inferScheduleIndex(courses);
-  let idx = await window.shiguangBridgePromise.showSingleSelection(
-    "未能从课表读取作息时间，请选择你的作息方案：\n（第 3–5 节综合楼/教五楼与其他教室错峰 10 分钟）",
-    JSON.stringify(labels),
-    def
-  );
-  if (idx === null || idx === undefined || idx < 0) idx = def;
-  return options[idx];
+/** 课程是否在综合楼 / 教五楼（第 3 节 10:00 起的那一档） */
+function isZongheBuilding(c) {
+  const p = (c && c.position) || "";
+  return p.indexOf("综合楼") >= 0 || p.indexOf("教五") >= 0;
+}
+
+/** 选基准作息：涉及第 3–5 节的课程里，哪一栋楼多就用哪一套（少打 isCustomTime 标记） */
+function pickBaseSlots(courses) {
+  let zong = 0, other = 0;
+  (courses || []).forEach(function (c) {
+    if (!touches345(c)) return;
+    if (isZongheBuilding(c)) zong++; else other++;
+  });
+  return zong > other ? CUGB_SLOTS_ZONGHE : CUGB_SLOTS_OTHER;
+}
+
+/**
+ * 按教室所在楼栋分配第 3–5 节作息：
+ *   综合楼 / 教五楼 → 第 3 节 10:00 起
+ *   其他教室        → 第 3 节 09:50 起
+ * App 的 timeSlots 只能有一套，因此对与基准作息不同的一栋楼的课程，
+ * 用每门课的 isCustomTime / customStartTime / customEndTime 单独覆盖。
+ */
+function applyBuildingTimes(courses, baseSlots) {
+  (courses || []).forEach(function (c) {
+    if (!touches345(c)) return;
+    const want = isZongheBuilding(c) ? CUGB_SLOTS_ZONGHE : CUGB_SLOTS_OTHER;
+    const a = want[c.startSection - 1], b = want[c.endSection - 1];
+    const ba = baseSlots[c.startSection - 1], bb = baseSlots[c.endSection - 1];
+    if (!a || !b || !ba || !bb) return;
+    if (a.startTime !== ba.startTime || b.endTime !== bb.endTime) {
+      c.isCustomTime = true;
+      c.customStartTime = a.startTime;
+      c.customEndTime = b.endTime;
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -803,14 +820,14 @@ async function runImportFlow() {
     const courses = result.courses;
     cugbLog("解析到课程 " + courses.length + " 条", courses);
 
-    // 作息时间
-    let slots = slotTimesToArray(result.slotTimes || {});
-    if (!slots) {
-      const chosen = await chooseTimeSlots(courses);
-      slots = chosen.slots.slice();
-      window.shiguangBridge.showToast("作息已设为：" + chosen.name);
-    }
+    // 作息时间：优先用课表表头时间；否则用内置作息作基准，
+    // 再按教室所在楼栋对第 3–5 节错峰（综合楼/教五楼 10:00 起，其他 09:50 起）
+    let slots = result.slotTimes && Object.keys(result.slotTimes).length
+      ? slotTimesToArray(result.slotTimes) : null;
+    const fromHeader = !!slots;
+    if (!slots) slots = pickBaseSlots(courses).slice();
     slots = ensureSlotsCover(slots, maxSectionOf(courses));
+    if (!fromHeader) applyBuildingTimes(courses, slots);
 
     // 保存课程
     try {
