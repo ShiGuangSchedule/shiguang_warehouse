@@ -158,7 +158,7 @@ async function fetchCourses(semesterId){
         console.log(`正在获取学期 ${semesterId} 的课程数据...`);
 
         // 理论上此处应分页遍历处理，但分页处理将导致教务系统返回错误的数据（课程重复和缺失）。
-        // API 返回结果包含课程总量，可以先探测一遍获取总量，载使用获取的总量去获取所有课程。
+        // API 返回结果包含课程总量，可以先探测一遍获取总量，再使用获取的总量去获取所有课程。
         let formData = new URLSearchParams({
             zc: '',
             xnxqdm: semesterId,
