@@ -10,10 +10,11 @@
 //   A. 接口取数（首选）
 //      1) GET  /academic/student/currcourse/currcourse.jsdo
 //         解析 <eduaffair:CTRT studentid=.. year=.. term=..> 拿到当前学年/学期/学号
-//      2) GET  /academic/manager/coursearrange/showTimetable.do?id=&yearid=&termid=&timetableType=STUDENT&sectionType=BASE
+//      2) 交互确认学年/学期：默认当前学期，可点「我要修改」选其它学年/学期（导入往期课表）
+//      3) GET  /academic/manager/coursearrange/showTimetable.do?id=&yearid=&termid=&timetableType=STUDENT&sectionType=BASE
 //         解析 id=timetable 的周课表网格
-//      3) POST /academic/manager/coursearrange/studentWeeklyTimetable.do（whichWeek=1）
-//         解析开学日期与学期总周数
+//      4) POST /academic/manager/coursearrange/studentWeeklyTimetable.do（whichWeek=1）
+//         解析开学日期与学期总周数（按所选学年/学期）
 //   B. 页面取数（兜底）
 //      直接解析当前 WebView 页面（含 iframe）中 id=timetable 的网格课表
 //
@@ -78,6 +79,30 @@ const CUGB_SLOTS_OTHER = [
   { number: 13, startTime: "19:50", endTime: "20:35" },
   { number: 14, startTime: "20:40", endTime: "21:25" }
 ];
+
+/**
+ * 学期码（强智 academic 的 term 参数）：
+ *   3 = 秋季学期（第 1 学期，实测当前学期即为 3）
+ *   1 = 春季学期（第 2 学期）
+ *   2 = 小学期 / 夏季
+ */
+const CUGB_TERM_LABELS = ["秋季学期（第 1 学期）", "春季学期（第 2 学期）", "小学期 / 夏季"];
+const CUGB_TERM_CODES = ["3", "1", "2"];
+
+function cugbTermIndex(code) {
+  const i = CUGB_TERM_CODES.indexOf(String(code));
+  return i >= 0 ? i : 0;
+}
+
+function cugbTermLabel(year, code) {
+  return (1980 + Number(year)) + " 学年 " + (CUGB_TERM_LABELS[cugbTermIndex(code)] || ("学期 " + code));
+}
+
+/** 供 showPrompt 使用的全局校验函数（必须是全局作用域函数名） */
+function validateCugbYear(input) {
+  if (/^[0-9]{4}$/.test(String(input))) return false;
+  return "请输入四位数字的学年，例如 2026";
+}
 
 const WEEKDAY_MAP = { "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "日": 7, "天": 7 };
 
@@ -576,6 +601,13 @@ async function collectByApi() {
     cugbLog("接口取数：未取到学年/学期，跳过");
     return null;
   }
+
+  // 交互确认学年/学期（默认当前学期，可切换到往期）
+  const sel = await selectYearAndTerm(info.year, info.term);
+  if (!sel) return { cancelled: true };
+  info.year = sel.year;
+  info.term = sel.term;
+
   const url = window.location.origin +
     "/academic/manager/coursearrange/showTimetable.do?id=" + encodeURIComponent(info.studentid || "") +
     "&yearid=" + encodeURIComponent(info.year) +
@@ -592,8 +624,41 @@ async function collectByApi() {
     slotTimes: parsed.slotTimes,
     startDate: meta.startDate,
     totalWeeks: meta.totalWeeks,
-    label: (info.year ? info.year + "学年 " : "") + (info.term ? "第" + info.term + "学期" : "")
+    label: cugbTermLabel(info.year, info.term)
   };
+}
+
+/**
+ * 确认/选择学年学期：默认当前学期；点「我要修改」后可挑往期学年与学期。
+ * 返回 { year, term }；用户取消返回 null。
+ */
+async function selectYearAndTerm(curYear, curTerm) {
+  const curYearNum = 1980 + Number(curYear);
+  const curLabel = CUGB_TERM_LABELS[cugbTermIndex(curTerm)] || "";
+  const needModify = await window.shiguangBridgePromise.showAlert(
+    "确认导入学期",
+    "识别到当前学期：" + curYearNum + " 学年 " + curLabel + "。\n\n" +
+    "点「我要修改」可选择其它学年/学期（用于导入往期课表）；关掉弹窗则直接导入当前学期。",
+    "我要修改"
+  );
+  if (!needModify) return { year: String(curYear), term: String(curTerm) };
+
+  const yStr = await window.shiguangBridgePromise.showPrompt(
+    "选择学年",
+    "请输入要导入的学年（例如 2026 表示 2026—2027 学年）：",
+    String(curYearNum),
+    "validateCugbYear"
+  );
+  if (yStr === null || yStr === undefined) return null;
+  const year = String(Number(yStr) - 1980);
+
+  const idx = await window.shiguangBridgePromise.showSingleSelection(
+    "选择学期",
+    JSON.stringify(CUGB_TERM_LABELS),
+    cugbTermIndex(curTerm)
+  );
+  if (idx === null || idx === undefined || idx < 0) return null;
+  return { year: year, term: CUGB_TERM_CODES[idx] };
 }
 
 /** 开学日期 + 总周数：studentWeeklyTimetable.do */
@@ -801,6 +866,10 @@ async function runImportFlow() {
     try {
       result = await collectByApi();
     } catch (e) { cugbLog("接口取数异常:", e && e.message); }
+    if (result && result.cancelled) {
+      window.shiguangBridge.showToast("已取消导入。");
+      return;
+    }
 
     if (!result || !result.courses.length) {
       cugbLog("回退到页面解析");
