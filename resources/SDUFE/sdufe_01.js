@@ -3,14 +3,21 @@
  * 数据来源:/jsxsd/xskb/xskb_list.do(学期理论课表)
  */
 
-// 山东财经大学作息时间。学校按“大节”排课,课表每一行(第一、二节 / 第三、四节 /
-// 第五、六节 / 第七、八节 / 第九~十一节)对应下面的一个节次。
+// 山东财经大学作息时间(来源:https://www.sdufe.edu.cn/xyfw/zxxl.htm 日常教学时刻表)。
+// 官网给出的是“大节”时间(如第一、二节 8:30-10:00),这里按小节拆分:
+// 每个大节拆成两个 45 分钟的小节,大节内部无课间;第十一节官网单独给出。
 const TIME_SLOTS = [
-    { number: 1, startTime: "08:30", endTime: "10:00" },
-    { number: 2, startTime: "10:20", endTime: "11:50" },
-    { number: 3, startTime: "14:00", endTime: "15:30" },
-    { number: 4, startTime: "15:50", endTime: "17:20" },
-    { number: 5, startTime: "18:40", endTime: "20:10" },
+    { number: 1, startTime: "08:30", endTime: "09:15" },
+    { number: 2, startTime: "09:15", endTime: "10:00" },
+    { number: 3, startTime: "10:20", endTime: "11:05" },
+    { number: 4, startTime: "11:05", endTime: "11:50" },
+    { number: 5, startTime: "14:00", endTime: "14:45" },
+    { number: 6, startTime: "14:45", endTime: "15:30" },
+    { number: 7, startTime: "15:50", endTime: "16:35" },
+    { number: 8, startTime: "16:35", endTime: "17:20" },
+    { number: 9, startTime: "18:40", endTime: "19:25" },
+    { number: 10, startTime: "19:25", endTime: "20:10" },
+    { number: 11, startTime: "20:20", endTime: "21:05" },
 ];
 
 const TIMETABLE_URL = "/jsxsd/xskb/xskb_list.do";
@@ -117,13 +124,12 @@ function parseCourses(doc) {
     const table = doc.getElementById("kbtable");
     if (!table) return { courses: courses, skipped: skipped };
 
-    let slot = 0; // 每一行“大节”对应 TIME_SLOTS 里的一个节次
     table.querySelectorAll("tr").forEach((tr) => {
         const th = tr.querySelector("th");
         const cells = tr.querySelectorAll("td");
         if (!th || cells.length !== 7) return; // 表头行、备注行
-        if (!parseSections(th.textContent)) return; // 行首不是“第X节”
-        slot++;
+        const sec = parseSections(th.textContent);
+        if (!sec) return; // 行首不是“第X节”
 
         cells.forEach((td, i) => {
             // 带教师信息的详细版本是 class="kbcontent"(kbcontent1 是简略版)
@@ -142,8 +148,8 @@ function parseCourses(doc) {
                     teacher: info.teacher,
                     position: info.position,
                     day: i + 1,
-                    startSection: slot,
-                    endSection: slot,
+                    startSection: sec.start,
+                    endSection: sec.end,
                     weeks: weeks,
                 });
             });
@@ -308,10 +314,11 @@ async function runImportFlow() {
         // 5. 保存课程
         if (!(await saveCourses(result.courses))) return;
 
-        // 6. 课表配置:单节 90 分钟、课间 20 分钟;开学日期与总周数只在导入当前学期时可靠
-        const config = { defaultClassDuration: 90, defaultBreakDuration: 20 };
-        if (isCurrentSemester) Object.assign(config, await fetchSemesterConfig());
-        await saveConfig(config);
+        // 6. [可选] 开学日期与总周数(只在导入当前学期时可靠)
+        if (isCurrentSemester) {
+            const config = await fetchSemesterConfig();
+            if (config) await saveConfig(config);
+        }
 
         // 7. [可选] 作息时间(失败不阻止流程完成)
         await importPresetTimeSlots();
