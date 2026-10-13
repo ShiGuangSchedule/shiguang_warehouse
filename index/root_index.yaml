@@ -1248,3 +1248,17 @@ schools:
     initial: "H"
     resource_folder: "HNU"
 
+  - id: "SDUFE"
+    name: "山东财经大学"
+    initial: "S"
+    resource_folder: "SDUFE"
+
+  - id: "CCSUT"
+    name: "长沙工业学院"
+    initial: "C"
+    resource_folder: "CCSUT"
+
+  - id: "JDZVUA"
+    name: "景德镇艺术职业大学"
+    initial: "J"
+    resource_folder: "JDZVUA"
