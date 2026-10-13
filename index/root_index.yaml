@@ -203,6 +203,11 @@ schools:
     initial: "G"
     resource_folder: "GZST"
 
+  - id: "GZIST"
+    name: "广州理工学院"
+    initial: "G"
+    resource_folder: "GZIST"
+
   - id: "FJCPC"
     name: "福建船政交通职业学院"
     initial: "F"
