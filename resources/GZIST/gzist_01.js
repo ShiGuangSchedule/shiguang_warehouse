@@ -207,16 +207,17 @@ function parseJsonData(jsonData) {
     const initialCourseList = [];
 
     for (const rawCourse of rawCourseList) {
-        // 字段降级：与作息字段同思路，兼容常见改名
+        // 契约允许 teacher/position 为空串（上游文档：「无则传 ""」），故这两项用 pickAllowEmpty；
+        // 其余项为必填，空值仍当作脏数据丢弃（降级不放宽校验）。
         const nameRaw = pick(rawCourse, ['kcmc', 'courseName', 'kcmc_mc']);
-        const teacherRaw = pick(rawCourse, ['xm', 'teacherName', 'jsxm']);
-        const positionRaw = pick(rawCourse, ['cdmc', 'classroomName', 'jsmc', 'cdmc_mc']);
+        const teacherRaw = pickAllowEmpty(rawCourse, ['xm', 'teacherName', 'jsxm']);
+        const positionRaw = pickAllowEmpty(rawCourse, ['cdmc', 'classroomName', 'jsmc', 'cdmc_mc']);
         const dayRaw = pick(rawCourse, ['xqj', 'xq', 'weekDay']);
         const sectionRaw = pick(rawCourse, ['jcs', 'jc', 'section']);
         const weekRaw = pick(rawCourse, ['zcd', 'zcmc', 'weeks']);
 
-        if (nameRaw === undefined || teacherRaw === undefined || positionRaw === undefined ||
-            dayRaw === undefined || sectionRaw === undefined || weekRaw === undefined) {
+        if (nameRaw === undefined || dayRaw === undefined ||
+            sectionRaw === undefined || weekRaw === undefined) {
             continue;
         }
 
@@ -237,8 +238,8 @@ function parseJsonData(jsonData) {
 
         initialCourseList.push({
             name: String(nameRaw).trim(),
-            teacher: String(teacherRaw).trim(),
-            position: String(positionRaw).trim(),
+            teacher: String(teacherRaw === undefined ? '' : teacherRaw).trim(),
+            position: String(positionRaw === undefined ? '' : positionRaw).trim(),
             day: day,
             startSection: startSection,
             endSection: endSection,
@@ -384,7 +385,7 @@ async function fetchAcademicOptions() {
         };
 
     } catch (e) {
-        auxDiagnostics.options = { code: 'E2', why: `请求异常：${e && e.message ? e.message : e}` };
+        auxDiagnostics.options = { code: 'E2', why: `请求异常：${errText(e)}` };
         return null;
     }
 }
@@ -517,16 +518,32 @@ const IMPORT_ERRORS = {
     E4: { title: '教务数据格式异常', hint: '学校教务可能已改版，请把诊断信息反馈给适配维护者。' },
     E5: { title: '该学年学期没有课程', hint: '请确认选择的学年 / 学期是否正确。' },
     E6: { title: '辅助数据获取失败', hint: '课表仍会导入，但开学日期或作息可能使用默认值。' },
-    E7: { title: '导入被应用拒绝', hint: '可能是导入顺序或应用状态异常，请重试。' }
+    E7: { title: '导入被应用拒绝', hint: '可能是导入顺序或应用状态异常，请重试。' },
+    E8: { title: '未预期异常', hint: '这是脚本未预料到的错误，请把下方诊断信息反馈给适配维护者。' }
 };
 
 /** 记录各辅助接口最近一次失败原因，供最后统一汇报（避免静默失败） */
 const auxDiagnostics = { options: null, startDate: null, timeSlots: null };
 
+/** 把任意异常/拒绝值转成可读文本（桥接层可能以**字符串** reject，此时 e.message 是 undefined） */
+function errText(e) {
+    if (e === null || e === undefined) return '未知错误';
+    if (typeof e === 'string') return e;
+    if (typeof e === 'object' && e.message) return String(e.message);
+    try {
+        return JSON.stringify(e);
+    } catch (_) {
+        return String(e);
+    }
+}
+
 /**
  * 判断响应是否其实是「未登录 / 会话已过期」。
  * 正方在会话失效时通常返回 HTTP 200 + 登录页 HTML，所以不能只看 response.ok，
- * 必须靠「最终重定向地址 + 登录页特征字段」判断。
+ * 必须靠「最终重定向地址 + 登录表单特征」判断。
+ *
+ * ⚠️ 判据只认「登录表单本身」：**不得单凭 id="csrftoken" 判定** —— 正方很多正常页面
+ * （包括已登录时的内容页）也带该隐藏域，单独用它会把已登录用户误判为“登录失效”而中断导入。
  */
 function detectLoginPage(response, bodyText) {
     const finalUrl = response && response.url ? String(response.url) : '';
@@ -534,11 +551,16 @@ function detectLoginPage(response, bodyText) {
         return { isLogin: true, why: '请求被重定向到登录页：' + finalUrl };
     }
     if (typeof bodyText === 'string' && bodyText.length > 0) {
-        if (/id=["']csrftoken["']/i.test(bodyText)) {
-            return { isLogin: true, why: '响应体含登录页特征字段 id="csrftoken"' };
-        }
-        if (/name=["']yhm["']/i.test(bodyText) && /name=["']mm["']/i.test(bodyText)) {
-            return { isLogin: true, why: '响应体含登录页账号/密码输入框（yhm / mm）' };
+        const hasLoginFormAction = /login_slogin\.html/i.test(bodyText);
+        const hasUserField = /name=["']yhm["']/i.test(bodyText);
+        const hasPassField = /name=["']mm["']/i.test(bodyText);
+        if (hasLoginFormAction || (hasUserField && hasPassField)) {
+            return {
+                isLogin: true,
+                why: hasLoginFormAction
+                    ? '响应体含登录表单（login_slogin.html）'
+                    : '响应体含登录页账号/密码输入框（yhm / mm）'
+            };
         }
     }
     return { isLogin: false, why: '' };
@@ -638,6 +660,18 @@ function pick(obj, names) {
     for (const n of names) {
         const v = obj[n];
         if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+    return undefined;
+}
+
+/**
+ * 与 pick 相同，但接受空串。
+ * 用于契约上「无则传 ""」的字段（teacher / position）—— 否则线上课、无固定教室的课会被整条丢弃。
+ */
+function pickAllowEmpty(obj, names) {
+    if (!obj || typeof obj !== 'object') return undefined;
+    for (const n of names) {
+        if (obj[n] !== undefined && obj[n] !== null) return obj[n];
     }
     return undefined;
 }
@@ -744,7 +778,27 @@ function buildTimeSlotsFrom(list) {
     }
     slots.sort((a, b) => a.number - b.number);
 
-    return slots.length >= 3 ? slots : null;
+    if (slots.length < 3) return null;
+
+    // 与 App 侧 validateTimeSlotsOrThrow（CourseConversionRepository.kt:63）对齐：
+    // 编号必须从 1 连续、时间段不得重叠。否则应用会拒绝整份作息，而此时课程已写入，
+    // 会出现「课程导入成功、作息导入失败」的割裂状态 —— 宁可提前判无效并回退内置保底作息。
+    const toMinutes = (t) => {
+        const parts = t.split(':');
+        return Number(parts[0]) * 60 + Number(parts[1]);
+    };
+    for (let i = 0; i < slots.length; i++) {
+        if (slots[i].number !== i + 1) {
+            console.warn(`[GZIST] 作息节次编号不连续（第 ${i + 1} 项为 ${slots[i].number}），改用内置保底作息`);
+            return null;
+        }
+        if (i > 0 && toMinutes(slots[i].startTime) < toMinutes(slots[i - 1].endTime)) {
+            console.warn(`[GZIST] 作息时间存在重叠（第 ${slots[i].number} 节），改用内置保底作息`);
+            return null;
+        }
+    }
+
+    return slots;
 }
 
 /**
@@ -826,7 +880,7 @@ async function fetchTimeSlots(academicYear, semesterCode) {
         };
         return null;
     } catch (e) {
-        auxDiagnostics.timeSlots = { code: 'E2', why: `请求异常：${e && e.message ? e.message : e}` };
+        auxDiagnostics.timeSlots = { code: 'E2', why: `请求异常：${errText(e)}` };
         console.warn('[GZIST] 作息接口请求失败:', e && e.message ? e.message : e);
         return null;
     }
@@ -840,18 +894,33 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
     const targetUrl = `${getBaseUrl()}/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151`;
 
     // 并行获取课程数据、开学日期、作息时间
-    const [courseResponse, semesterStartDate, fetchedTimeSlots] = await Promise.all([
-        fetch(targetUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-            },
-            body: requestBody,
-            credentials: "include"
-        }),
-        fetchSemesterStartDate(academicYear, semesterCode),
-        fetchTimeSlots(academicYear, semesterCode)
-    ]);
+    // 本段必须自带 try/catch：fetch() 在网络故障时是 **reject**（而非返回 ok:false），
+    // 若让异常冒泡出去，整个导入会静默死掉（不报错、不通知完成）—— 正是要消除的“神秘失败”。
+    let courseResponse;
+    let semesterStartDate = null;
+    let fetchedTimeSlots = null;
+    try {
+        [courseResponse, semesterStartDate, fetchedTimeSlots] = await Promise.all([
+            fetch(targetUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+                },
+                body: requestBody,
+                credentials: "include"
+            }),
+            fetchSemesterStartDate(academicYear, semesterCode),
+            fetchTimeSlots(academicYear, semesterCode)
+        ]);
+    } catch (netErr) {
+        await reportImportError('E2', [
+            `请求课表失败：${errText(netErr)}`,
+            `请求：${targetUrl}`,
+            `入口：${getBaseUrl()}`,
+            '常见原因：不在校园网内 / WebVPN 已掉线 / 代理或跨源拦截了请求'
+        ]);
+        return null;
+    }
 
     try {
         if (!courseResponse.ok) {
@@ -921,7 +990,7 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
         };
     } catch (e) {
         await reportImportError('E2', [
-            `请求课表时发生异常：${e && e.message ? e.message : e}`,
+            `请求课表时发生异常：${errText(e)}`,
             `请求：${targetUrl}`
         ]);
         return null;
@@ -933,7 +1002,7 @@ async function saveCourses(parsedCourses) {
         await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(parsedCourses));
         return true;
     } catch (error) {
-        window.shiguangBridge.showToast(`课程保存失败【E7】${IMPORT_ERRORS.E7.title}: ${error.message}`);
+        window.shiguangBridge.showToast(`课程保存失败【E7】${IMPORT_ERRORS.E7.title}: ${errText(error)}`);
         return false;
     }
 }
@@ -1004,11 +1073,28 @@ async function importPresetTimeSlots(timeSlots, auxDiag) {
             window.shiguangBridge.showToast("预设时间段导入成功！");
         }
     } catch (error) {
-        window.shiguangBridge.showToast(`导入时间段失败【E7】${error.message}`);
+        window.shiguangBridge.showToast(`导入时间段失败【E7】${errText(error)}`);
     }
 }
 
+/**
+ * 顶层入口：包一层安全网。
+ * 任何未预期异常都必须让用户看到并带上诊断信息 —— 绝不允许静默死亡
+ * （注意：早期版本把 Promise.all 放在 try 之外，断网时会静默失败，已由单测守住）。
+ */
 async function runImportFlow() {
+    try {
+        await runImportFlowInner();
+    } catch (fatal) {
+        await reportImportError('E8', [
+            `导入流程出现未预期异常：${errText(fatal)}`,
+            fatal && fatal.stack ? String(fatal.stack).split('\n').slice(0, 3).join(' | ') : '',
+            '请把以上信息反馈给适配维护者'
+        ].filter(Boolean));
+    }
+}
+
+async function runImportFlowInner() {
     const alertConfirmed = await promptUserToStart();
     if (!alertConfirmed) {
         window.shiguangBridge.showToast("用户取消了导入。");
@@ -1045,7 +1131,7 @@ async function runImportFlow() {
         window.shiguangBridge.showToast(configMsg);
     } catch (error) {
         configOk = false;
-        window.shiguangBridge.showToast(`课表配置保存失败【E7】${error.message}`);
+        window.shiguangBridge.showToast(`课表配置保存失败【E7】${errText(error)}`);
     }
 
     // 开学日期取不到时明确告知原因（非致命，但不静默）
