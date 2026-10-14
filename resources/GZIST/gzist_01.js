@@ -462,31 +462,12 @@ function parseTimeSlotsFromCourseJson(jsonData) {
 }
 
 /**
- * 兜底 2：从当前页面 DOM 文本里招节次时间（形如“第1节 08:00-08:45” / “1-2节 08:00~09:35”）
- * 保守策略：招不到 3 节以上就当失败，交给下一步处理
+ * 【已移除】DOM 文本解析（原 parseTimeSlotsFromDom）
+ *
+ * 按上游维护者建议删除：存在课表的页面有很多，而只有「学期课表（按周次）」才展示节次时间，
+ * 普通学期课表与班级课表都不展示 —— DOM 解析能覆盖的场景太少。
+ * 现在拿不到节次时间时，直接使用脚本内置保底作息（见下方 FALLBACK_TIME_SLOTS）。
  */
-function parseTimeSlotsFromDom() {
-    try {
-        const text = document.body ? document.body.innerText : '';
-        if (!text) return null;
-
-        const raw = [];
-        const re = /(?:第)?\s*(\d{1,2})\s*(?:[-~至]\s*(\d{1,2}))?\s*节[^\d\n]{0,10}(\d{1,2}:\d{2})\s*[-~～—]{1,2}\s*(\d{1,2}:\d{2})/g;
-        let m;
-        while ((m = re.exec(text)) !== null) {
-            const startNum = Number(m[1]);
-            const endNum = m[2] ? Number(m[2]) : startNum;
-            for (let n = startNum; n <= endNum; n++) {
-                // 交给统一的校验/归一化逻辑（含时间范围校验），避免脏数据写进作息
-                raw.push({ jcmc: n, qssj: m[3], jssj: m[4] });
-            }
-        }
-
-        return buildTimeSlotsFrom(raw);
-    } catch (e) {
-        return null;
-    }
-}
 
 /**
  * 从教务系统获取作息时间表（节次时间）
@@ -570,11 +551,9 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
             if (jsonData && jsonData.kbList) {
                 const parsedCourses = parseJsonData(jsonData);
                 if (parsedCourses.length > 0) {
-                    // 作息优先级：节次时间接口 → 课表响应里的 sjkList → 页面 DOM
-                    let resolvedTimeSlots = fetchedTimeSlots || parseTimeSlotsFromCourseJson(jsonData);
-                    if (!resolvedTimeSlots) {
-                        resolvedTimeSlots = parseTimeSlotsFromDom();
-                    }
+                    // 作息优先级：节次时间接口 → 课表响应里的 sjkList → 脚本内置保底作息
+                    // （内置保底不在此处处理，统一由 importPresetTimeSlots 兜底）
+                    const resolvedTimeSlots = fetchedTimeSlots || parseTimeSlotsFromCourseJson(jsonData);
 
                     return {
                         courses: parsedCourses,
@@ -613,6 +592,21 @@ async function saveCourses(parsedCourses) {
 //   · 晚上 9-12 节为「两节一对」的 80 分钟大节：9-10 = 18:40-20:00，11-12 = 20:20-21:40
 //     （故每节按 40 分钟拆分，这样「第9-10节」的课程会正确显示为 18:40-20:00）
 //   · 课表页模板共 12 节（上午/下午/晚上各 4 节），11-12 节当前学期未被占用但仍保留
+/**
+ * 保底作息的元数据（每次改动作息时请同步更新 —— 便于日后核查来源与时效）
+ *
+ *   生效学期 : 2026-2027 学年第一学期（开学日 2026-08-31，共 20 周）
+ *   最后核验 : 2026-10-13
+ *   来源     : 本校学生提供的作息表，已与本学期导出课表交叉核对
+ *   维护提示 : 作息可能随校历微调；若课程时间出现偏移，优先核验 FALLBACK_TIME_SLOTS
+ *   缺省策略 : 若该表为空数组，则跳过作息导入（不猜时间），交由应用默认节次接管
+ */
+const FALLBACK_TIME_SLOTS_META = {
+    academicTerm: "2026-2027-1",
+    verifiedAt: "2026-10-13",
+    source: "本校学生提供的作息表（已与导出课表交叉核对）"
+};
+
 const FALLBACK_TIME_SLOTS = [
     { number: 1,  startTime: "08:20", endTime: "09:05" },
     { number: 2,  startTime: "09:15", endTime: "10:00" },
@@ -645,7 +639,9 @@ async function importPresetTimeSlots(timeSlots) {
     try {
         await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(finalTimeSlots));
         if (usedFallback) {
-            window.shiguangBridge.showToast("未获取到教务系统作息，已使用内置保底作息时间导入。");
+            window.shiguangBridge.showToast(
+                `未获取到教务系统作息，已使用内置保底作息（核验于 ${FALLBACK_TIME_SLOTS_META.verifiedAt}，如与实际不符请反馈）。`
+            );
         } else {
             window.shiguangBridge.showToast("预设时间段导入成功！");
         }
