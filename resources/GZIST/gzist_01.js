@@ -261,9 +261,20 @@ async function fetchAcademicOptions() {
             credentials: "include"
         });
 
-        if (!response.ok) return null;
+        if (!response.ok) {
+            auxDiagnostics.options = { code: 'E3', why: `HTTP ${response.status}（学年学期列表接口）` };
+            return null;
+        }
 
         const htmlText = await response.text();
+
+        // 会话失效时正方会返回 200 + 登录页，必须先识别，否则会被误判为“解析失败”
+        const loginCheck = detectLoginPage(response, htmlText);
+        if (loginCheck.isLogin) {
+            auxDiagnostics.options = { code: 'E1', why: loginCheck.why };
+            return null;
+        }
+
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, "text/html");
 
@@ -284,6 +295,10 @@ async function fetchAcademicOptions() {
             }));
 
         if (allYearOptions.length === 0 || semesterOptions.length === 0) {
+            auxDiagnostics.options = {
+                code: 'E4',
+                why: '未在返回页面中解析到 #xnm / #xqm 选项（页面结构可能已变化）'
+            };
             return null;
         }
 
@@ -314,6 +329,7 @@ async function fetchAcademicOptions() {
         };
 
     } catch (e) {
+        auxDiagnostics.options = { code: 'E2', why: `请求异常：${e && e.message ? e.message : e}` };
         return null;
     }
 }
@@ -325,7 +341,8 @@ async function selectAcademicYearAndSemester() {
     const optionsData = await fetchAcademicOptions();
 
     if (!optionsData) {
-        window.shiguangBridge.showToast("从教务系统读取学年学期失败，请确保登录状态。");
+        const d = auxDiagnostics.options || { code: 'E6', why: '' };
+        await reportImportError(d.code, ['获取学年学期列表失败', d.why]);
         return null;
     }
 
@@ -377,7 +394,23 @@ async function fetchSemesterStartDate(academicYear, semesterCode) {
         });
 
         if (response.ok) {
-            const json = await response.json();
+            const rawText = await response.text();
+
+            // 会话失效优先判定：否则 200 + 登录页会走到 JSON.parse 而被误归为“格式异常”
+            const loginCheck = detectLoginPage(response, rawText);
+            if (loginCheck.isLogin) {
+                auxDiagnostics.startDate = { code: 'E1', why: loginCheck.why };
+                return null;
+            }
+
+            let json = null;
+            try {
+                json = JSON.parse(rawText);
+            } catch (parseErr) {
+                auxDiagnostics.startDate = { code: 'E4', why: `开学日期接口返回非 JSON（前 120 字）：${String(rawText).substring(0, 120)}` };
+                return null;
+            }
+
             if (Array.isArray(json) && json.length > 0) {
                 // 优先找第1周，否则取第一项
                 const firstWeekObj = json.find(item => String(item.zs) === "1" || String(item.zsmc) === "1") || json[0];
@@ -398,6 +431,10 @@ async function fetchSemesterStartDate(academicYear, semesterCode) {
                     if (match) return match[1];
                 }
             }
+            // 能拿到响应但解析不出日期：不静默
+            auxDiagnostics.startDate = { code: 'E4', why: '开学日期接口返回内容中未找到可识别的日期字段（rq / zcrq / ksrq）' };
+        } else {
+            auxDiagnostics.startDate = { code: 'E3', why: `HTTP ${response.status}（开学日期接口）` };
         }
     } catch (e) {
         // 获取失败不影响主流程
@@ -410,6 +447,80 @@ async function fetchSemesterStartDate(academicYear, semesterCode) {
  * （旧版仅用 /^\d{1,2}:\d{2}$/，会把 "25:99" 这类非法值放行 → 已据单测修正）
  */
 const TIME_RE = /^(?:[01]?\d|2[0-3]):[0-5]\d$/;
+
+/* ==========================================================================
+ * 错误分级（E1–E7）与诊断信息上报
+ *
+ * 目的：把「导入失败」拆成可定位的原因，而不是一句笼统提示。
+ *   E1 登录失效/会话过期   E2 网络不可达/跨源   E3 服务端错误   E4 数据格式异常
+ *   E5 数据为空           E6 辅助数据失败      E7 应用拒绝导入
+ * ========================================================================== */
+const IMPORT_ERRORS = {
+    E1: { title: '登录状态已失效', hint: '请在页面内重新登录教务系统，然后再点一次「开始导入」。' },
+    E2: { title: '无法连接教务系统', hint: '请确认处于校园网内，或已通过 WebVPN 访问。' },
+    E3: { title: '教务接口返回异常', hint: '服务端可能繁忙或正在维护，请稍后重试。' },
+    E4: { title: '教务数据格式异常', hint: '学校教务可能已改版，请把诊断信息反馈给适配维护者。' },
+    E5: { title: '该学年学期没有课程', hint: '请确认选择的学年 / 学期是否正确。' },
+    E6: { title: '辅助数据获取失败', hint: '课表仍会导入，但开学日期或作息可能使用默认值。' },
+    E7: { title: '导入被应用拒绝', hint: '可能是导入顺序或应用状态异常，请重试。' }
+};
+
+/** 记录各辅助接口最近一次失败原因，供最后统一汇报（避免静默失败） */
+const auxDiagnostics = { options: null, startDate: null, timeSlots: null };
+
+/**
+ * 判断响应是否其实是「未登录 / 会话已过期」。
+ * 正方在会话失效时通常返回 HTTP 200 + 登录页 HTML，所以不能只看 response.ok，
+ * 必须靠「最终重定向地址 + 登录页特征字段」判断。
+ */
+function detectLoginPage(response, bodyText) {
+    const finalUrl = response && response.url ? String(response.url) : '';
+    if (/login_slogin|xtgl\/login/i.test(finalUrl)) {
+        return { isLogin: true, why: '请求被重定向到登录页：' + finalUrl };
+    }
+    if (typeof bodyText === 'string' && bodyText.length > 0) {
+        if (/id=["']csrftoken["']/i.test(bodyText)) {
+            return { isLogin: true, why: '响应体含登录页特征字段 id="csrftoken"' };
+        }
+        if (/name=["']yhm["']/i.test(bodyText) && /name=["']mm["']/i.test(bodyText)) {
+            return { isLogin: true, why: '响应体含登录页账号/密码输入框（yhm / mm）' };
+        }
+    }
+    return { isLogin: false, why: '' };
+}
+
+/**
+ * 把一次失败的请求归入错误码：
+ * 登录页 → E1；HTTP 非 2xx → E3；其余交给调用方指定的兜底码。
+ */
+function classifyFetchFailure(response, bodyText, fallbackCode) {
+    const login = detectLoginPage(response, bodyText);
+    if (login.isLogin) return { code: 'E1', why: login.why };
+    if (response && response.ok === false) return { code: 'E3', why: `HTTP ${response.status}` };
+    return { code: fallbackCode || 'E4', why: '' };
+}
+
+/**
+ * 致命错误上报：优先用 showAlert（可承载多行诊断信息），失败时退化为 showToast。
+ * 无论哪条路径都**不会静默**。
+ */
+async function reportImportError(code, lines) {
+    const e = IMPORT_ERRORS[code] || IMPORT_ERRORS.E4;
+    const detail = (lines || []).filter(Boolean);
+    const body = `${e.hint}\n\n— 诊断信息（反馈时请附上）—\n` +
+        (detail.length > 0 ? detail.map(l => `· ${l}`).join('\n') : '·（无）');
+    try {
+        await window.shiguangBridgePromise.showAlert(`导入失败【${code}】${e.title}`, body, '知道了');
+    } catch (err) {
+        window.shiguangBridge.showToast(`导入失败【${code}】${e.title}`);
+    }
+}
+
+/** 非致命问题提示（例如作息/开学日期取不到，但仍可导入课表） */
+function noticeAux(code, what) {
+    const e = IMPORT_ERRORS[code] || IMPORT_ERRORS.E6;
+    window.shiguangBridge.showToast(`${what}获取失败【${code}】${e.title}，已使用默认值。`);
+}
 
 /**
  * 将任意来源的节次条目归一化为 {number, startTime, endTime}
@@ -492,15 +603,25 @@ async function fetchTimeSlots(academicYear, semesterCode) {
         });
 
         if (!response.ok) {
+            auxDiagnostics.timeSlots = { code: 'E3', why: `HTTP ${response.status}（作息接口）` };
             console.warn('[GZIST] 作息接口 HTTP 异常:', response.status, url);
             return null;
         }
 
         const rawText = await response.text();
+
+        // 会话失效优先判定：否则 200 + 登录页会被误归为“格式异常”
+        const loginCheck = detectLoginPage(response, rawText);
+        if (loginCheck.isLogin) {
+            auxDiagnostics.timeSlots = { code: 'E1', why: loginCheck.why };
+            return null;
+        }
+
         let json = null;
         try {
             json = JSON.parse(rawText);
         } catch (e) {
+            auxDiagnostics.timeSlots = { code: 'E4', why: `作息接口返回非 JSON（前 120 字）：${rawText.substring(0, 120)}` };
             console.warn('[GZIST] 作息接口返回非 JSON，前 300 字:', rawText.substring(0, 300));
             return null;
         }
@@ -516,8 +637,13 @@ async function fetchTimeSlots(academicYear, semesterCode) {
 
         console.warn('[GZIST] 作息接口未返回可用节次数据（已尝试 jcmc/qssj/jssj 等多种字段）。原始响应前 500 字:',
             rawText.substring(0, 500));
+        auxDiagnostics.timeSlots = {
+            code: 'E4',
+            why: `作息接口未返回可用节次数据（已尝试 jcmc/qssj/jssj 等字段），响应前 120 字：${rawText.substring(0, 120)}`
+        };
         return null;
     } catch (e) {
+        auxDiagnostics.timeSlots = { code: 'E2', why: `请求异常：${e && e.message ? e.message : e}` };
         console.warn('[GZIST] 作息接口请求失败:', e && e.message ? e.message : e);
         return null;
     }
@@ -545,34 +671,76 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
     ]);
 
     try {
-        if (courseResponse.ok) {
-            const jsonText = await courseResponse.text();
-            const jsonData = JSON.parse(jsonText);
-            if (jsonData && jsonData.kbList) {
-                const parsedCourses = parseJsonData(jsonData);
-                if (parsedCourses.length > 0) {
-                    // 作息优先级：节次时间接口 → 课表响应里的 sjkList → 脚本内置保底作息
-                    // （内置保底不在此处处理，统一由 importPresetTimeSlots 兜底）
-                    const resolvedTimeSlots = fetchedTimeSlots || parseTimeSlotsFromCourseJson(jsonData);
-
-                    return {
-                        courses: parsedCourses,
-                        config: {
-                            semesterStartDate: semesterStartDate,
-                            // 已与本校学生确认：本学期 20 周（2026-10-13）
-                            semesterTotalWeeks: 20
-                        },
-                        timeSlots: resolvedTimeSlots
-                    };
-                }
-            }
+        if (!courseResponse.ok) {
+            await reportImportError('E3', [
+                `课表接口返回 HTTP ${courseResponse.status}`,
+                `请求：${targetUrl}`
+            ]);
+            return null;
         }
-    } catch (e) {
-        // 请求失败
-    }
 
-    window.shiguangBridge.showToast("未能获取课表数据，请检查网络环境或登录状态。");
-    return null;
+        const jsonText = await courseResponse.text();
+
+        // 会话失效优先判定：正方会返回 200 + 登录页，不识别就会被误判成「格式异常」
+        const loginCheck = detectLoginPage(courseResponse, jsonText);
+        if (loginCheck.isLogin) {
+            await reportImportError('E1', [
+                '课表接口返回的是登录页，说明登录会话已过期',
+                loginCheck.why,
+                `请求：${targetUrl}`
+            ]);
+            return null;
+        }
+
+        let jsonData = null;
+        try {
+            jsonData = JSON.parse(jsonText);
+        } catch (parseErr) {
+            await reportImportError('E4', [
+                '课表接口返回的内容不是合法 JSON',
+                `响应前 120 字：${jsonText.substring(0, 120)}`,
+                `请求：${targetUrl}`
+            ]);
+            return null;
+        }
+
+        if (!jsonData || !jsonData.kbList) {
+            await reportImportError('E4', [
+                '响应中缺少 kbList 字段（接口结构可能已变化）',
+                `响应前 120 字：${jsonText.substring(0, 120)}`,
+                `请求：${targetUrl}`
+            ]);
+            return null;
+        }
+
+        const parsedCourses = parseJsonData(jsonData);
+        if (parsedCourses.length === 0) {
+            await reportImportError('E5', [
+                `所选学年学期（xnm=${academicYear} / xqm=${semesterCode}）返回 0 条课程`
+            ]);
+            return null;
+        }
+
+        // 作息优先级：节次时间接口 → 课表响应里的 sjkList → 脚本内置保底作息
+        // （内置保底不在此处处理，统一由 importPresetTimeSlots 兜底）
+        const resolvedTimeSlots = fetchedTimeSlots || parseTimeSlotsFromCourseJson(jsonData);
+
+        return {
+            courses: parsedCourses,
+            config: {
+                semesterStartDate: semesterStartDate,
+                // 已与本校学生确认：本学期 20 周（2026-10-13）
+                semesterTotalWeeks: 20
+            },
+            timeSlots: resolvedTimeSlots
+        };
+    } catch (e) {
+        await reportImportError('E2', [
+            `请求课表时发生异常：${e && e.message ? e.message : e}`,
+            `请求：${targetUrl}`
+        ]);
+        return null;
+    }
 }
 
 async function saveCourses(parsedCourses) {
@@ -580,12 +748,12 @@ async function saveCourses(parsedCourses) {
         await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(parsedCourses));
         return true;
     } catch (error) {
-        window.shiguangBridge.showToast(`课程保存失败: ${error.message}`);
+        window.shiguangBridge.showToast(`课程保存失败【E7】${IMPORT_ERRORS.E7.title}: ${error.message}`);
         return false;
     }
 }
 
-// 保底作息表：仅当接口 / 课表响应 / DOM 三级都取不到时使用。
+// 保底作息表：仅当接口 / 课表响应两级都取不到时使用。
 //
 // 数据来源：本校学生提供的真实作息（2026-10-13），已与导出课表交叉核对：
 //   · 上午 1-4 节、下午 5-8 节，每节 45 分钟，节间 10 分钟，第 2-3 节与第 6-7 节间为大课间 20 分钟
@@ -622,14 +790,15 @@ const FALLBACK_TIME_SLOTS = [
     { number: 12, startTime: "21:00", endTime: "21:40" }
 ];
 
-async function importPresetTimeSlots(timeSlots) {
+async function importPresetTimeSlots(timeSlots, auxDiag) {
     let finalTimeSlots = timeSlots;
     let usedFallback = false;
 
     if (!finalTimeSlots || finalTimeSlots.length === 0) {
         if (FALLBACK_TIME_SLOTS.length === 0) {
             // 既没取到动态作息，也没有保底数据：跳过，避免写入错误作息
-            window.shiguangBridge.showToast("未获取到教务系统作息时间，已跳过作息导入（课表使用应用默认节次）。");
+            const codeHint = auxDiag ? `【${auxDiag.code}】` : '';
+            window.shiguangBridge.showToast(`未获取到教务系统作息${codeHint}，已跳过作息导入（课表使用应用默认节次）。`);
             return;
         }
         finalTimeSlots = FALLBACK_TIME_SLOTS;
@@ -639,14 +808,18 @@ async function importPresetTimeSlots(timeSlots) {
     try {
         await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(finalTimeSlots));
         if (usedFallback) {
+            // 非致命，但必须告知原因（错误码），避免「静默用了默认值」
+            const codeHint = auxDiag
+                ? `，原因【${auxDiag.code}】${(IMPORT_ERRORS[auxDiag.code] && IMPORT_ERRORS[auxDiag.code].title) || ''}`
+                : '';
             window.shiguangBridge.showToast(
-                `未获取到教务系统作息，已使用内置保底作息（核验于 ${FALLBACK_TIME_SLOTS_META.verifiedAt}，如与实际不符请反馈）。`
+                `未获取到教务系统作息${codeHint}。已使用内置保底作息（核验于 ${FALLBACK_TIME_SLOTS_META.verifiedAt}，如与实际不符请反馈）。`
             );
         } else {
             window.shiguangBridge.showToast("预设时间段导入成功！");
         }
     } catch (error) {
-        window.shiguangBridge.showToast("导入时间段失败: " + error.message);
+        window.shiguangBridge.showToast(`导入时间段失败【E7】${error.message}`);
     }
 }
 
@@ -687,10 +860,16 @@ async function runImportFlow() {
         window.shiguangBridge.showToast(configMsg);
     } catch (error) {
         configOk = false;
-        window.shiguangBridge.showToast(`课表配置保存失败: ${error.message}`);
+        window.shiguangBridge.showToast(`课表配置保存失败【E7】${error.message}`);
     }
 
-    await importPresetTimeSlots(timeSlots);
+    // 开学日期取不到时明确告知原因（非致命，但不静默）
+    if (!config.semesterStartDate && auxDiagnostics.startDate) {
+        noticeAux(auxDiagnostics.startDate.code, '开学日期');
+    }
+
+    // 作息：把失败原因（错误码）一并传入，便于用户/维护者定位
+    await importPresetTimeSlots(timeSlots, auxDiagnostics.timeSlots);
 
     // 课程数据已写入，但不掩盖配置保存失败（否则用户会误以为开学日期/周数都准了）
     window.shiguangBridge.showToast(
