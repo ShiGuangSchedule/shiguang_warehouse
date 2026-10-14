@@ -198,28 +198,37 @@ function parseWeeks(weekStr) {
  * 解析 API 返回的 JSON 数据
  */
 function parseJsonData(jsonData) {
-    if (!jsonData || !Array.isArray(jsonData.kbList)) {
+    // 容器降级：kbList 之外再认 items / rows / data / list
+    const rawCourseList = pickCourseList(jsonData);
+    if (!rawCourseList) {
         return [];
     }
 
-    const rawCourseList = jsonData.kbList;
     const initialCourseList = [];
 
     for (const rawCourse of rawCourseList) {
-        if (!rawCourse.kcmc || !rawCourse.xm || !rawCourse.cdmc ||
-            !rawCourse.xqj || !rawCourse.jcs || !rawCourse.zcd) {
+        // 字段降级：与作息字段同思路，兼容常见改名
+        const nameRaw = pick(rawCourse, ['kcmc', 'courseName', 'kcmc_mc']);
+        const teacherRaw = pick(rawCourse, ['xm', 'teacherName', 'jsxm']);
+        const positionRaw = pick(rawCourse, ['cdmc', 'classroomName', 'jsmc', 'cdmc_mc']);
+        const dayRaw = pick(rawCourse, ['xqj', 'xq', 'weekDay']);
+        const sectionRaw = pick(rawCourse, ['jcs', 'jc', 'section']);
+        const weekRaw = pick(rawCourse, ['zcd', 'zcmc', 'weeks']);
+
+        if (nameRaw === undefined || teacherRaw === undefined || positionRaw === undefined ||
+            dayRaw === undefined || sectionRaw === undefined || weekRaw === undefined) {
             continue;
         }
 
-        const weeksArray = parseWeeks(rawCourse.zcd);
+        const weeksArray = parseWeeks(String(weekRaw));
         if (weeksArray.length === 0) {
             continue;
         }
 
-        const sectionParts = rawCourse.jcs.split('-');
+        const sectionParts = String(sectionRaw).split('-');
         const startSection = Number(sectionParts[0]);
         const endSection = Number(sectionParts[sectionParts.length - 1]);
-        const day = Number(rawCourse.xqj);
+        const day = Number(dayRaw);
 
         if (isNaN(day) || isNaN(startSection) || isNaN(endSection) ||
             day < 1 || day > 7 || startSection > endSection) {
@@ -227,9 +236,9 @@ function parseJsonData(jsonData) {
         }
 
         initialCourseList.push({
-            name: rawCourse.kcmc.trim(),
-            teacher: rawCourse.xm.trim(),
-            position: rawCourse.cdmc.trim(),
+            name: String(nameRaw).trim(),
+            teacher: String(teacherRaw).trim(),
+            position: String(positionRaw).trim(),
             day: day,
             startSection: startSection,
             endSection: endSection,
@@ -252,6 +261,64 @@ async function promptUserToStart() {
  * 从教务系统获取学年学期选项
  * 学年：以选中项为中心，取前2年+后2年，共5个选项
  */
+/**
+ * 从选项页里提取学年/学期选项，三级降级：
+ *   ① #xnm / #xqm  ② 扫描全部 <select> 按选项形态识别  ③ 正则扫描原始 HTML
+ * 抽成独立函数并接收 doc 参数：便于单测免依赖（Node 无 DOMParser）
+ */
+function extractAcademicOptions(doc, htmlText) {
+    const toOptions = (nodes) => Array.from(nodes)
+        .filter(opt => opt.value !== "")
+        .map(opt => ({
+            value: opt.value,
+            text: (opt.textContent || '').trim(),
+            selected: !!opt.selected
+        }));
+
+    let yearOptions = [];
+    let semesterOptions = [];
+    let strategy = 'id';
+
+    try {
+        yearOptions = toOptions(doc.querySelectorAll("#xnm option"));
+        semesterOptions = toOptions(doc.querySelectorAll("#xqm option"));
+    } catch (e) {
+        console.warn('[GZIST] 按 id 读取选项失败，转降级策略：' + e.message);
+    }
+
+    // 策略 2：id 失效 → 扫描全部 <select>，按选项形态识别
+    if (yearOptions.length === 0 || semesterOptions.length === 0) {
+        try {
+            const grouped = classifyOptionGroups(
+                Array.from(doc.querySelectorAll('select')).map(optionGroupFromSelect)
+            );
+            if (grouped.year.length > 0 && grouped.semester.length > 0) {
+                yearOptions = grouped.year;
+                semesterOptions = grouped.semester;
+                strategy = 'select 启发式';
+            }
+        } catch (e) {
+            console.warn('[GZIST] select 启发式失败，转正则扫描：' + e.message);
+        }
+    }
+
+    // 策略 3：DOM 也拿不到 → 正则扫描原始 HTML
+    if (yearOptions.length === 0 || semesterOptions.length === 0) {
+        const grouped = classifyOptionGroups(optionGroupsFromHtml(htmlText));
+        if (grouped.year.length > 0 && grouped.semester.length > 0) {
+            yearOptions = grouped.year;
+            semesterOptions = grouped.semester;
+            strategy = '正则扫描';
+        }
+    }
+
+    const error = (yearOptions.length === 0 || semesterOptions.length === 0)
+        ? `三种策略均未能解析出学年/学期选项（id → select 启发式 → 正则扫描）；响应前 120 字：${htmlText.substring(0, 120)}`
+        : null;
+
+    return { yearOptions, semesterOptions, strategy, error };
+}
+
 async function fetchAcademicOptions() {
     const url = `${getBaseUrl()}/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default`;
 
@@ -266,7 +333,7 @@ async function fetchAcademicOptions() {
             return null;
         }
 
-        const htmlText = await response.text();
+        const { text: htmlText, encoding } = await readTextSmart(response);
 
         // 会话失效时正方会返回 200 + 登录页，必须先识别，否则会被误判为“解析失败”
         const loginCheck = detectLoginPage(response, htmlText);
@@ -277,29 +344,17 @@ async function fetchAcademicOptions() {
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, "text/html");
-
-        const allYearOptions = Array.from(doc.querySelectorAll("#xnm option"))
-            .filter(opt => opt.value !== "")
-            .map(opt => ({
-                value: opt.value,
-                text: opt.textContent.trim(),
-                selected: opt.selected
-            }));
-
-        const semesterOptions = Array.from(doc.querySelectorAll("#xqm option"))
-            .filter(opt => opt.value !== "")
-            .map(opt => ({
-                value: opt.value,
-                text: opt.textContent.trim(),
-                selected: opt.selected
-            }));
+        const extracted = extractAcademicOptions(doc, htmlText);
+        const allYearOptions = extracted.yearOptions;
+        const semesterOptions = extracted.semesterOptions;
 
         if (allYearOptions.length === 0 || semesterOptions.length === 0) {
-            auxDiagnostics.options = {
-                code: 'E4',
-                why: '未在返回页面中解析到 #xnm / #xqm 选项（页面结构可能已变化）'
-            };
+            auxDiagnostics.options = { code: 'E4', why: extracted.error };
             return null;
+        }
+
+        if (extracted.strategy !== 'id') {
+            console.warn(`[GZIST] #xnm/#xqm 未命中，已用「${extracted.strategy}」识别选项（${allYearOptions.length} 个学年 / ${semesterOptions.length} 个学期）`);
         }
 
         const selectedIndex = allYearOptions.findIndex(opt => opt.selected);
@@ -394,7 +449,7 @@ async function fetchSemesterStartDate(academicYear, semesterCode) {
         });
 
         if (response.ok) {
-            const rawText = await response.text();
+            const { text: rawText } = await readTextSmart(response);
 
             // 会话失效优先判定：否则 200 + 登录页会走到 JSON.parse 而被误归为“格式异常”
             const loginCheck = detectLoginPage(response, rawText);
@@ -522,6 +577,134 @@ function noticeAux(code, what) {
     window.shiguangBridge.showToast(`${what}获取失败【${code}】${e.title}，已使用默认值。`);
 }
 
+/* ==========================================================================
+ * 兼容层（P2）：编码兜底 + 结构降级
+ * ========================================================================== */
+
+/**
+ * 读取响应正文并做编码兜底。
+ *
+ * 背景：正方分省部署存在 GBK 页面；若服务端未在 Content-Type 里声明 charset，
+ * 浏览器会默认按 UTF-8 解码 → 中文乱码 → 后续 JSON.parse / 正则全部失败。
+ * 策略：① Content-Type 声明的 charset 优先 → ② 严格 UTF-8（拒绝替换符）→ ③ 按 GBK 重解码。
+ */
+async function readTextSmart(response) {
+    let buf = null;
+    try {
+        buf = await response.arrayBuffer();
+    } catch (e) {
+        // 环境不支持 arrayBuffer 时退回普通 text()
+        return { text: await response.text(), encoding: 'text()' };
+    }
+
+    const ct = response.headers && typeof response.headers.get === 'function'
+        ? (response.headers.get('content-type') || '')
+        : '';
+    const declared = /charset=["']?([\w-]+)/i.exec(ct);
+
+    const decodeWith = (label, fatal) => {
+        try {
+            return new TextDecoder(label, { fatal: !!fatal }).decode(buf);
+        } catch (e) {
+            return null;
+        }
+    };
+
+    if (declared) {
+        const label = declared[1].trim().toLowerCase();
+        const t = decodeWith(label, false);
+        if (t !== null) return { text: t, encoding: label };
+    }
+
+    // 未声明 charset：先严格 UTF-8（出现 U+FFFD 即为误码）
+    const strictUtf8 = decodeWith('utf-8', true);
+    if (strictUtf8 !== null && strictUtf8.indexOf('\uFFFD') === -1) {
+        return { text: strictUtf8, encoding: 'utf-8(推断)' };
+    }
+
+    // 再按 GBK 解一次（Chromium 支持 legacy 编码；不支持时抛错→返回 null）
+    const gbk = decodeWith('gbk', false);
+    if (gbk !== null && gbk.indexOf('\uFFFD') === -1) {
+        console.warn('[GZIST] 响应未声明编码且非 UTF-8，已按 GBK 解码');
+        return { text: gbk, encoding: 'gbk(推断)' };
+    }
+
+    return { text: strictUtf8 !== null ? strictUtf8 : (gbk || ''), encoding: '未知' };
+}
+
+/** 多字段名取值（结构降级用）：返回第一个非空值 */
+function pick(obj, names) {
+    if (!obj || typeof obj !== 'object') return undefined;
+    for (const n of names) {
+        const v = obj[n];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+    return undefined;
+}
+
+/** 课程列表容器降级：kbList 之外再认几种常见容器名 */
+const COURSE_LIST_KEYS = ['kbList', 'items', 'rows', 'data', 'list'];
+function pickCourseList(jsonData) {
+    if (!jsonData || typeof jsonData !== 'object') return null;
+    for (const k of COURSE_LIST_KEYS) {
+        if (Array.isArray(jsonData[k])) return jsonData[k];
+    }
+    return null;
+}
+
+/** 从 <select> 元素提取选项组（DOM 路径） */
+function optionGroupFromSelect(sel) {
+    const opts = Array.from(sel.querySelectorAll('option'))
+        .filter(o => o.value !== '')
+        .map(o => ({ value: o.value, text: (o.textContent || '').trim(), selected: !!o.selected }));
+    return { id: sel.id || sel.getAttribute('name') || '', opts };
+}
+
+/** 正则从原始 HTML 提取 <select> 选项组（DOM 策略失效时的降级） */
+function optionGroupsFromHtml(html) {
+    const groups = [];
+    const selectRe = /<select\b([^>]*)>([\s\S]*?)<\/select>/gi;
+    let sm;
+    while ((sm = selectRe.exec(html)) !== null) {
+        const attrs = sm[1] || '';
+        const body = sm[2] || '';
+        const idMatch = /(?:id|name)=["']([^"']+)["']/i.exec(attrs);
+        const opts = [];
+        const optRe = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
+        let om;
+        while ((om = optRe.exec(body)) !== null) {
+            const oAttrs = om[1] || '';
+            const valueMatch = /value=["']([^"']*)["']/i.exec(oAttrs);
+            const value = valueMatch ? valueMatch[1] : '';
+            if (value === '') continue;
+            opts.push({
+                value,
+                text: String(om[2] || '').replace(/<[^>]*>/g, '').trim(),
+                selected: /\bselected\b/i.test(oAttrs)
+            });
+        }
+        groups.push({ id: idMatch ? idMatch[1] : '', opts });
+    }
+    return groups;
+}
+
+/**
+ * 选项组识别（降级用）：不依赖 #xnm / #xqm 这两个 id，
+ * 而是按「值形如 4 位年份 / 文本含学年区间」判学年，按「文本含学期」判学期。
+ */
+function classifyOptionGroups(groups) {
+    let year = [];
+    let semester = [];
+    for (const g of groups) {
+        if (!g || !Array.isArray(g.opts) || g.opts.length < 2) continue;
+        const yearLike = g.opts.filter(o => /^\d{4}$/.test(String(o.value).trim()) || /\d{4}\s*[-~—～]\s*\d{4}/.test(o.text)).length;
+        const termLike = g.opts.some(o => /学期/.test(o.text));
+        if (year.length === 0 && yearLike >= 2) { year = g.opts; continue; }
+        if (semester.length === 0 && termLike) { semester = g.opts; continue; }
+    }
+    return { year, semester };
+}
+
 /**
  * 将任意来源的节次条目归一化为 {number, startTime, endTime}
  * 不同正方版本字段名不一致，这里做多名称兼容
@@ -608,7 +791,7 @@ async function fetchTimeSlots(academicYear, semesterCode) {
             return null;
         }
 
-        const rawText = await response.text();
+        const { text: rawText } = await readTextSmart(response);
 
         // 会话失效优先判定：否则 200 + 登录页会被误归为“格式异常”
         const loginCheck = detectLoginPage(response, rawText);
@@ -679,7 +862,7 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
             return null;
         }
 
-        const jsonText = await courseResponse.text();
+        const { text: jsonText, encoding: courseEncoding } = await readTextSmart(courseResponse);
 
         // 会话失效优先判定：正方会返回 200 + 登录页，不识别就会被误判成「格式异常」
         const loginCheck = detectLoginPage(courseResponse, jsonText);
@@ -698,15 +881,17 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
         } catch (parseErr) {
             await reportImportError('E4', [
                 '课表接口返回的内容不是合法 JSON',
+                `响应编码：${courseEncoding}`,
                 `响应前 120 字：${jsonText.substring(0, 120)}`,
                 `请求：${targetUrl}`
             ]);
             return null;
         }
 
-        if (!jsonData || !jsonData.kbList) {
+        if (!jsonData || !pickCourseList(jsonData)) {
             await reportImportError('E4', [
-                '响应中缺少 kbList 字段（接口结构可能已变化）',
+                '响应中找不到课表列表字段（已尝试 kbList / items / rows / data / list）',
+                `响应编码：${courseEncoding}`,
                 `响应前 120 字：${jsonText.substring(0, 120)}`,
                 `请求：${targetUrl}`
             ]);
