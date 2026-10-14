@@ -32,3 +32,4 @@ assert.equal(courses.length, 4);
 assert.deepEqual(courses.flatMap(course => Array.from(course.weeks)), [7, 8, 9, 10, 11, 12]);
 console.log('PASS: single-week experiments, comma lists, parity, invalid formats, and course staging');
 
+
