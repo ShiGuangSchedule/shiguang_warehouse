@@ -488,10 +488,24 @@ async function fetchSemesterCalendarInfo(semesterId) {
 	};
 }
 
+// 单独区分未登录错误，入口处使用弹窗提示
+class LoginRequiredError extends Error {}
+
+// 通过登录表单识别登录页面
+function checkLoginDocument(doc) {
+	const loginForm = doc.querySelector('#loginForm[action="/Logon.do?method=logon"]');
+	if (loginForm != null) {
+		throw new LoginRequiredError("请先登录教务系统，再点击“执行导入”。");
+	}
+}
+
 // 主流程：读取课表 -> 选择校区 -> 拉周历 -> 生成节次 -> 调桥接导入
 // 传统流程：从页面中读取用户打开的课表 iframe
 // 便捷流程：若未打开课表，则让用户选择学年学期，直接拉取课表
 async function importSchedule() {
+	// 未登录时直接提示，不继续读取课表
+	checkLoginDocument(document);
+
 	window.shiguangBridge.showToast("开始读取教务课表……");
 
 	// 读取 iframe，未打开课表时则走便捷导入流程
@@ -544,6 +558,11 @@ async function importSchedule() {
 	try {
 		await importSchedule();
 	} catch (error) {
+		if (error instanceof LoginRequiredError) {
+			// 弹窗强提醒，同时也在控制台输出并展示 Toast
+			await window.shiguangBridgePromise.showAlert("未登录教务系统", error.message, "好的");
+		}
+
 		console.error("课表导入失败：", error);
 		// 失败原因直接提示给用户，便于在移动端快速定位问题
 		window.shiguangBridge.showToast(`导入失败：${error.message}`);
