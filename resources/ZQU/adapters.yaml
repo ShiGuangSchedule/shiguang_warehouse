@@ -6,4 +6,12 @@ adapters:
     asset_js_path: "zqu_01.js"
     import_url: "https://webvpn.zqu.edu.cn/login"
     maintainer: "NoobLLiu"
-    description: "肇庆学院URP教务，校外访问走WebVPN。登录进入教务系统后点击开始导入，脚本直取课表JSON接口（getKbRq）一次读取整学期数据，导入过程中会请用户确认开学日期。无需打开课表查询页面，停留在教务系统任意页面即可。校内直连版本另行提交。非本校开发者适配，如有误差欢迎提issue"
+    description: "肇庆学院教务系统（Webvpn/Webvpn-free）对接，登录进入教务系统后点击开始导入，无需打开课表查询页面，停留在教务系统任意页面即可。"
+
+  - adapter_id: "ZQU_02"
+    adapter_name: "肇庆学院（校内直连）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zqu_02.js"
+    import_url: "https://jwgl.zqu.edu.cn/"
+    maintainer: "NoobLLiu"
+    description: "肇庆学院教务系统（校园网内）对接，登录进入教务系统后点击开始导入，无需打开课表查询页面，停留在教务系统任意页面即可。"
