@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SDUFE_01"
+    adapter_name: "山东财经大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sdufe_01.js"
+    import_url: "http://jw.sdufe.edu.cn/"
+    maintainer: "Kurisu90"
+    description: "适用于 jw.sdufe.edu.cn 的强智教务。登录教务系统后直接点击开始导入,可选择学期,并自动获取开学日期。如有问题欢迎提交 issue。"

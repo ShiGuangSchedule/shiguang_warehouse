@@ -403,20 +403,40 @@ async function fetchTimeSlots(academicYear, semesterCode) {
         if (!response.ok) return null;
 
         const json = await response.json();
-        if (!Array.isArray(json)) return null;
 
-        // 过滤有效节次并转换格式
-        const timeSlots = json
-            .filter(item => item.jcmc && item.qssj && item.jssj)
-            .map(item => ({
-                number: Number(item.jcmc),
-                startTime: item.qssj.substring(0, 5), // "08:30:00" -> "08:30"
-                endTime: item.jssj.substring(0, 5)
-            }))
-            .sort((a, b) => a.number - b.number);
+        if (!Array.isArray(json) || json.length === 0) {
+            return null;
+        }
 
+        const seen = {};
+        const timeSlots = [];
+
+        for (let i = 0; i < json.length; i++) {
+            const item = json[i];
+            if (!item || !item.jcmc || !item.qssj || !item.jssj) {
+                continue;
+            }
+
+            const num = Number(item.jcmc);
+            if (isNaN(num) || seen[num]) {
+                continue;
+            }
+            seen[num] = true;
+
+            timeSlots.push({
+                number: num,
+                startTime: String(item.qssj).substring(0, 5),
+                endTime: String(item.jssj).substring(0, 5)
+            });
+        }
+
+        Array.prototype.sort.call(timeSlots, (a, b) => a.number - b.number);
+
+        console.log("[作息] 解析到", timeSlots.length, "条:", timeSlots);
         return timeSlots.length > 0 ? timeSlots : null;
+
     } catch (e) {
+        console.error("[作息] 异常:", e);
         return null;
     }
 }

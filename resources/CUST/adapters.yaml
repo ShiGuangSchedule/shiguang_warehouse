@@ -1,9 +1,18 @@
 # resources/CUST/adapters.yaml
 adapters:
+  # 本科和研究生分类分别登记，两条配置共用融合课表地址和朝阳校区脚本。
   - adapter_id: "CUST_01"
-    adapter_name: "长春理工大学教务系统（朝阳校区）"
+    adapter_name: "长春理工大学融合课表（朝阳校区·本科）"
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "cust_chaoyang.js"
-    import_url: "https://mysso.cust.edu.cn/cas/login?service=https://jwgl.cust.edu.cn/welcome"
+    import_url: "https://kbpro.cust.edu.cn/Schedule/"
     maintainer: "itdong"
-    description: "适用于朝阳校区，导入个人课程表并配置第 1～12 节作息时间。"
+    description: "通过融合课表适配本科生"
+
+  - adapter_id: "CUST_02"
+    adapter_name: "长春理工大学融合课表（朝阳校区·研究生）"
+    category: "POSTGRADUATE"
+    asset_js_path: "cust_chaoyang.js"
+    import_url: "https://kbpro.cust.edu.cn/Schedule/"
+    maintainer: "itdong"
+    description: "通过融合课表适配研究生"

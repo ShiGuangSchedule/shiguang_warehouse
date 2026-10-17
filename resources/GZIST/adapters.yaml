@@ -1,0 +1,18 @@
+# resources/GZIST/adapters.yaml
+# 广州理工学院（GZIST）· maintainer: YT-O5
+adapters:
+  - adapter_id: "GZIST_01"
+    adapter_name: "广州理工学院（统一身份认证）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gzist_01.js"
+    import_url: "https://ids.gzist.edu.cn/lyuapServer/login?service=http%3A%2F%2Fjw.gzist.edu.cn%2Fsso%2Flyiotlogin"
+    maintainer: "YT-O5"
+    description: "输入统一认证门户账号密码后在信息查询页面进入学生课表查询，随后点击底部“执行导入”。"
+
+  - adapter_id: "GZIST_02"
+    adapter_name: "广州理工学院（WebVPN 校外）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gzist_01.js"
+    import_url: "https://webvpn.gzist.edu.cn/login"
+    maintainer: "YT-O5"
+    description: "提示：本系统是为非校园网用户提供访问校内资源的途径，如用户使用校园网上网时无需登录本系统。正常可使用统一身份认证通过相关账号密码登录。此项功能未进行测试。"

@@ -210,6 +210,16 @@ function applyOtherVenueCustomTime(courses) {
 }
 
 /**
+ * 学分允许小数和零；缺失或非法值保持未知，不影响课程导入。
+ */
+function parseCredit(value) {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    const credit = Number(value);
+    return Number.isFinite(credit) && credit >= 0 ? credit : null;
+}
+
+/**
  * 解析正方 v9 课表查询接口返回的 JSON 数据。
  */
 function parseJsonData(jsonData) {
@@ -262,7 +272,8 @@ function parseJsonData(jsonData) {
             day: day,
             startSection: sectionRange.startSection,
             endSection: sectionRange.endSection,
-            weeks: weeksArray
+            weeks: weeksArray,
+            credit: parseCredit(rawCourse.xf)
         });
     }
 

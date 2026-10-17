@@ -17,29 +17,26 @@
 function parseWeeks(weekStr) {
     if (!weekStr) return [];
 
-    const weekSets = weekStr.split(',');
+    const weekSets = String(weekStr).replace(/，|、/g, ',').replace(/（/g, '(').replace(/）/g, ')').split(',');
     let weeks = [];
 
     for (const set of weekSets) {
         const trimmedSet = set.trim();
 
-        const rangeMatch = trimmedSet.match(/(\d+)-(\d+)周/);
-        const singleMatch = trimmedSet.match(/^(\d+)周/); // 匹配以数字周结束的
+        // 正方实验课的单周写法可能为“第7周”，逗号列表也可能只在末项带“周”。
+        const weekMatch = trimmedSet.match(/^(?:第)?\s*(\d+)(?:\s*[-~至]\s*(?:第)?\s*(\d+))?\s*(?:周)?\s*(?:\(([单双])\))?$/);
 
         let start = 0;
         let end = 0;
         let processed = false;
 
-        if (rangeMatch) { // 范围, 如 "1-5周"
-            start = Number(rangeMatch[1]);
-            end = Number(rangeMatch[2]);
-            processed = true;
-        } else if (singleMatch) { // 单个周, 如 "6周"
-            start = end = Number(singleMatch[1]);
+        if (weekMatch) {
+            start = Number(weekMatch[1]);
+            end = Number(weekMatch[2] || weekMatch[1]);
             processed = true;
         }
 
-        if (processed) {
+        if (processed && Number.isSafeInteger(start) && Number.isSafeInteger(end) && start > 0 && end >= start) {
             // 确定单双周
             const isSingle = trimmedSet.includes('(单)');
             const isDouble = trimmedSet.includes('(双)');

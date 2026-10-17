@@ -203,6 +203,11 @@ schools:
     initial: "G"
     resource_folder: "GZST"
 
+  - id: "GZIST"
+    name: "广州理工学院"
+    initial: "G"
+    resource_folder: "GZIST"
+
   - id: "FJCPC"
     name: "福建船政交通职业学院"
     initial: "F"
@@ -1242,3 +1247,53 @@ schools:
     name: "四川工商职业技术学院"
     initial: "S"
     resource_folder: "SCTBC"
+
+  - id: "HNU"
+    name: "湖南大学"
+    initial: "H"
+    resource_folder: "HNU"
+
+  - id: "SDUFE"
+    name: "山东财经大学"
+    initial: "S"
+    resource_folder: "SDUFE"
+
+  - id: "CCSUT"
+    name: "长沙工业学院"
+    initial: "C"
+    resource_folder: "CCSUT"
+
+  - id: "JDZVUA"
+    name: "景德镇艺术职业大学"
+    initial: "J"
+    resource_folder: "JDZVUA"
+
+  - id: "ZWU"
+    name: "浙江万里学院"
+    initial: "Z"
+    resource_folder: "ZWU"
+
+  - id: "HEBEU"
+    name: "河北工程大学"
+    initial: "H"
+    resource_folder: "HEBEU"
+
+  - id: "LIDAPOLY"
+    name: "上海立达学院"
+    initial: "S"
+    resource_folder: "LIDAPOLY"
+
+  - id: "SWFU"
+    name: "西南林业大学"
+    initial: "X"
+    resource_folder: "SWFU"
+    
+  - id: "BJTU"
+    name: "北京交通大学"
+    initial: "B"
+    resource_folder: "BJTU"
+
+  - id: "NWAFU"
+    name: "西北农林科技大学"
+    initial: "X"
+    resource_folder: "NWAFU"
