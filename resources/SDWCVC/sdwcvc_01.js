@@ -8,8 +8,8 @@
 const BASE_URL = 'https://jw.sdwcvc.edu.cn';
 const MAX_SUPPORTED_WEEK = 60;
 
-// 来源：学校《关于执行夏季作息时间的通知》（2025-04-29，2025-05-01 起执行），用户提供原表。
-// https://pubinfo.sdwcvc.cn/info.jsp?id=22478
+// 来源：学校官网“作息时间”公布的统一作息（第 1～10 节）。
+// https://www.sdwcvc.edu.cn/ggfw/zxsj.htm
 const SDWCVC_TIME_SLOTS = [
     { number: 1, startTime: '08:15', endTime: '09:00' },
     { number: 2, startTime: '09:10', endTime: '09:55' },
@@ -325,12 +325,12 @@ async function runImportFlow() {
             throw new Error('课程周次超出所选学期校历。');
         }
         if (courses.some(function (course) { return course.endSection > SDWCVC_TIME_SLOTS.length; })) {
-            throw new Error('课程节次超出学校夏季作息表的第 1～10 节。');
+            throw new Error('课程节次超出学校统一作息表的第 1～10 节。');
         }
         if (!await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config))) throw new Error('课表配置保存失败。');
         if (!await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(SDWCVC_TIME_SLOTS))) throw new Error('作息时间保存失败。');
         if (!await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(courses))) throw new Error('课程保存失败。');
-        window.shiguangBridge.showToast('已获取 ' + courses.length + ' 条课程时段，并应用学校夏季作息。');
+        window.shiguangBridge.showToast('已获取 ' + courses.length + ' 条课程时段，并应用学校统一作息。');
         window.shiguangBridge.notifyTaskCompletion();
     } catch (error) {
         await window.shiguangBridgePromise.showAlert('导入失败', error.message, '知道了');
