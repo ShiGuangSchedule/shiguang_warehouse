@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "GDCP_01"
+    adapter_name: "广东交通职业技术学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdcp_01.js"
+    import_url: "https://cas.gdcp.edu.cn/"
+    maintainer: "小漫君"
+    description: "登录融合门户并进入新教务系统后导入，按所选学期读取课程、开学日期与总周数；上课时间请在导入后自行校对。"
