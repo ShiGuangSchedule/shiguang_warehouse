@@ -2,11 +2,70 @@
 // 适配作者：小漫君
 // 接口与字段参考拾光 HNIU/hniu_01.js、HHTC/hhtc.js；悬浮详情处理参考 NJFU/njfu_01.js。
 // 周次与教学周历解析、合并去重沿用 QFNU/qfnu_01.js（Yumu-banxia）及官方 Wiki。
+// 校区选择、按教学楼设置课程独立时间参考 GDOU/gdou.js（Mccurtain）。
 // 上游：https://github.com/ShiGuangSchedule/shiguang_warehouse/tree/pending/resources
 // 以上参考实现按上游 MIT 许可复用；本校使用已确认的 xskb_list.do 接口与详表结构。
 
 const GDCP_TIMETABLE_URL = 'https://jw.gdcp.edu.cn/jsxsd/xskb/xskb_list.do';
 const GDCP_CALENDAR_URL = 'https://jw.gdcp.edu.cn/jsxsd/jxzl/jxzl_query';
+
+// 来源：学校《各校区上课作息时间表》（用户提供）。
+// 第 7～8、9～10 节各为 80 分钟连堂，网格按每小节 40 分钟连续排列；课程保留整段实际时间。
+const GDCP_TIME_SLOTS = [
+    { number: 1, startTime: '08:30', endTime: '09:10' },
+    { number: 2, startTime: '09:15', endTime: '09:55' },
+    { number: 3, startTime: '10:10', endTime: '10:50' },
+    { number: 4, startTime: '10:55', endTime: '11:35' },
+    { number: 5, startTime: '14:15', endTime: '14:55' },
+    { number: 6, startTime: '15:00', endTime: '15:40' },
+    { number: 7, startTime: '15:55', endTime: '16:35' },
+    { number: 8, startTime: '16:35', endTime: '17:15' },
+    { number: 9, startTime: '18:05', endTime: '18:45' },
+    { number: 10, startTime: '18:45', endTime: '19:25' }
+];
+const GDCP_LATE_MORNING = [
+    { number: 3, startTime: '10:30', endTime: '11:10' },
+    { number: 4, startTime: '11:15', endTime: '11:55' }
+];
+const GDCP_CAMPUSES = [
+    // 轨道楼（16#）未列入原表；用户明确确认第 3、4 节使用 10:10 起的作息。
+    { name: '天河校区', early: ['9号楼', '10号楼', '12号楼', '图书馆', '公路楼', '汽车实训楼', '轨道楼'], late: ['2号楼', '运动场'] },
+    { name: '花都校区', early: ['1号楼', '图书馆'], late: ['10号楼', '15号楼', '16号楼', '运动场'] },
+    { name: '国际校区', early: ['教学楼', '运动场'], late: [] },
+    { name: '清远校区', early: ['厚德楼', '明德楼', '立业楼', '创新楼', '求是楼', '笃实楼'], late: ['融新楼', '融创楼', '运动场', '体育馆'] }
+];
+
+function applyCampusTimes(courses, campus) {
+    return courses.map(function ({ building, ...course }) {
+        if (course.startSection < 1 || course.endSection > GDCP_TIME_SLOTS.length) {
+            throw new Error('学校作息表只提供第 1～10 节，课程“' + course.name + '”的节次超出范围。');
+        }
+        const slots = GDCP_TIME_SLOTS.slice();
+        if (course.startSection <= 4 && course.endSection >= 3) {
+            // 教务实测楼名含【】、编号前导零与校区后缀；操场对应学校作息表的运动场。
+            const venue = building.replace(/[【】]/g, '').replace(/（(?:天河|花都|国际|清远)）$/, '')
+                .replace(/^0+(\d+号楼)$/, '$1').replace(/^操场$/, '运动场');
+            const matches = function (name) { return venue === name || venue.startsWith(name + '（'); };
+            if (!campus.early.some(matches)) {
+                // 国际校区的“其他区域”是学校表格明确规定的第二套作息。
+                if (!campus.late.some(matches) && campus.name !== '国际校区') {
+                    throw new Error(campus.name + '的“' + building + '”未列入学校作息表，无法确定第 3、4 节时间。');
+                }
+                slots[2] = GDCP_LATE_MORNING[0];
+                slots[3] = GDCP_LATE_MORNING[1];
+            }
+        }
+        // 学校与用户课表都将这两组小节视为一个完整时间块，不能按普通课间拆开。
+        const startTime = course.startSection === 8 ? '15:55' : course.startSection === 10 ? '18:05' : slots[course.startSection - 1].startTime;
+        const endTime = course.endSection === 7 ? '17:15' : course.endSection === 9 ? '19:25' : slots[course.endSection - 1].endTime;
+        return {
+            ...course,
+            isCustomTime: true,
+            customStartTime: startTime,
+            customEndTime: endTime
+        };
+    });
+}
 
 async function fetchTimetableDoc(parameters) {
     const options = { credentials: 'include' };
@@ -82,7 +141,8 @@ function parseTimetable(doc) {
                 const teacher = block.querySelector('font[title="教师"]');
                 const time = block.querySelector('font[title="周次(节次)"]');
                 const position = block.querySelector('font[title="教室"]');
-                if (!name || !teacher || !time || !position) throw new Error('课程字段结构不匹配。');
+                const building = block.querySelector('font[title="教学楼"]');
+                if (!name || !teacher || !time || !position || !building) throw new Error('课程字段结构不匹配。');
                 const parsed = parseWeeksAndSections(time.textContent);
                 if (!name.textContent.trim() || parsed.weeks.length === 0 || parsed.sections.length === 0) {
                     throw new Error('课程名称、周次或节次为空。');
@@ -91,6 +151,7 @@ function parseTimetable(doc) {
                     name: name.textContent.trim(),
                     teacher: teacher.textContent.trim(),
                     position: position.textContent.trim(),
+                    building: building.textContent.trim(),
                     day: index + 1,
                     weeks: parsed.weeks,
                     startSection: parsed.sections[0],
@@ -233,7 +294,9 @@ async function fetchCourseConfig(semesterValue) {
     return {
         semesterStartDate: calendar.semesterStartDate,
         semesterTotalWeeks: calendar.totalWeeks,
-        firstDayOfWeek: 1
+        firstDayOfWeek: 1,
+        defaultClassDuration: 40,
+        defaultBreakDuration: 5
     };
 }
 
@@ -263,14 +326,21 @@ async function runImportFlow() {
         window.shiguangBridge.showToast('正在获取整学期课表…');
         const doc = await fetchTimetableDoc(parameters);
         if (doc.getElementById('xnxq01id')?.value !== semesters[picked].value) throw new Error('返回课表与所选学期不一致。');
-        const courses = mergeAndDistinctCourses(parseTimetable(doc));
-        if (courses.length === 0) {
+        const parsedCourses = mergeAndDistinctCourses(parseTimetable(doc));
+        if (parsedCourses.length === 0) {
             await window.shiguangBridgePromise.showAlert('该学期暂无课程', '所选学期没有已排定上课时间的课程。', '知道了');
             return;
         }
+        const campusIndex = await window.shiguangBridgePromise.showSingleSelection(
+            '选择上课校区', JSON.stringify(GDCP_CAMPUSES.map(function (campus) { return campus.name; })), 0
+        );
+        if (campusIndex === null) return;
+        if (!Number.isInteger(campusIndex) || campusIndex < 0 || campusIndex >= GDCP_CAMPUSES.length) throw new Error('校区选择无效。');
+        const courses = applyCampusTimes(parsedCourses, GDCP_CAMPUSES[campusIndex]);
         window.shiguangBridge.showToast('正在获取所选学期的教学周历…');
         const config = await fetchCourseConfig(semesters[picked].value);
         if (!await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config))) throw new Error('课表配置保存失败。');
+        if (!await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(GDCP_TIME_SLOTS))) throw new Error('作息时间保存失败。');
         if (!await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(courses))) throw new Error('课程保存失败。');
         window.shiguangBridge.showToast('已获取 ' + courses.length + ' 条课程时段，请校对上课时间。');
         window.shiguangBridge.notifyTaskCompletion();
