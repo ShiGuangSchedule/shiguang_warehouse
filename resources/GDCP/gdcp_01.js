@@ -9,8 +9,8 @@
 const GDCP_TIMETABLE_URL = 'https://jw.gdcp.edu.cn/jsxsd/xskb/xskb_list.do';
 const GDCP_CALENDAR_URL = 'https://jw.gdcp.edu.cn/jsxsd/jxzl/jxzl_query';
 
-// 来源：学校《各校区上课作息时间表》（用户提供）。
-// 第 7～8、9～10 节各为 80 分钟连堂，网格按每小节 40 分钟连续排列；课程保留整段实际时间。
+// 来源：学校《各校区上课作息时间表（新）》（用户提供）。
+// 第 7～8、9～10、11～12 节各为 80 分钟连堂，网格按每小节 40 分钟连续排列；课程保留整段实际时间。
 const GDCP_TIME_SLOTS = [
     { number: 1, startTime: '08:30', endTime: '09:10' },
     { number: 2, startTime: '09:15', endTime: '09:55' },
@@ -21,7 +21,9 @@ const GDCP_TIME_SLOTS = [
     { number: 7, startTime: '15:55', endTime: '16:35' },
     { number: 8, startTime: '16:35', endTime: '17:15' },
     { number: 9, startTime: '18:05', endTime: '18:45' },
-    { number: 10, startTime: '18:45', endTime: '19:25' }
+    { number: 10, startTime: '18:45', endTime: '19:25' },
+    { number: 11, startTime: '19:40', endTime: '20:20' },
+    { number: 12, startTime: '20:20', endTime: '21:00' }
 ];
 const GDCP_LATE_MORNING = [
     { number: 3, startTime: '10:30', endTime: '11:10' },
@@ -38,7 +40,7 @@ const GDCP_CAMPUSES = [
 function applyCampusTimes(courses, campus) {
     return courses.map(function ({ building, ...course }) {
         if (course.startSection < 1 || course.endSection > GDCP_TIME_SLOTS.length) {
-            throw new Error('学校作息表只提供第 1～10 节，课程“' + course.name + '”的节次超出范围。');
+            throw new Error('学校作息表只提供第 1～12 节，课程“' + course.name + '”的节次超出范围。');
         }
         const slots = GDCP_TIME_SLOTS.slice();
         if (course.startSection <= 4 && course.endSection >= 3) {
@@ -55,9 +57,13 @@ function applyCampusTimes(courses, campus) {
                 slots[3] = GDCP_LATE_MORNING[1];
             }
         }
-        // 学校与用户课表都将这两组小节视为一个完整时间块，不能按普通课间拆开。
-        const startTime = course.startSection === 8 ? '15:55' : course.startSection === 10 ? '18:05' : slots[course.startSection - 1].startTime;
-        const endTime = course.endSection === 7 ? '17:15' : course.endSection === 9 ? '19:25' : slots[course.endSection - 1].endTime;
+        // 学校将这三组小节分别视为一个完整时间块，不能按普通课间拆开。
+        const startTime = course.startSection === 8 ? '15:55'
+            : course.startSection === 10 ? '18:05'
+            : course.startSection === 12 ? '19:40' : slots[course.startSection - 1].startTime;
+        const endTime = course.endSection === 7 ? '17:15'
+            : course.endSection === 9 ? '19:25'
+            : course.endSection === 11 ? '21:00' : slots[course.endSection - 1].endTime;
         return {
             ...course,
             isCustomTime: true,
