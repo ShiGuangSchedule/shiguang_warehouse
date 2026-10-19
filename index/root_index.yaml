@@ -1302,3 +1302,8 @@ schools:
     name: "广东交通职业技术学院"
     initial: "G"
     resource_folder: "GDCP"
+
+  - id: "SDWCVC"
+    name: "山东水利职业学院"
+    initial: "S"
+    resource_folder: "SDWCVC"
