@@ -449,6 +449,53 @@ function generateTimeSlots(campusIdx = 0) {
 // ========== 网络请求功能 ==========
 
 /**
+ * POST 教学周历页面（获取当前学期的开学日期与最大周次）
+ * @param {string} semesterId 形如 "2025-2026-2"
+ */
+async function requestSemesterDetailPage(semesterId) {
+    const response = await fetch(`/jsxsd/jxzl/jxzl_query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `xnxq01id=${semesterId}`,
+        credentials: "include"
+    });
+    return await response.text();
+}
+
+/**
+ * 获取当前学期的开学日期 + 最大周次
+ * @param {string} semesterId 形如 "2025-2026-2"
+ * @returns {Promise<{startDate: string|null, totalWeeks: number|null}>}
+ */
+async function fetchSemesterInfo(semesterId) {
+    const html = await requestSemesterDetailPage(semesterId);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const timetable = doc.getElementById("kbtable");
+    if (!timetable) return { startDate: null, totalWeeks: null };
+
+    const rows = Array.from(timetable.querySelectorAll("tr")).filter(r => r.querySelector("td"));
+    if (rows.length === 0) return { startDate: null, totalWeeks: null };
+
+    const firstDateCell = rows[0].querySelector("td[title]");
+    const title = firstDateCell?.getAttribute("title") || "";
+    const match = title.match(/^(\d{4})年(\d{2})月(\d{2})$/);
+    const startDate = match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+
+    // 最大周次：所有行第一个 td 中能解析为整数的最大值
+    let totalWeeks = null;
+    for (const row of rows) {
+        const firstTd = row.querySelector("td");
+        if (!firstTd) continue;
+        const n = parseInt(firstTd.textContent.trim(), 10);
+        if (!isNaN(n) && n > 0) {
+            if (totalWeeks === null || n > totalWeeks) totalWeeks = n;
+        }
+    }
+
+    return { startDate, totalWeeks };
+}
+
+/**
  * 获取学期列表
  * @returns {Promise<Object>} 学期列表数据
  */
@@ -463,14 +510,17 @@ async function getSemesterList() {
     let semesters = [];
     let semesterValues = [];
     let defaultIndex = 0;
+    let currentSemesterValue = null;
 
     if (selectElem) {
         const options = selectElem.querySelectorAll('option');
         options.forEach((opt, index) => {
+            const isCurrentSemester = opt.hasAttribute('selected') || opt.selected;
             semesters.push(opt.innerText.trim());
             semesterValues.push(opt.value);
-            if (opt.hasAttribute('selected') || opt.selected) {
+            if (isCurrentSemester) {
                 defaultIndex = index;
+                currentSemesterValue = opt.value;
             }
         });
     }
@@ -500,9 +550,10 @@ async function getSemesterList() {
 
         semesterRecords.forEach((record) => {
             if (record.startYear !== null && record.startYear >= minStartYear) {
-                filteredSemesters.push(record.label);
+                const isCurrentSemester = record.value === currentSemesterValue;
+                filteredSemesters.push(isCurrentSemester ? `${record.label}（当前学期）` : record.label);
                 filteredSemesterValues.push(record.value);
-                if (record.index === defaultIndex) {
+                if (isCurrentSemester || record.index === defaultIndex) {
                     filteredDefaultIndex = filteredSemesters.length - 1;
                 }
             }
@@ -526,9 +577,16 @@ async function getSemesterList() {
  * @param {string} semesterValue 学期参数值
  * @returns {Promise<string>} 课程表HTML
  */
-async function fetchScheduleForSemester(semesterValue) {
+async function fetchScheduleForSemester(semesterValue, semesterPageHtml = '', timeModeValue = null) {
     let formData = new URLSearchParams();
+    formData.append('jx0404id', '');
+    formData.append('cj0701id', '');
+    formData.append('zc', '');
+    formData.append('demo', '');
     formData.append('xnxq01id', semesterValue);
+    formData.append('kbjcmsid', timeModeValue === null
+        ? getTimeModeValue(semesterPageHtml, option => option.textContent.trim() === '全部')
+        : timeModeValue);
 
     const postResponse = await fetch('/jsxsd/xskb/xskb_list.do', {
         method: 'POST',
@@ -539,12 +597,39 @@ async function fetchScheduleForSemester(semesterValue) {
     return await postResponse.text();
 }
 
+/**
+ * 根据文本匹配时间模式选项 value
+ * @param {string} html 页面HTML
+ * @param {Function} matcher 选项匹配函数
+ * @returns {string} 时间模式 value
+ */
+function getTimeModeValue(html, matcher) {
+    const sourceDoc = html
+        ? new DOMParser().parseFromString(html, 'text/html')
+        : document;
+    const modeSelect = sourceDoc.getElementById('kbjcmsid');
+    if (!modeSelect) return '';
+
+    const option = Array.from(modeSelect.options).find(matcher);
+    return option ? option.value : '';
+}
+
+/**
+ * 判断课表页面是否存在课程
+ * @param {string} html 课表HTML
+ * @returns {boolean} 是否存在课程
+ */
+function hasScheduleCourses(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return Array.from(doc.querySelectorAll('#kbtable div.kbcontent'))
+        .some(course => course.textContent.trim().length > 6);
+}
+
 // ========== 主要功能函数 ==========
 
 /**
  * 获取和解析课程数据
  * @param {string} html 课程表HTML
- * @returns {Array|null} 课程数组或null
  */
 async function fetchAndParseCourses(html) {
     try {
@@ -579,7 +664,6 @@ async function fetchAndParseCourses(html) {
 /**
  * 保存课程数据到拾光课程表
  * @param {Array} courses 课程数组
- * @returns {boolean} 保存是否成功
  */
 async function saveCourses(courses) {
     try {
@@ -596,7 +680,6 @@ async function saveCourses(courses) {
 /**
  * 导入预设时间段到拾光课程表
  * @param {number} campusIdx 校区索引
- * @returns {boolean} 导入是否成功
  */
 async function importPresetTimeSlots(campusIdx = 0) {
     try {
@@ -609,6 +692,19 @@ async function importPresetTimeSlots(campusIdx = 0) {
         console.error('导入时间段失败:', error);
         return false;
     }
+}
+
+// 导入剩余配置
+async function saveAppConfig(semesterStartDate, totalWeeks) {
+    const config = {
+        "semesterTotalWeeks": totalWeeks || 20,
+        "firstDayOfWeek": 1,
+        "defaultClassDuration": 40
+    };
+    if (semesterStartDate) {
+        config.semesterStartDate = semesterStartDate;
+    }
+    return await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
 }
 
 // ========== 主执行流程 ==========
@@ -641,36 +737,47 @@ async function importYnufeCourseSchedule() {
         
         let targetHtml = htmlText;
         let selectedCampusIdx = 0; // 默认龙泉校区
+        let semesterStartDate = null;
+        let totalWeeks = null;
 
         if (semesters && semesters.length > 0) {
-            // 循环直到用户选择学期才进行下一步(强制不可取消)
-            let selectedIdx = null;
-            while (true) {
-                selectedIdx = await window.shiguangBridgePromise.showSingleSelection(
-                    "选择学期", 
-                    JSON.stringify(semesters), 
-                    -1
-                );
-                if (selectedIdx !== null && selectedIdx !== -1) {
-                    break;
-                }
-                window.shiguangBridge.showToast("必须选择一个学期才能继续导入！");
+            // 选择学期，允许用户取消导入
+            const selectedIdx = await window.shiguangBridgePromise.showSingleSelection(
+                "选择学期", 
+                JSON.stringify(semesters), 
+                defaultIndex
+            );
+            if (selectedIdx === null || selectedIdx === -1) {
+                window.shiguangBridge.showToast("用户取消了导入");
+                return false;
             }
+
+            const semesterId = semesterValues[selectedIdx];
+
+            // 获取当前学期的开学日期与最大周次
+            const semesterInfo = await fetchSemesterInfo(semesterId);
+            semesterStartDate = semesterInfo.startDate;
+            totalWeeks = semesterInfo.totalWeeks;
             
             // 获取对应学期的课表HTML
             window.shiguangBridge.showToast(`正在获取 [${semesters[selectedIdx]}] 的课表...`);
-            targetHtml = await fetchScheduleForSemester(semesterValues[selectedIdx]);
+            targetHtml = await fetchScheduleForSemester(semesterId, htmlText);
 
-            const campuses = ["龙泉校区（默认）", "安宁校区"];
-            selectedCampusIdx = await window.shiguangBridgePromise.showSingleSelection(
-                "选择校区",
-                JSON.stringify(campuses),
-                0
-            );
-            // 如果用户未选择，或者点击了取消，默认设为龙泉校区
-            if (selectedCampusIdx === null || selectedCampusIdx === -1) {
-                selectedCampusIdx = 0;
+            // 时间模式列表始终包含所有校区，必须使用当前所选学期的页面实际请求安宁校区模式
+            const anningModeValue = getTimeModeValue(targetHtml, option => {
+                return option.textContent.trim().includes('安宁校区');
+            });
+            if (anningModeValue) {
+                const anningScheduleHtml = await fetchScheduleForSemester(
+                    semesterId,
+                    targetHtml,
+                    anningModeValue
+                );
+                if (hasScheduleCourses(anningScheduleHtml)) {
+                    selectedCampusIdx = 1;
+                }
             }
+            console.log(`根据时间模式自动选择${selectedCampusIdx === 1 ? '安宁校区' : '龙泉校区'}时间表`);
         }
 
         // 获取和解析课程数据
@@ -684,8 +791,8 @@ async function importYnufeCourseSchedule() {
             if (targetHtml && targetHtml.includes('kbtable')) {
                 // 找到了课表元素但没有课程,是真的空课表
                 console.log('检测到空课表');
-                window.shiguangBridge.showToast('当前课表为空');
-                courses = []; // 返回空数组
+                window.shiguangBridge.showToast('当前学期课表为空！');
+                return false;
             } else {
                 // 找不到课表元素,解析失败
                 window.shiguangBridge.showToast('获取课表失败,请检查网络和页面状态');
@@ -698,8 +805,19 @@ async function importYnufeCourseSchedule() {
         // 保存课程数据
         const saveResult = await saveCourses(courses);
         if (!saveResult) {
-            window.shiguangBridge.showToast('保存课程失败');
-            throw new Error('保存课程数据失败');
+            return;
+        }
+
+        // 提前提示导入结果，避免被导入完成通知立即覆盖
+        if (courses.length > 0) {
+            const campusName = selectedCampusIdx === 1 ? "安宁校区" : "龙泉校区";
+            window.shiguangBridge.showToast(`成功导入 ${courses.length} 门课程！（${campusName}）`);
+        }
+
+        // 保存开学日期与最大周数
+        const configResult = await saveAppConfig(semesterStartDate, totalWeeks);
+        if (!configResult) {
+            return;
         }
 
         // 导入时间段配置
@@ -709,11 +827,6 @@ async function importYnufeCourseSchedule() {
             throw new Error('导入时间段失败');
         }
 
-        // 成功
-        if (courses.length > 0) {
-            const campusName = selectedCampusIdx === 1 ? "安宁校区" : "龙泉校区";
-            window.shiguangBridge.showToast(`成功导入 ${courses.length} 门课程！（${campusName}）`);
-        }
         console.log('课程导入完成');
         return true;
 

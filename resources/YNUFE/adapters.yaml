@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "ynufe.js"
     import_url: "https://xjwis.ynufe.edu.cn/jsxsd/"
     maintainer: "AxelPLN"
-    description: "由于学校已于 2026 年上半年启用 aTrust 验证，登录教务系统之前必须使用云财小程序内登记的手机号完成短信验证，完成验证后再使用教务系统账号登录，若无法完成验证请确认是否在小程序登记了正确的手机号码或者向教务处反馈，对此不便开发者表示无能为力。登录教务系统后直接按下面的“执行导入”即可。"
+    description: "登录教务系统后直接按下面的“执行导入”即可，无需打开课表页面。"
