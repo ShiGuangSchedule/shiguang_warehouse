@@ -1312,4 +1312,8 @@ schools:
     name: "山东水利职业学院"
     initial: "S"
     resource_folder: "SDWCVC"
-    
+
+  - id: "ZUST"
+    name: "浙江科技大学"
+    initial: "Z"
+    resource_folder: "ZUST"
