@@ -1312,4 +1312,8 @@ schools:
     name: "山东水利职业学院"
     initial: "S"
     resource_folder: "SDWCVC"
-    
+
+  - id: "HOU"
+    name: "河北东方学院"
+    initial: "H"
+    resource_folder: "HOU"

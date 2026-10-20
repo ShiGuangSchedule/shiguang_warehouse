@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HOU_01"
+    adapter_name: "强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hou_01.js"
+    import_url: "http://219.148.95.56:10000/jsxsd/"
+    maintainer: "小漫君"
+    description: "登录教务后导入，支持选择学期，自动读取教学周历。课程使用教务标注的大节真实起止时间；无上课时间的课程会单独提示，不生成虚构安排。"
