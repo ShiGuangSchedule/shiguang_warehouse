@@ -1,14 +1,27 @@
 // 河北东方学院 · 强智教务；适配作者：小漫君
 // 接口路线参考本仓库 HNPTC/hnptc_01.js、QFNU/qfnu_01.js（MIT，见根 LICENSE）。
 // 本校返回详细课表 #timetable 与教学周历 #kbtable，不解析门户的当前周课表。
-// 教务仅公布两小节一组的大节时钟，按协议自定义时间保留真实边界及原节次，
-// 不推算单节时长或课间。未排时间的课程仅提示，不生成课程时段。
+// 作息依据：2026-10-20 用户提供并确认的十节作息，与教务五组大节边界一致。
+// 先写入学校作息，课程只提交教务原节次，不附带课程独立时间。
+// 未排时间的课程仅提示，不生成课程时段。
 (async function () {
     'use strict';
 
     const ORIGIN = 'http://219.148.95.56:10000';
     const TIMETABLE = '/jsxsd/xskb/xskb_list.do';
     const CALENDAR = '/jsxsd/jxzl/jxzl_query';
+    const TIME_SLOTS = [
+        { number: 1, startTime: '08:10', endTime: '08:55' },
+        { number: 2, startTime: '09:05', endTime: '09:50' },
+        { number: 3, startTime: '10:10', endTime: '10:55' },
+        { number: 4, startTime: '11:05', endTime: '11:50' },
+        { number: 5, startTime: '14:00', endTime: '14:45' },
+        { number: 6, startTime: '14:55', endTime: '15:40' },
+        { number: 7, startTime: '16:00', endTime: '16:45' },
+        { number: 8, startTime: '16:55', endTime: '17:40' },
+        { number: 9, startTime: '19:00', endTime: '19:45' },
+        { number: 10, startTime: '19:55', endTime: '20:40' }
+    ];
     const bridge = window.shiguangBridge;
     const ui = window.shiguangBridgePromise;
 
@@ -70,9 +83,14 @@
     }
 
     function parseTime(source) {
-        const match = source.match(/^(.+?)\s*[（(]周[）)]\s*\[\s*(\d+)\s*[-~～–—]\s*(\d+)\s*节\s*\]$/);
+        const match = source.match(/^(.+?)\s*[（(]周[）)]\s*\[\s*(\d+)(?:\s*[-~～–—]\s*(\d+))?\s*节\s*\]$/);
         if (!match) throw new Error('课程周次或节次格式异常，请核对教务课表。');
-        return { weeks: expandWeeks(match[1]), start: Number(match[2]), end: Number(match[3]) };
+        const start = Number(match[2]);
+        const end = match[3] ? Number(match[3]) : start;
+        if (start < 1 || end < start || end > TIME_SLOTS.length) {
+            throw new Error('课程节次超出学校作息范围，请核对教务课表。');
+        }
+        return { weeks: expandWeeks(match[1]), start, end };
     }
 
     function parseTimetable(doc) {
@@ -83,20 +101,10 @@
             throw new Error('课表星期列结构发生变化，已停止导入。');
         }
         const merged = new Map();
-        const ordinals = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
         for (const row of Array.from(table.rows).slice(1)) {
             const blocks = row.querySelectorAll('div.kbcontent');
             if (!Array.from(blocks).some(block => text(block))) continue;
-            const label = text(row.cells[0]);
-            const ordinal = label.match(/^第([一二三四五六七八九十]+)大节/);
-            const blockNumber = ordinal ? ordinals.indexOf(ordinal[1]) + 1 : 0;
-            const clock = label.match(/\b(\d{2}:\d{2})\s*[-~～–—]\s*(\d{2}:\d{2})\b/);
-            if (!blockNumber || !clock || row.cells.length !== 8 || clock[1] >= clock[2]) {
-                throw new Error('未读取到课程所在大节的真实起止时间。');
-            }
-            if (![clock[1], clock[2]].every(t => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(t))) {
-                throw new Error('教务课表时钟格式异常。');
-            }
+            if (row.cells.length !== 8) throw new Error('课表星期列结构发生变化，已停止导入。');
             for (let day = 1; day <= 7; day++) {
                 // 只读取详细版，忽略同格的 kbcontent1 简表，保留教师与完整节次。
                 for (const block of row.cells[day].querySelectorAll('div.kbcontent')) {
@@ -108,22 +116,16 @@
                         const name = text(item.querySelector('font:not([title]):not([name])'));
                         const time = parseTime(text(item.querySelector('font[title="周次(节次)"]')));
                         if (!name) throw new Error('课表中存在没有名称的课程。');
-                        // 已验证的默认模式每大节含两小节。若出现半大节安排，不能把
-                        // 整个大节时钟套给单节，必须取得该校单节作息后再支持。
-                        if (time.start !== blockNumber * 2 - 1 || time.end !== blockNumber * 2) {
-                            throw new Error('课表出现半大节或跨大节安排，教务未提供对应的单节时钟，请提供单节作息后再适配。');
-                        }
                         const course = {
                             name,
                             teacher: text(item.querySelector('font[title="教师"]')),
                             position: text(item.querySelector('font[title="教室"]')),
                             day, startSection: time.start, endSection: time.end,
-                            weeks: time.weeks, isCustomTime: true,
-                            customStartTime: clock[1], customEndTime: clock[2]
+                            weeks: time.weeks
                         };
                         const key = JSON.stringify([
                             course.name, course.teacher, course.position, day,
-                            time.start, time.end, clock[1], clock[2]
+                            time.start, time.end
                         ]);
                         const previous = merged.get(key);
                         if (previous) {
@@ -204,7 +206,11 @@
         requireSemester(doc, semester);
         const courses = parseTimetable(doc);
         if (!courses.length) throw new Error('所选学期没有已排上课时间的课程。');
-        const config = parseCalendar(await requestDoc(CALENDAR, { xnxq01id: semester }), semester);
+        const config = {
+            ...parseCalendar(await requestDoc(CALENDAR, { xnxq01id: semester }), semester),
+            defaultClassDuration: 45,
+            defaultBreakDuration: 10
+        };
         if (courses.some(course => course.weeks.some(week => week > config.semesterTotalWeeks))) {
             throw new Error('课程周次超出所选学期教学周历，已停止导入。');
         }
@@ -213,6 +219,7 @@
             unscheduled.join('、') + '\n教务未提供这些课程的上课时间，本次仅导入已排课课程。', '继续导入'))) return;
         // 全部请求、解析与校验通过后再提交；任一步保存失败均不通知成功。
         if (!successful(await ui.saveCourseConfig(JSON.stringify(config)))) throw new Error('课表配置保存失败。');
+        if (!successful(await ui.savePresetTimeSlots(JSON.stringify(TIME_SLOTS)))) throw new Error('学校作息保存失败。');
         if (!successful(await ui.saveImportedCourses(JSON.stringify(courses)))) throw new Error('课程保存失败。');
         bridge.showToast('导入成功：' + semester + '，共 ' + courses.length + ' 条课程时段');
         bridge.notifyTaskCompletion();
