@@ -1313,6 +1313,11 @@ schools:
     initial: "S"
     resource_folder: "SDWCVC"
 
+  - id: "HBDFXY"
+    name: "河北东方学院"
+    initial: "H"
+    resource_folder: "HBDFXY"
+
   - id: "ZUST"
     name: "浙江科技大学"
     initial: "Z"
