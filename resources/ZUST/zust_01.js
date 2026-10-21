@@ -1,9 +1,7 @@
 // 浙江科技大学（zust.edu.cn）正方 V9 教务适配
 // 适配作者 / 维护者：小漫君
 // 接口及桥接选择参考 resources/JSEI/jsei_01.js（星河欲转）；保留原 CJLU（ying-ck、salt-fishes）方案来源。
-// 不传学年学期时直接请求当前课表，从响应 xsxx 读取学期，不读取入口页或当前页面参数。
-// 已核对浙江科技大学 WebVPN 的整学期 JSON、学期周历和校区作息响应。
-// 本文件沿用仓库 MIT 许可证，不保存账号、密码或原始响应。
+// 本文件沿用仓库 MIT 许可证。
 
 function zustToast(message) {
     window.shiguangBridge.showToast(message);
@@ -25,19 +23,20 @@ function zustBaseUrl() {
     return window.location.origin + '/jwglxt/';
 }
 
-async function zustRequest(path, params) {
+async function zustRequest(path, params, json = true) {
     const url = new URL(zustBaseUrl() + path);
     for (const key in params) url.searchParams.set(key, params[key]);
     const response = await fetch(url.toString(), {
         method: 'GET',
         credentials: 'same-origin',
-        headers: { Accept: 'application/json' }
+        headers: { Accept: json ? 'application/json' : 'text/html' }
     });
     if (!response.ok) throw new Error('教务请求失败（HTTP ' + response.status + '），请稍后重试。');
     const text = await response.text();
     if (/authserver\/|login_slogin|site-nav\//i.test(response.url || '') || /<title[^>]*>\s*统一身份认证/.test(text)) {
         throw new Error('登录已过期，请通过 WebVPN 重新进入教务系统。');
     }
+    if (!json) return text;
     try {
         return JSON.parse(text);
     } catch (error) {
@@ -54,52 +53,42 @@ async function zustSelect(title, entries, defaultIndex) {
     return entries[Number(value)];
 }
 
-function zustTerms() {
-    // 与本校已核对的正方学期代码一致。
-    return [{ value: '3', label: '1' }, { value: '12', label: '2' }, { value: '16', label: '3' }];
-}
-
-function zustMakeSemester(year, term) {
-    if (!/^[1-9]\d{3}$/.test(year)) throw new Error('课表接口未返回有效学年，请确认已登录教务系统。');
-    for (const entry of zustTerms()) {
-        if (entry.value === term) return { year: year, term: term, label: year + '-' + (Number(year) + 1) + ' 第 ' + entry.label + ' 学期' };
-    }
-    throw new Error('课表接口未返回有效学期，请确认已登录教务系统。');
-}
-
-function zustReadCurrentSemester(data) {
-    if (!data || !data.xsxx || !Array.isArray(data.kbList)) throw new Error('未取得当前学期课表，请确认已登录教务系统。');
-    return zustMakeSemester(zustText(data.xsxx.XNM), zustText(data.xsxx.XQM));
-}
-
-function zustValidateAcademicYear(value) {
-    return /^[1-9]\d{3}$/.test(zustText(value)) ? false : '请输入四位起始学年，例如 2025。';
+async function zustFetchAcademicOptions() {
+    const html = await zustRequest('kbcx/xskbcx_cxXskbcxIndex.html', { gnmkdm: 'N2151', layout: 'default' }, false);
+    const responseDoc = new DOMParser().parseFromString(html, 'text/html');
+    const read = function (selector) {
+        const entries = [];
+        for (const option of responseDoc.querySelectorAll(selector + ' option')) {
+            if (!option.disabled && option.value.trim()) entries.push({ value: option.value.trim(), label: option.textContent.trim(), selected: option.selected });
+        }
+        if (entries.length === 0) throw new Error('未取得教务返回的学年学期列表，请确认登录状态。');
+        return entries;
+    };
+    return { years: read('#xnm'), terms: read('#xqm') };
 }
 
 async function zustFetchCourses(semester) {
-    const params = { gnmkdm: 'N2151', kzlx: 'ck', xsdm: '', kclbdm: '', kclxdm: '' };
-    if (semester) {
-        params.xnm = semester.year;
-        params.xqm = semester.term;
-    }
+    const params = { gnmkdm: 'N2151', xnm: semester.year, xqm: semester.term, kzlx: 'ck', xsdm: '', kclbdm: '', kclxdm: '' };
     return zustRequest('kbcx/xskbcx_cxXsgrkb.html', params);
 }
 
-async function zustChooseSemester(current) {
+async function zustChooseSemester() {
+    const options = await zustFetchAcademicOptions();
+    let yearIndex = 0, termIndex = 0;
+    for (let i = 0; i < options.years.length; i++) if (options.years[i].selected) yearIndex = i;
+    for (let i = 0; i < options.terms.length; i++) if (options.terms[i].selected) termIndex = i;
+    const make = function (year, term) { return { year: year.value, term: term.value, label: year.label + ' 第 ' + term.label + ' 学期' }; };
+    const defaultSelection = make(options.years[yearIndex], options.terms[termIndex]);
     const action = await zustSelect('选择导入学期', [
-        { label: current.label, value: 'current' },
+        { label: defaultSelection.label, value: 'current' },
         { label: '更换学年、学期', value: 'change' }
     ], 0);
     if (!action) return null;
-    if (action.value === 'current') return current;
-    const year = await window.shiguangBridgePromise.showPrompt('选择学年', '请输入学年的起始年份，例如 2025-2026 学年填写 2025。', current.year, 'zustValidateAcademicYear');
-    if (year === null || year === undefined || year === 'null') return null;
-    if (zustValidateAcademicYear(year)) throw new Error('输入学年无效，请填写四位起始年份。');
-    const terms = zustTerms();
-    let termIndex = -1;
-    for (let i = 0; i < terms.length; i++) if (terms[i].value === current.term) termIndex = i;
-    const term = await zustSelect('选择学期', terms, termIndex);
-    return term ? zustMakeSemester(zustText(year), term.value) : null;
+    if (action.value === 'current') return defaultSelection;
+    const year = await zustSelect('选择学年', options.years, yearIndex);
+    if (!year) return null;
+    const term = await zustSelect('选择学期', options.terms, termIndex);
+    return term ? make(year, term) : null;
 }
 
 function zustParseWeeks(value) {
@@ -222,13 +211,11 @@ async function zustRunImport() {
     let savedStage = '';
     try {
         zustBaseUrl();
-        zustToast('正在读取当前学期课表…');
-        const currentData = await zustFetchCourses();
-        const current = zustReadCurrentSemester(currentData);
-        const semester = await zustChooseSemester(current);
+        zustToast('正在读取学年学期列表…');
+        const semester = await zustChooseSemester();
         if (!semester) { zustToast('导入已取消'); return; }
         zustToast('正在读取整学期课表、校历和校区作息…');
-        const data = semester.year === current.year && semester.term === current.term ? currentData : await zustFetchCourses(semester);
+        const data = await zustFetchCourses(semester);
         const parsed = zustParseCourses(data, semester);
         const config = zustParseCalendar(await zustRequest('kbcx/xskbcxZccx_cxZcByXnxq.html', {
             gnmkdm: 'N2154', xnm: semester.year, xqm: semester.term
