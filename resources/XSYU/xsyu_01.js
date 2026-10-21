@@ -20,6 +20,9 @@
 //      校区默认沿用页面校区、不弹窗（本校学生课程基本集中在同一校区）。
 //   5. 作息时间与开学日期都从教务接口读取，不写死；仅在接口异常时回退到内置作息表。
 //   6. 本校第 1 周 minrq 即周一，与拾光 semesterStartDate 的语义一致（实测 2026-08-31）。
+//   7. 取参必须用课表页的 #xhid（86 字符加密串）。教务首页 /admin 也有 id="xhid"，
+//      但值是用户 ID（32 字符）；误用时 sdpkkbList 返回 ret=-1
+//      「功能暂时停用，请联系管理员」（HTTP 仍是 200），容易被误判为系统故障。
 //
 // 维护者：dr1am1
 
@@ -51,7 +54,9 @@ const FALLBACK_TOTAL_WEEKS = 20;
 
 // 课表页地址。其服务端渲染的 #xhid（86 字符加密串）/ #xqdm / #xnxq1 才是正确参数。
 // 注意：教务首页 /admin 里也存在一个 id="xhid" 的元素，但值是用户 ID（32 字符），
-// 误用会被服务端拒绝。因此这里【始终优先采用课表页里的值】，只有抓取失败才退回当前页面 DOM。
+// 误用时 sdpkkbList 会返回 ret=-1「功能暂时停用，请联系管理员」（HTTP 仍是 200），
+// 该提示看起来像系统故障或权限问题，实际只是参数传错。
+// 因此这里【始终优先采用课表页里的值】，只有抓取失败才退回当前页面 DOM。
 const KB_PAGE_URL = '/admin/pkgl/xskb/queryKbForXsd';
 
 // 出错时附在弹窗里的诊断信息（便于用户反馈时定位）
@@ -227,9 +232,12 @@ async function extractPageParams() {
     if (!params.xhid || !params.xqdm) {
         throw new Error('无法获取课表页参数（#xhid / #xqdm），请确认已登录教务系统');
     }
-    // 本校课表页的 xhid 为 86 字符；若拿到 32 字符说明误用了首页的用户 ID
+    // 本校课表页的 xhid 为 86 字符；若拿到 32 字符说明误用了首页的用户 ID，
+    // 此时 sdpkkbList 会返回 ret=-1「功能暂时停用，请联系管理员」（HTTP 200），
+    // 所以这里提前告警，避免把参数问题误判成系统故障。
     if (params.xhid.length < 60) {
-        console.warn(`JS: xhid 长度异常（${params.xhid.length}），可能误用了首页参数`);
+        console.warn(`JS: xhid 长度异常（${params.xhid.length}，正常为 86）——` +
+            `可能误用了首页的用户 ID，届时课程接口会返回 ret=-1「功能暂时停用，请联系管理员」`);
     }
     console.log(`JS: 参数来源=${source}，xhid=${params.xhid.length} 字符，xqdm=${params.xqdm.length} 字符`);
     return params;
