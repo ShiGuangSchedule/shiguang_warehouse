@@ -1322,3 +1322,8 @@ schools:
     name: "浙江科技大学"
     initial: "Z"
     resource_folder: "ZUST"
+
+  - id: "XSYU"
+    name: "西安石油大学"
+    initial: "X"
+    resource_folder: "XSYU"
