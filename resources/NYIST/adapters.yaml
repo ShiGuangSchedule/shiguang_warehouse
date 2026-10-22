@@ -1,0 +1,9 @@
+# resources/NYIST/adapters.yaml
+adapters:
+  - adapter_id: "NYIST_01"
+    adapter_name: "南阳理工学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nyist.js"
+    import_url: "https://cas.nyist.edu.cn/cas/login?service=https%3A%2F%2Fngjw.nyist.edu.cn%2Fadmin%2Fcaslogin"
+    maintainer: "阿巴怪"
+    description: "南阳理工学院超星教务(ngjw.nyist.edu.cn)，统一身份认证登录后执行导入\n登录后选学期即可导入，自动读取作息时间与开学日期，支持合并连续节次与单双周"
