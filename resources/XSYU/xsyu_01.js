@@ -6,7 +6,7 @@
 //   GET /admin/pkgl/xskb/queryKbForXsd                                  课表页 HTML（内含 #xhid / #xqdm / #xnxq1）
 //   GET /admin/api/jcsj/xqsj/getXqList                                  校区列表（item.id = 校区代码，item.xqmc = 名称）
 //   GET /admin/api/getZclistByXnxq?xnxq=<学年-学期>&xqid=<校区代码>      周次表 data.zclist + 节次时间 data.jcsjszList
-//   GET /admin/xsd/pkgl/xskb/sdpkkbList?xnxq=&xhid=&xqdm=&xskbxslx=0     课程数据 JSON（data[]）
+//   GET /admin/xsd/pkgl/xskb/sdpkkbList?xnxq=&xhid=&xqdm=&xskbxslx=0     课程数据 JSON（data[]，每行自带 xqid / xqmc）
 //
 // 细节说明：
 //   1. 课程数据按"小节"返回（djc = 第几小节，1~10），节次时间表 jcsjszList 也按小节给出
@@ -16,13 +16,20 @@
 //   2. 接口另带 djs 字段（大节序号 1~5，每大节固定含 2 小节），仅用于校验，
 //      不参与建模——因为时间点必须落到具体小节上才不丢信息。
 //   3. kcmc / tmc / croommc 都是 <a> 包裹的 HTML 片段，需要抽文本。
-//   4. 教务系统的 #xnxq1 会把"当前学期"标为 selected，脚本把它作为学期单选列表的默认项；
-//      校区默认沿用页面校区、不弹窗（本校学生课程基本集中在同一校区）。
+//   4. 教务系统的 #xnxq1 会把"当前学期"标为 selected，脚本把它作为学期单选列表的默认项。
 //   5. 作息时间与开学日期都从教务接口读取，不写死；仅在接口异常时回退到内置作息表。
 //   6. 本校第 1 周 minrq 即周一，与拾光 semesterStartDate 的语义一致（实测 2026-08-31）。
 //   7. 取参必须用课表页的 #xhid（86 字符加密串）。教务首页 /admin 也有 id="xhid"，
 //      但值是用户 ID（32 字符）；误用时 sdpkkbList 返回 ret=-1
 //      「功能暂时停用，请联系管理员」（HTTP 仍是 200），容易被误判为系统故障。
+//   8. 【校区】本校雁塔 / 明德 / 鄠邑三校区作息并不相同，且学生的课可能随年级变动校区，
+//      同一份课表无法假定"当前页面校区 = 课程所在校区"。关键事实：
+//        · sdpkkbList 的 xqdm 参数【不生效】——传任何校区都返回同一批课程，
+//          每行课程自带的 xqid / xqmc 才是课程真正的上课校区；
+//        · getZclistByXnxq 的 xqid 参数【生效】——按校区返回不同作息：
+//          雁塔 / 明德 第 1 节 08:00 起，鄠邑 / 默认校区 08:20 起（明德第 3 节还比雁塔早 10 分钟）。
+//      因此作息校区必须从课程数据推导，既不能取页面 #xqdm（页面停在哪与课程在哪无关），
+//      也不能让用户凭印象选（选错就会得到与课程不匹配的作息）。
 //
 // 维护者：dr1am1
 
@@ -31,12 +38,9 @@
 //   若希望完全不弹窗、始终使用当前学期，改为 false。
 const ASK_SEMESTER = true;
 
-// 校区选择：默认沿用当前页面校区、不弹窗（本校学生通常只在一个校区上课）。
-//   若希望每次手动选择校区，改为 true。
-const ASK_CAMPUS = false;
-
-// 接口异常时的兜底作息（2026-2027-1 雁塔校区实测值），正常情况不会用到
-const FALLBACK_TIME_SLOTS = [
+// 接口异常时的兜底作息（2026-2027-1 实测值），正常情况不会用到。
+//   三校区第 1 节起点与部分节次并不相同，故按校区分别保存。
+const YANTA_TIME_SLOTS = [
     { number: 1, startTime: "08:00", endTime: "08:50" },
     { number: 2, startTime: "09:00", endTime: "09:50" },
     { number: 3, startTime: "10:20", endTime: "11:00" },
@@ -48,6 +52,39 @@ const FALLBACK_TIME_SLOTS = [
     { number: 9, startTime: "19:30", endTime: "20:20" },
     { number: 10, startTime: "20:30", endTime: "21:20" }
 ];
+
+// 明德校区与雁塔校区仅第 3 节不同（10:10 起，而非 10:20）
+const MINGDE_TIME_SLOTS = YANTA_TIME_SLOTS.map(s =>
+    s.number === 3 ? { number: 3, startTime: "10:10", endTime: "11:00" } : s
+);
+
+const HUYI_TIME_SLOTS = [
+    { number: 1, startTime: "08:20", endTime: "09:05" },
+    { number: 2, startTime: "09:15", endTime: "10:00" },
+    { number: 3, startTime: "10:20", endTime: "11:05" },
+    { number: 4, startTime: "11:15", endTime: "12:00" },
+    { number: 5, startTime: "14:00", endTime: "14:45" },
+    { number: 6, startTime: "14:55", endTime: "15:40" },
+    { number: 7, startTime: "16:00", endTime: "16:45" },
+    { number: 8, startTime: "16:55", endTime: "17:40" },
+    { number: 9, startTime: "19:00", endTime: "19:45" },
+    { number: 10, startTime: "19:55", endTime: "20:40" }
+];
+
+// 按校区名索引的兜底作息；"默认校区"实测与鄠邑一致
+const FALLBACK_TIME_SLOTS_BY_CAMPUS = {
+    '雁塔校区': YANTA_TIME_SLOTS,
+    '明德校区': MINGDE_TIME_SLOTS,
+    '鄠邑校区': HUYI_TIME_SLOTS,
+    '默认校区': HUYI_TIME_SLOTS
+};
+
+// 校区名无法匹配时（例如教务改名）退回雁塔作息
+const DEFAULT_FALLBACK_TIME_SLOTS = YANTA_TIME_SLOTS;
+
+function pickFallbackTimeSlots(campusName) {
+    return FALLBACK_TIME_SLOTS_BY_CAMPUS[campusName] || DEFAULT_FALLBACK_TIME_SLOTS;
+}
 
 // 兜底总周数（接口返回 zclist 长度时以接口为准）
 const FALLBACK_TOTAL_WEEKS = 20;
@@ -96,9 +133,9 @@ function extractAnchorText(htmlStr) {
 /**
  * 提取字段内的"全部"文本（用于教师这类可能包含多个 <a> 的字段）。
  * 本校实测 tmc 有多种形态：
- *   1) 单教师：            <a>宋汐瑾</a>
- *   2) 多教师，逗号分隔：  <a>高建邦</a>,<a>李长星</a>
- *   3) 畸形串（重修复刻）：<a>党博</a>,(,<a>杨玲</a>,)
+ *   1) 单教师：            <a>张三</a>
+ *   2) 多教师，逗号分隔：  <a>张三</a>,<a>李四</a>
+ *   3) 畸形串（重修复刻）：<a>张三</a>,(,<a>李四</a>,)
  * 只取第一个 <a> 会丢掉后续教师，因此这里把标签去掉后整体取文本再清洗。
  */
 function extractAllText(htmlStr) {
@@ -110,16 +147,16 @@ function extractAllText(htmlStr) {
 }
 
 // 清理教师名：
-//   1) 本校多教师字段会返回 "<a>高建邦</a>,<a>李长星</a>" 或畸形串 "<a>党博</a>,(,<a>杨玲</a>,)"，
+//   1) 本校多教师字段会返回 "<a>张三</a>,<a>李四</a>" 或畸形串 "<a>张三</a>,(,<a>李四</a>,)"，
 //      因此先整体去标签再清洗（不能只取第一个 <a>，否则会丢掉后续教师）；
 //   2) 畸形串里的括号"包住"的是有效教师名而非备注，所以先把括号内容提取出来，
-//      再删除剩余括号，避免把"杨玲"误当成括号备注删掉；
+//      再删除剩余括号，避免把"李四"误当成括号备注删掉；
 //   3) 拆分 → 去空 → 去重 → 用中文逗号连接。
 function cleanTeacherName(name) {
     if (!name) return '';
     let s = extractAllText(name);
 
-    // 2a. 先把括号"内部"的文本取出（畸形串如 "党博,(,杨玲,)"）
+    // 2a. 先把括号"内部"的文本取出（畸形串如 "张三,(,李四,)"）
     //     只保留形似人名/工号的内容：中文姓名或字母数字工号，长度合理
     const innerNames = [];
     s.replace(/[(（]([^()（）]*)[)）]/g, (whole, inner) => {
@@ -286,33 +323,59 @@ async function chooseSemester(selectHtml) {
     return options.values[index];
 }
 
-async function chooseCampus(pageXqdm) {
-    let campusList = null;
+// 从课程行推导作息校区：
+//   sdpkkbList 的 xqdm 参数不生效，每行课程自带的 xqid / xqmc 才是课程实际上课校区。
+//   同一学期内一般只有一种校区；万一混排（跨校区选课），取课程门数最多的那个校区决定作息，
+//   并在日志里告警说明另一校区的课仍会导入、但作息以主校区为准。
+function deriveCampusFromCourses(rawRows, campusList, pageXqdm) {
+    const counter = new Map();   // xqid -> { xqmc, xqdm, rows }
+    for (const raw of rawRows) {
+        const xqdm = String(raw.xqid || '').trim();
+        const xqmc = String(raw.xqmc || '').trim();
+        if (!xqdm && !xqmc) continue;
+        const key = xqdm || ('name:' + xqmc);
+        const prev = counter.get(key);
+        if (prev) {
+            prev.rows += 1;
+        } else {
+            counter.set(key, { xqdm: xqdm, xqmc: xqmc, rows: 1 });
+        }
+    }
+
+    if (counter.size === 0) {
+        // 一个校区字段都没读到：退回页面校区，只作为接口字段整体变化时的兜底
+        console.warn('JS: 课程数据缺少 xqid / xqmc，退回当前页面校区');
+        const byPage = (campusList || []).find(item => item.xqdm === pageXqdm);
+        return byPage || { xqdm: pageXqdm, xqmc: '' };
+    }
+
+    const sorted = [...counter.values()].sort((a, b) => b.rows - a.rows);
+    const main = sorted[0];
+
+    // 有 xqid 却没有名字时，用校区列表补名字（名字用于选兜底作息）
+    if (!main.xqmc) {
+        const byId = (campusList || []).find(item => item.xqdm === main.xqdm);
+        if (byId) main.xqmc = byId.xqmc;
+    }
+
+    if (sorted.length > 1) {
+        console.warn(`JS: 本学期课程跨 ${sorted.length} 个校区：` +
+            sorted.map(c => `${c.xqmc || c.xqdm}(${c.rows}节)`).join('、') +
+            `。作息按课程最多的 ${main.xqmc || main.xqdm} 处理。`);
+    }
+    return main;
+}
+
+async function fetchCampusList() {
     try {
         const json = await getJson('/admin/api/jcsj/xqsj/getXqList');
-        campusList = (json.data || [])
+        return (json.data || [])
             .map(item => ({ xqdm: String(item.id || '').trim(), xqmc: String(item.xqmc || item.id || '').trim() }))
             .filter(item => item.xqdm && item.xqmc);
     } catch (error) {
         console.warn('JS: 获取校区列表失败:', error.message);
+        return [];
     }
-
-    if (!campusList || campusList.length === 0) {
-        toast("未获取到校区列表，使用当前页面校区继续导入。");
-        return { xqdm: pageXqdm, xqmc: "" };
-    }
-
-    const matched = campusList.findIndex(item => item.xqdm === pageXqdm);
-    if (!ASK_CAMPUS && matched >= 0) {
-        console.log(`JS: 自动使用页面校区 ${campusList[matched].xqmc}`);
-        return campusList[matched];
-    }
-
-    const index = await window.shiguangBridgePromise.showSingleSelection(
-        "选择校区", JSON.stringify(campusList.map(item => item.xqmc)), matched >= 0 ? matched : 0
-    );
-    if (index === null || index === -1) return null;
-    return campusList[index];
 }
 
 // =========================================================================
@@ -500,7 +563,7 @@ function parseCourseData(jsonData) {
 async function fetchCourses(xnxq, xhid, xqdm) {
     const url = `/admin/xsd/pkgl/xskb/sdpkkbList?xnxq=${encodeURIComponent(xnxq)}&xhid=${encodeURIComponent(xhid)}&xqdm=${encodeURIComponent(xqdm)}&xskbxslx=0`;
     const json = await getJson(url);
-    return parseCourseData(json);
+    return { courses: parseCourseData(json), rawRows: Array.isArray(json.data) ? json.data : [] };
 }
 
 // =========================================================================
@@ -538,7 +601,7 @@ async function runImportFlow() {
 
         const confirmed = await alertUser(
             "西安石油大学教务系统课表导入",
-            "将自动读取当前学期、校区、作息时间与开学日期。\n导入前请确认已成功登录教务系统。"
+            "将自动读取当前学期、上课校区、作息时间与开学日期。\n导入前请确认已成功登录教务系统。"
         );
         if (confirmed !== true && confirmed !== "true") {
             toast("用户取消了导入。");
@@ -556,42 +619,56 @@ async function runImportFlow() {
             return;
         }
 
-        // 3. 校区（默认取当前页面校区）
-        const campus = await chooseCampus(pageXqdm);
-        if (campus === null) {
-            toast("导入已取消：未选择校区。");
-            return;
-        }
-
-        toast(`正在导入 ${xnxq}${campus.xqmc ? ' · ' + campus.xqmc : ''} ...`);
-
-        // 4. 课程
-        const courses = await fetchCourses(xnxq, xhid, campus.xqdm);
+        // 3. 课程
+        //    注意：sdpkkbList 的 xqdm 不参与过滤，传页面校区只是为了参数完整；
+        //    真正的上课校区稍后由每行课程的 xqid / xqmc 推导。
+        toast(`正在导入 ${xnxq} ...`);
+        const { courses, rawRows } = await fetchCourses(xnxq, xhid, pageXqdm);
         if (courses.length === 0) {
             await alertUser("未找到课程", `${xnxq} 学期未获取到任何课程数据，请确认学期选择是否正确，或该学期暂无排课。`);
             return;
         }
+
+        // 4. 作息校区：由课程数据推导（页面 #xqdm 与课程所在校区无关，见文件头注释 8）
+        const campusList = await fetchCampusList();
+        const campus = deriveCampusFromCourses(rawRows, campusList, pageXqdm);
+        const campusLabel = campus.xqmc || campus.xqdm || '未知校区';
+        console.log(`JS: 上课校区=${campusLabel}（${courses.length} 条课程 / ${rawRows.length} 条原始记录）`);
+        diagnoseInfo += ` / 校区 ${campusLabel}`;
+
         await saveCourses(courses);
         console.log(`JS: 课程保存成功，共 ${courses.length} 条。`);
 
         // 5. 作息时间与开学日期（失败不阻塞课程导入）
+        //    注意：接口"返回空"和"直接报错"都要落到内置作息，不能因为抛异常就跳过保存——
+        //    否则用户会沿用上一次导入遗留的作息，可能与本次学期/校区不符。
+        const fallback = pickFallbackTimeSlots(campus.xqmc);
         try {
             const { timeSlots, semesterStartDate, semesterTotalWeeks } = await fetchTimeAndWeekData(xnxq, campus.xqdm);
             await saveConfig(semesterStartDate, semesterTotalWeeks);
 
             if (timeSlots && timeSlots.length > 0) {
                 await saveTimeSlots(timeSlots);
+                console.log(`JS: 作息来自教务接口（${campusLabel}），第 1 节 ${timeSlots[0].startTime} 起，共 ${timeSlots.length} 节。`);
             } else {
-                await saveTimeSlots(FALLBACK_TIME_SLOTS);
+                await saveTimeSlots(fallback);
+                console.log(`JS: 作息改用内置表（${campusLabel}），第 1 节 ${fallback[0].startTime} 起。`);
                 toast("未获取到教务作息，已使用内置作息表。");
             }
             console.log(`JS: 配置导入完成，开学日期 ${semesterStartDate}，总周数 ${semesterTotalWeeks}。`);
         } catch (error) {
             console.warn('JS: 作息/开学日期获取失败:', error.message);
-            toast("作息时间与开学日期获取失败，课程已导入，可稍后重试。");
+            try {
+                await saveTimeSlots(fallback);
+                console.log(`JS: 作息接口异常，已改用内置表（${campusLabel}），第 1 节 ${fallback[0].startTime} 起。`);
+                toast("作息时间获取失败，已使用内置作息表；开学日期可稍后重试。");
+            } catch (saveError) {
+                console.warn('JS: 内置作息保存失败:', saveError.message);
+                toast("作息时间与开学日期获取失败，课程已导入，可稍后重试。");
+            }
         }
 
-        toast(`导入成功：${courses.length} 条课程、${xnxq}${campus.xqmc ? ' · ' + campus.xqmc : ''}。`);
+        toast(`导入成功：${courses.length} 条课程、${xnxq} · ${campusLabel}。`);
         window.shiguangBridge.notifyTaskCompletion();
     } catch (error) {
         console.error('JS: 导入流程异常:', error);
