@@ -1,0 +1,9 @@
+# resources/SMU/adapters.yaml
+adapters:
+  - adapter_id: "SMU_01"
+    adapter_name: "南方医科大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "smu.js"
+    import_url: "https://zhjw.smu.edu.cn/"
+    maintainer: "nekojackie"
+    description: "适配南方医科大学（广州乘方科技智慧教务）本科教务，登录后进入「信息查询 - 课表查询」页面导入个人课表，自动识别开学日期、节次时间与顺德/校本部作息"
