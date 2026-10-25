@@ -1332,3 +1332,8 @@ schools:
     name: "贵州机电职业技术学院"
     initial: "G"
     resource_folder: "GZTCME"
+
+  - id: "GZHMU"
+    name: "广州医科大学"
+    initial: "G"
+    resource_folder: "GZHMU"

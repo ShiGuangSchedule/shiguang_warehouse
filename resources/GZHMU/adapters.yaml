@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "GZHMU_01"
+    adapter_name: "广州医科大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gzhmu_01.js"
+    import_url: "https://webvpn.gzhmu.edu.cn/"
+    maintainer: "小漫君"
+    description: "校外请先登录学校 WebVPN，进入教务系统后点击导入。没有教务入口时用快速跳转打开 https://jwgl.gzhmu.edu.cn/jsxsd/framework/xsMainV.htmlx。支持选择学期，采用教务处公布的 16 节作息，医院见习时间请另行核对。"
