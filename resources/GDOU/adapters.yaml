@@ -6,7 +6,15 @@ adapters:
     asset_js_path: "gdou.js"
     import_url: "https://jw.gdou.edu.cn/"
     maintainer: "Mccurtain"
-    description: "广东海洋大学教务适配，如有误请提交 issues"
+    description: "广东海洋大学教务适配，校园网内优先使用此通道，如有误请提交 issues"
+
+  - adapter_id: "GDOU_02"
+    adapter_name: "广东海洋大学教务（校外通道）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdou2.js"
+    import_url: "https://wfw.gdou.edu.cn/https://jw.gdou.edu.cn/"
+    maintainer: "Mccurtain"
+    description: "广东海洋大学教务适配，校园网外使用（经学校零信任通道访问教务系统，校内外均可），登录前，请点右上角菜单，选择“电脑模式”。如有误请提交 issues"
 
   - adapter_id: "GDOUYJ_01"
     adapter_name: "广东海洋大学阳江校区教务"

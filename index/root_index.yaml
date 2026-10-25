@@ -788,6 +788,11 @@ schools:
     initial: "Z"
     resource_folder: "CSUFT"
 
+  - id: "CSU"
+    name: "中南大学"
+    initial: "Z"
+    resource_folder: "CSU"
+
   - id: "JLU"
     name: "吉林大学"
     initial: "J"
@@ -1323,7 +1328,18 @@ schools:
     initial: "Z"
     resource_folder: "ZUST"
 
+  - id: "GZTCME"
+    name: "贵州机电职业技术学院"
+    initial: "G"
+    resource_folder: "GZTCME"
+
+  - id: "GZHMU"
+    name: "广州医科大学"
+    initial: "G"
+    resource_folder: "GZHMU"
+
   - id: "XSYU"
     name: "西安石油大学"
     initial: "X"
     resource_folder: "XSYU"
+    
