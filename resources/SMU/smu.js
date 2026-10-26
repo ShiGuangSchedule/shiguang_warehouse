@@ -1,26 +1,34 @@
 // 南方医科大学（广州乘方科技智慧教务）拾光课表适配脚本
-// 适配页面：https://zhjw.smu.edu.cn/new/student/xsgrkb/week.page
-// 入口路径：信息查询 - 课表查询 - 我的课表
 //
-// 实现说明：
-// 1. 页面本身使用 fullCalendar，通过 POST /new/student/xsgrkb/getCalendarWeekDatas
-//    取得 JSON 课程数据；本脚本直接复用该接口，一次拉取整学期，避免解析 DOM。
-// 2. zc 为空时接口返回整个学期的逐周记录，每条记录自带 zc（周次）与 qsrq（上课日期），
-//    因此开学日期可由「上课日期 - (周次-1)*7 - (星期-1)」反推，无需手工填写。
-// 3. 学校分「校本部」与「顺德校区」两套作息，节次时间逐 5 分钟错开。脚本先按节次
-//    起始时间投票判定校区，再用接口返回的真实上下课时间校正各节次，最后才回落到
-//    学校公布的时间对照表。
+// 纯接口路线：不读取、不假设当前页面是什么。
+// 用户登录教务系统后直接点导入即可，不需要先导航到「我的课表」，
+// 也不需要在小屏幕上找学期下拉框——学期用原生组件让用户确认。
+//
+// 数据来源：POST /new/student/xsgrkb/getCalendarWeekDatas
+//   参数 xnxqdm（学期码）、zc（周次，空=全部）、d1/d2（日期窗口）
+//   返回 { code, data: [...], message }，data 每项含
+//   kcmc 课程名、teaxms 教师、jxcdmc 场地、ps/pe 起止节次、xq 星期（周一=1）、
+//   qsrq 上课日期、qssj/jssj 起止时间、bapjxcd=1 表示不用场地。
+//
+// 关键约束（都由实测确定，勿凭直觉改）：
+// 1. 学期码形如 202601（2026-2027 学年第 1 学期）、202602（第 2 学期）。
+//    学期列表在服务端 HTML 里渲染成 <option>，没有可枚举的接口，
+//    所以由当前日期推算默认值，再交给用户用原生选择器确认。
+// 2. 开学日期必须用「指定周次」查询反推。zc 为空时单行可能是多周合并值
+//    （页面 getWeekSummary4Lock 约定 0 表示「全部」），qsrq 对应其中哪一周
+//    没有可靠约定；指定 zc 时返回的记录都属于该周，qsrq 含义确定。
+// 3. 学校分校本部与顺德校区两套作息，逐 5 分钟错开。
 
 (function () {
     var SECTION_LENGTH_MINUTES = 40; // 每小节 40 分钟
     var SECTION_STRIDE_MINUTES = 45; // 同一大节内相邻小节间隔 45 分钟（40 上课 + 5 课间）
     var MAX_SECTION = 14;
 
-    // 大节分组：同一大节内相邻小节相差 45 分钟，跨大节还有更长的课间，
+    // 大节分组：同一大节内相邻小节相差 45 分钟，跨大节还有更长课间，
     // 因此只能在组内递推，不能用一个固定步长跨组推算。
     var SECTION_GROUPS = [[1, 2], [3, 4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14]];
 
-    // 学校公布的《课表时间对照表》各节次起始时间，仅用于接口未覆盖到的节次。
+    // 学校公布的《课表时间对照表》各节次起始时间，用于接口未覆盖到的节次。
     var CAMPUS_TIMETABLES = {
         shunde: {
             label: "顺德校区",
@@ -55,19 +63,6 @@
         }
         alert(title + "\n" + message);
         return true;
-    }
-
-    async function chooseSemester(options, defaultIndex) {
-        var bridge = window.shiguangBridgePromise;
-        if (bridge && bridge.showSingleSelection) {
-            var labels = options.map(function (option) {
-                return option.label + "（" + option.value + "）";
-            });
-            var index = await bridge.showSingleSelection("选择要导入的学期", labels, defaultIndex);
-            if (typeof index !== "number" || index < 0 || index >= options.length) return null;
-            return options[index];
-        }
-        return options[defaultIndex >= 0 && defaultIndex < options.length ? defaultIndex : 0];
     }
 
     function pad2(value) {
@@ -115,57 +110,57 @@
         return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
     }
 
-    /** 在同一文档或其同源子 iframe 中查找课表页面（#xnxqdm 是学期下拉框）。 */
-    function findScheduleDocument() {
-        var queue = [document];
-        var visited = 0;
-        while (queue.length > 0 && visited < 24) {
-            var doc = queue.shift();
-            visited++;
-            if (doc && doc.querySelector && doc.querySelector("#xnxqdm")) return doc;
-            var frames = doc && doc.querySelectorAll ? doc.querySelectorAll("iframe") : [];
-            for (var index = 0; index < frames.length; index++) {
-                try {
-                    var child = frames[index].contentDocument;
-                    if (child && child.body) queue.push(child);
-                } catch (error) {
-                    // 跨域 iframe 无法读取，忽略。
-                }
-            }
-        }
-        return null;
+    /**
+     * 由当前日期推算当前学期的候选值。
+     * 学期码 = 学年起始年 + 01（秋季）/ 02（春季）。
+     * 8 月至次年 1 月是秋季学期，2 月至 7 月是春季学期。
+     */
+    function guessCurrentSemester(now) {
+        var date = now || new Date();
+        var year = date.getFullYear();
+        var month = date.getMonth() + 1;
+        if (month >= 8) return { startYear: year, term: 1 };
+        if (month === 1) return { startYear: year - 1, term: 1 };
+        return { startYear: year - 1, term: 2 };
     }
 
-    function readSemesterOptions(doc) {
-        var select = doc.querySelector("#xnxqdm");
-        if (!select || !select.options) return null;
-        var options = [];
-        var defaultIndex = 0;
-        for (var index = 0; index < select.options.length; index++) {
-            var option = select.options[index];
-            var value = normalizeText(option.value);
-            if (!/^\d{6}$/.test(value)) continue;
-            if (option.selected) defaultIndex = options.length;
-            options.push({ value: value, label: normalizeText(option.textContent) || value });
-        }
-        return options.length > 0 ? { options: options, defaultIndex: defaultIndex } : null;
+    function semesterCode(startYear, term) {
+        return String(startYear) + pad2(term);
+    }
+
+    function semesterLabel(startYear, term) {
+        return startYear + "-" + (startYear + 1) + " 学年第 " + term + " 学期";
     }
 
     /**
-     * 学期总周数：优先取课表页「周次」下拉框的最大周（含无课周），
-     * 否则回落到已排课周次的最大值。门户只渲染有课的周，但下拉框是完整的。
+     * 用原生选择器让用户确认学期。
+     * 给出「本学年秋季 / 春季」以及前后各一个学期，覆盖留级、提前修等常见情况。
      */
-    function readTotalWeeksFromPage(doc) {
-        var select = doc.querySelector("#zc");
-        if (!select || !select.options) return 0;
-        var max = 0;
-        for (var index = 0; index < select.options.length; index++) {
-            var numbers = normalizeText(select.options[index].value).match(/^(\d+)$/);
-            if (!numbers) continue;
-            var week = parseInt(numbers[1], 10);
-            if (week > max && week <= 60) max = week;
+    async function chooseSemester() {
+        var guess = guessCurrentSemester();
+        var options = [];
+        var candidates = [
+            { startYear: guess.startYear, term: guess.term },
+            { startYear: guess.startYear, term: guess.term === 1 ? 2 : 1 },
+            { startYear: guess.startYear - 1, term: guess.term === 1 ? 1 : 2 },
+            { startYear: guess.startYear + 1, term: guess.term === 1 ? 1 : 2 }
+        ];
+        candidates.forEach(function (item) {
+            if (item.term < 1 || item.term > 2) return;
+            var value = semesterCode(item.startYear, item.term);
+            var exists = options.some(function (option) { return option.value === value; });
+            if (exists) return;
+            options.push({ value: value, label: semesterLabel(item.startYear, item.term) });
+        });
+
+        var bridge = window.shiguangBridgePromise;
+        if (!bridge || !bridge.showSingleSelection) {
+            return options[0];
         }
-        return max;
+        var labels = options.map(function (option) { return option.label; });
+        var index = await bridge.showSingleSelection("选择要导入的学期", labels, 0);
+        if (typeof index !== "number" || index < 0 || index >= options.length) return null;
+        return options[index];
     }
 
     /** 兼容 "3"、"1,3,5"、"1-16"、"1-16单" 等写法。 */
@@ -204,18 +199,15 @@
         return 0;
     }
 
-    async function fetchSemesterRows(semesterCode) {
-        return await postCalendar(semesterCode, "", yearWindow(semesterCode));
-    }
-
     /** 该学期的宽松日期窗口；接口实际按 zc 过滤，窗口只作兜底。 */
-    function yearWindow(semesterCode) {
-        var year = parseInt(semesterCode.substring(0, 4), 10);
-        return [year + "-01-01 00:00:00", (year + 1) + "-12-31 23:59:59"];
+    function yearWindow(semesterCodeValue) {
+        var startYear = parseInt(semesterCodeValue.substring(0, 4), 10);
+        return [startYear + "-01-01 00:00:00", (startYear + 1) + "-12-31 23:59:59"];
     }
 
-    async function postCalendar(semesterCode, zc, dateRange) {
-        var body = "xnxqdm=" + encodeURIComponent(semesterCode)
+    async function postCalendar(semesterCodeValue, zc) {
+        var dateRange = yearWindow(semesterCodeValue);
+        var body = "xnxqdm=" + encodeURIComponent(semesterCodeValue)
             + "&zc=" + encodeURIComponent(zc)
             + "&d1=" + encodeURIComponent(dateRange[0])
             + "&d2=" + encodeURIComponent(dateRange[1]);
@@ -363,13 +355,9 @@
 
     /**
      * 用「指定周次」查询真正的上课日期，反推第 1 周周一。
-     *
-     * 不能在「全部」结果上推算：那个模式下 zc 可能为 0（页面用
+     * 不能在「全部」结果上推算：那个模式 zc 可能为 0（页面用
      * getWeekSummary4Lock 把 0 显示成「全部」），单行又是多周合并值，
-     * qsrq 到底对应其中哪一周没有可靠约定。指定 zc 时接口返回的每条
-     * 记录都属于该周，qsrq 就是该周真实的某一天，含义确定。
-     *
-     * 传入的 row 只用来找一行「有星期、有日期」的记录，周次以查询参数为准。
+     * qsrq 到底对应其中哪一周没有可靠约定。
      */
     function startDateFromWeekRows(rows, week) {
         for (var index = 0; index < rows.length; index++) {
@@ -384,8 +372,8 @@
         return null;
     }
 
-    /** 依次试第 1、2、3 周……直到拿到日期；有课的周才可能返回记录。 */
-    async function detectSemesterStartDate(semesterCode, probeWeeks) {
+    /** 依次试前几个有课的周，直到拿到日期。 */
+    async function detectSemesterStartDate(semesterCodeValue, probeWeeks) {
         var tried = [];
         for (var index = 0; index < probeWeeks.length; index++) {
             var week = probeWeeks[index];
@@ -393,7 +381,7 @@
             tried.push(week);
             var rows;
             try {
-                rows = await postCalendar(semesterCode, String(week), yearWindow(semesterCode));
+                rows = await postCalendar(semesterCodeValue, String(week));
             } catch (error) {
                 continue;
             }
@@ -442,37 +430,19 @@
 
     async function runImportFlow() {
         try {
-            var doc = findScheduleDocument();
-            if (!doc) {
-                await alertUser(
-                    "未找到课表页面",
-                    "请先进入「信息查询 - 课表查询 - 我的课表」，等课表加载出来后再点击导入。\n"
-                    + "直接在本系统首页导入无法确定学期。"
-                );
-                return;
-            }
-
-            var semesterInfo = readSemesterOptions(doc);
-            if (!semesterInfo) {
-                await alertUser("未识别到学期", "课表页面的学期下拉框没有可用的学期，请刷新页面后重试。");
-                return;
-            }
-
-            var semester = semesterInfo.options.length === 1
-                ? semesterInfo.options[0]
-                : await chooseSemester(semesterInfo.options, semesterInfo.defaultIndex);
+            var semester = await chooseSemester();
             if (!semester) {
                 toast("已取消导入");
                 return;
             }
 
             toast("正在读取 " + semester.label + " 的课表…");
-            var rows = await fetchSemesterRows(semester.value);
+            var rows = await postCalendar(semester.value, "");
             if (rows.length === 0) {
                 await alertUser(
                     "该学期没有课程",
-                    semester.label + " 没有查询到任何课程。如果你确实有课，请确认学期是否选对，"
-                    + "或先在教务系统页面确认课表能正常显示。"
+                    semester.label + " 没有查询到任何课程。如果确认这学期有课，"
+                    + "请重新导入并改选其他学期。"
                 );
                 return;
             }
@@ -497,14 +467,14 @@
                 return;
             }
 
-            // 先用有课的周探测真实上课日期，再反推第 1 周周一。
-            var probeWeeks = summarizeWeeks(courses).slice(0, 4);
+            // 用有课的周探测真实上课日期，再反推第 1 周周一。
+            var allWeeks = summarizeWeeks(courses);
+            var probeWeeks = allWeeks.slice(0, 4);
             if (probeWeeks.length === 0) probeWeeks = [1];
             var startDate = await detectSemesterStartDate(semester.value, probeWeeks);
-            var allWeeks = summarizeWeeks(courses);
-            // 门户下拉框给出完整周数（含无课周）；接口只返回有课的周，取两者较大值。
-            var pageWeeks = readTotalWeeksFromPage(doc);
-            var totalWeeks = Math.max(pageWeeks, allWeeks[allWeeks.length - 1]);
+
+            // 学期总周数：接口只返回有课的周，用最大周次兜底。
+            var totalWeeks = allWeeks[allWeeks.length - 1];
 
             var lines = [
                 "学期：" + semester.label + "（" + semester.value + "）",
@@ -513,8 +483,7 @@
                     ? "开学日期：" + startDate + "（第 1 周周一，按上课日期自动推算）"
                     : "开学日期：未推算出来，请在预览中补填",
                 "课程：" + courses.length + " 个时间段，覆盖第 "
-                    + allWeeks[0] + "-" + allWeeks[allWeeks.length - 1] + " 周"
-                    + (totalWeeks > allWeeks[allWeeks.length - 1] ? "（学期共 " + totalWeeks + " 周）" : ""),
+                    + allWeeks[0] + "-" + totalWeeks + " 周",
                 "",
                 "接下来会打开预览，请核对课程、周次和节次无误后再确认写入。"
             ];
