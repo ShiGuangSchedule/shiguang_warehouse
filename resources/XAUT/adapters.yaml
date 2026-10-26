@@ -1,0 +1,9 @@
+# resources/XAUT/adapters.yaml
+adapters:
+  - adapter_id: "XAUT_01"
+    adapter_name: "西安理工大学适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "XAUT_01.js"
+    import_url: "http://jwgl.xaut.edu.cn/"
+    maintainer: "dezige131"
+    description: "西安理工大学适配教务,非本校开发者适配如果有误建议提交issues"

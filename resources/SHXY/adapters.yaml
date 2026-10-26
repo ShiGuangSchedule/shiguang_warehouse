@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SHXY"
+    adapter_name: "绥化学院乘方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "shxy.js"
+    import_url: "http://jwgl.shxy.edu.cn/"
+    maintainer: "Haooz"
+    description: "绥化学院乘方教务系统，进入教务系统后点击导入"

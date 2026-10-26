@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CCZU"
+    adapter_name: "常州大学教务管理信息系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cczu.js"
+    import_url: "https://zmvpn.cczu.edu.cn/http/webvpndc2d086cb5b297c15e661687e73c1549/web_jxrw/cx_kb_xsgrkb.aspx"
+    maintainer: "Haooz"
+    description: "常州大学自研.NET ASPX教务系统，需通过VPN访问，进入课表页面后点击导入"

@@ -1,0 +1,9 @@
+# resources/STCNCHU/adapters.yaml
+adapters:
+  - adapter_id: "STCNCHU"
+    adapter_name: "南昌航空大学科技学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "stcnchu.js"
+    import_url: "http://qzjwxt.stcnchu.edu.cn:800/jsxsd/"
+    maintainer: "星河欲转"
+    description: "南昌航空大学科技学院强智教务，需要内网或者vpn，非本校开发者适配如果有误建议提交issues"

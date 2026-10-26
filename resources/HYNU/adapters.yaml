@@ -1,0 +1,9 @@
+# resources/HYNU/adapters.yaml
+adapters:
+  - adapter_id: "HYNU_01"
+    adapter_name: "衡阳师范学院强智适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hynu_01.js"
+    import_url: "https://hysfjw.hynu.edu.cn/jsxsd/"
+    maintainer: "星河欲转"
+    description: "衡阳师范学院强智适配,非本校开发者适配如果有误建议提交issues"

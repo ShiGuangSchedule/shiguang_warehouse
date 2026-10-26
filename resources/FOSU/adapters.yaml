@@ -1,0 +1,9 @@
+# resources/FOSU/adapters.yaml
+adapters:
+  - adapter_id: "FOSU_01"
+    adapter_name: "佛山大学强智教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "fosu_01.js"
+    import_url: "https://100.fosu.edu.cn/"
+    maintainer: "e7g"
+    description: "佛山大学强智教务系统适配，支持课程表导入，需要校园网访问"

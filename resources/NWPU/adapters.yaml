@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "NWPU_01"
+    adapter_name: "西北工业大学"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nwpu_01.js"
+    import_url: "https://ecampus.nwpu.edu.cn/"
+    maintainer: "zengzoxiong"
+    description: "西北工业大学本科教务系统适配，请先登录翱翔门户，手动点击进入翱翔教务后执行脚本自动获取课程信息"

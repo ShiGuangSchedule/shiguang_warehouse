@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "WUST_01"
+    adapter_name: "武汉科技大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "wust.js"
+    import_url: "https://bkjx.wust.edu.cn/jsxsd/framework/xsMain.jsp"
+    maintainer: "xsddszrc"
+    description: "用于武汉科技大学教务系统的课程表导入"

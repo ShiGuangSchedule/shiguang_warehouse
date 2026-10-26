@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["schools"],
+  "properties": {
+    "schools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "initial", "resource_folder"],
+        "properties": {
+          "id": { "type": "string", "description": "唯一标识，学校保持全大写，建议使用唯一域名" },
+          "name": { "type": "string", "description": "学校或工具的中文全称" },
+          "initial": { "type": "string", "pattern": "^[A-Z]$", "description": "名称首字母（大写），用于排序" },
+          "resource_folder": { "type": "string", "description": "资源文件夹名称，建议与id一致" }
+        }
+      }
+    }
+  }
+}

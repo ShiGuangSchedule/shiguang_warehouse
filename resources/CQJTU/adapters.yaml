@@ -1,0 +1,9 @@
+# resources/CQJTU/adapters.yaml
+adapters:
+  - adapter_id: "CQJTU"
+    adapter_name: "重庆交通大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqjtu.js"
+    import_url: "https://jwgln.cqjtu.edu.cn/jsxsd/sso.jsp"
+    maintainer: "烛谛"
+    description: "适配重庆交通大学教务系统"

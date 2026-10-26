@@ -1,0 +1,9 @@
+# resources/HUNNU/adapters.yaml
+adapters:
+  - adapter_id: "HUNNU"
+    adapter_name: "湖南师范大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hunnu.js"
+    import_url: "https://jwglnew.hunnu.edu.cn/eams/courseTableForStd.action"
+    maintainer: "EarOfWheat"
+    description: "适配湖南师范大学教务系统，登录后进入课表页面(homeExt.action)，点击导入即可使用"

@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "LCUDCC"
+    adapter_name: "聊城大学东昌学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "lcudcc.js"
+    import_url: "https://jw.lcudcc.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "Haooz"
+    description: "聊城大学东昌学院正方教务V9，进入教务系统后点击导入"

@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "XAUAT_01"
+    adapter_name: "西安建筑科技大学"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xauat.js"
+    import_url: "https://swjw.xauat.edu.cn/student/login/"
+    maintainer: "Alph4rc"
+    description: "西安建筑科技大学教务系统适配，请先登录统一身份认证，手动点击进入教务系统后执行脚本自动获取课程信息"

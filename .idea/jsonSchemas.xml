@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="JsonSchemaMappingsProjectConfiguration">
+    <state>
+      <map>
+        <entry key="adapters.schema">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="adapters.schema" />
+              <option name="relativePathToSchema" value="scripts/schemas/adapters.schema.json" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="pattern" value="true" />
+                    <option name="path" value="resources/**/adapters.yaml" />
+                    <option name="mappingKind" value="Pattern" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+        <entry key="root_index.schema">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="root_index.schema" />
+              <option name="relativePathToSchema" value="scripts/schemas/root_index.schema.json" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="/index/root_index.yaml" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+      </map>
+    </state>
+  </component>
+</project>

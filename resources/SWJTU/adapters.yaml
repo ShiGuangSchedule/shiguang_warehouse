@@ -1,0 +1,9 @@
+# resources/SWJTU/adapters.yaml
+adapters:
+  - adapter_id: "SWJTU_01"
+    adapter_name: "西南交通大学扬华学堂"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "swjtu_yhxt.js"
+    import_url: "https://yhxt.swjtu.edu.cn/study/teach/course/stu-course-list"
+    maintainer: "Weedy233"
+    description: "登录西南交通大学扬华学堂后，直接点击底栏“执行导入”即可完成导入"

@@ -1,0 +1,9 @@
+# resources/HBMZU/adapters.yaml
+adapters:
+  - adapter_id: "HBMZU"
+    adapter_name: "湖北民族大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hbmzu.js"
+    import_url: "https://jwgl.hbmzu.edu.cn/edu/"
+    maintainer: "Haooz"
+    description: "湖北民族大学教务系统课表导入，请先登录并打开课表查询页面，再点击导入！"

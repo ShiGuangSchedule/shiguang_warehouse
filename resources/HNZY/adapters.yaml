@@ -1,0 +1,9 @@
+# resources/HNZY/adapters.yaml
+adapters:
+  - adapter_id: "HNZY_01"
+    adapter_name: "河南职业技术学院课表"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hnzy.js"
+    import_url: "https://one.hnzj.edu.cn/common-service/kcb-pc/personage/personage"
+    maintainer: "一颗"
+    description: ""

@@ -1,0 +1,9 @@
+# resources/XHSYSU/adapters.yaml
+adapters:
+  - adapter_id: "XHSYSU_01"
+    adapter_name: "广州新华学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xhsysu.js"
+    import_url: "https://xhcas.xhsysu.edu.cn/lyuapServer/login?service=https%3A%2F%2Fjw.xhsysu.edu.cn%2Fsso%2Flyiotlogin"
+    maintainer: "Haooz"
+    description: "广州新华学院正方教务系统(V9)课表导入，登录教务系统任意页面后点击导入。非本校开发者，如有误请提交issues。"

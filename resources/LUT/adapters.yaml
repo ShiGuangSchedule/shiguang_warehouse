@@ -1,0 +1,9 @@
+# resources/LUT/adapters.yaml
+adapters:
+  - adapter_id: "LUT"
+    adapter_name: "兰州理工大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "LUT.js"
+    import_url: "https://jwxt.lut.edu.cn/"
+    maintainer: "Colton"
+    description: "兰州理工大学教务适配, 登录后点击【我的课表】，获取课程"

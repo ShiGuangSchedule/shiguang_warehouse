@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HUEB"
+    adapter_name: "河北经贸大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hueb.js"
+    import_url: "https://202-206-194-100.vpn.hueb.edu.cn:8118/jwglxt/xtgl/login_slogin.html"
+    maintainer: "Haooz"
+    description: "河北经贸大学正方教务V9，需通过VPN访问，进入教务系统后点击导入"

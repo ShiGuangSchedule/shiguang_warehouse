@@ -1,0 +1,9 @@
+# resources/HBLGXY/adapters.yaml
+adapters:
+  - adapter_id: "HBLGXY_01"
+    adapter_name: "淮北理工学院强智适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hblgxy_01.js"
+    import_url: "https://a.hblgxy.edu.cn:5111/jsxsd/"
+    maintainer: "星河欲转"
+    description: "淮北理工学院强智适配，非本校开发者适配如果有误建议提交issues"

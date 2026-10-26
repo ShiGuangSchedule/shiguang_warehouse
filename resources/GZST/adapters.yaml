@@ -1,0 +1,9 @@
+# resources/GZST/adapters.yaml
+adapters:
+  - adapter_id: "GZST"
+    adapter_name: "广州松田职业学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gzst.js"
+    import_url: "https://jw.educationgroup.cn/gzstzyxy_jsxsd/"
+    maintainer: "星河欲转"
+    description: "广州松田职业学院强智适配,非本校开发者适配如果有误建议提交issues"

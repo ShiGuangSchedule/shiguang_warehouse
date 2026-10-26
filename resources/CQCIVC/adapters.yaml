@@ -1,0 +1,9 @@
+# resources/CQCIVC/adapters.yaml
+adapters:
+  - adapter_id: "CQCIVC"
+    adapter_name: "重庆化工职业学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqcivc.js"
+    import_url: "http://dc.cqcivc.cn/cas/login?service=http://jwxt.cqcivc.edu.cn/sso/zllogin"
+    maintainer: "星河欲转"
+    description: "重庆化工职业学院适配教务,非本校开发者适配如果有误建议提交issues"

@@ -1,0 +1,9 @@
+# resources/IMU/adapters.yaml
+adapters:
+  - adapter_id: "IMU_01"
+    adapter_name: "内蒙古大学URP教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "imu_01.js"
+    import_url: "https://jwxt.imu.edu.cn/login"
+    maintainer: "星河欲转"
+    description: "内蒙古大学URP教务,非本校开发者适配如果有误建议提交issues"

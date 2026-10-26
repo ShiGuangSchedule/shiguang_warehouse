@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HUST_01"
+    adapter_name: "华中科技大学 HUB 系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hust.js"
+    import_url: "http://mhub.hust.edu.cn"
+    maintainer: "Lucas04-nhr"
+    description: "登录华中科技大学 HUB 系统后执行导入，可在近 6 年的春季、秋季学期之间切换。课程导入后请根据学校校历设置准确的开学日期。"

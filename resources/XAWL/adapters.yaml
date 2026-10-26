@@ -1,0 +1,9 @@
+# resources/XAWL/adapters.yaml
+adapters:
+  - adapter_id: "XAWL_01"
+    adapter_name: "西安文理学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xawl_01.js"
+    import_url: "http://jwgl.xawl.edu.cn/jwglxt/"
+    maintainer: "星河欲转"
+    description: "西安文理学院正方教务,添加双季作息,非本校开发者适配如果有误建议提交issues"

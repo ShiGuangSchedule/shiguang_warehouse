@@ -1,0 +1,9 @@
+# 淮南师范学院教务系统适配器配置
+adapters:
+  - adapter_id: "HNNU_01"
+    adapter_name: "淮南师范学院库表图门户"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hnnu_01.js"
+    import_url: "https://xxmh.hnnu.edu.cn/zhxy/"
+    maintainer: "Haooz"
+    description: "适配淮南师范学院库表图融合门户，登入后直接执行导入"

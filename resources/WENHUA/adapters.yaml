@@ -1,0 +1,9 @@
+# resources/WENHUA/adapters.yaml
+adapters:
+  - adapter_id: "WENHUA_01"
+    adapter_name: "文华学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "wenhua_01.js"
+    import_url: "https://jw1.hustwenhua.net/jwglxt/xtgl/login_slogin.html"
+    maintainer: "glxgo"
+    description: "文华学院教务,登录后需要进入教务系统才可以点击导入,非本校开发者适配如果有误建议提交issues"

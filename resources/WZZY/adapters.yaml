@@ -1,0 +1,9 @@
+# resources/WZZY/adapters.yaml
+adapters:
+  - adapter_id: "WZZY_01"
+    adapter_name: "梧州职业学院青果教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "wzzy_01.js"
+    import_url: "http://222.217.195.24:805/wzzyjw/cas/login.action"
+    maintainer: "星河欲转"
+    description: "梧州职业学院青果教务，支持自动获取开学日期，非本校开发者适配如果有误建议提交issues"

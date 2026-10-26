@@ -1,0 +1,9 @@
+# resources/UESTC/adapters.yaml
+adapters:
+  - adapter_id: "UESTC_01"
+    adapter_name: "电子科技大学 EAMS 教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "uestc.js"
+    import_url: "https://eams.uestc.edu.cn/eams"
+    maintainer: "CorunLing"
+    description: "登录 eams.uestc.edu.cn 后，在弹出的学期列表中选择对应学期即可自动导入。支持单双周、连周、自定义时间段。"

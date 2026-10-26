@@ -1,0 +1,8 @@
+adapters: #固定字段
+  - adapter_id: "NBUT_01"
+    adapter_name: "宁波工程学院教务系统适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nbut.js"
+    import_url: "http://jwxt.nbut.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "xiekeqing"
+    description: "先登录到教务网站，登录成功后执行导入操作"

@@ -1,0 +1,9 @@
+# resources/ZJSRU/adapters.yaml
+adapters:
+  - adapter_id: "ZJSRU_01"
+    adapter_name: "浙江树人学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zjsru_01.js"
+    import_url: "http://xk.jwc.zjsru.edu.cn/"
+    maintainer: "CagierAsh123"
+    description: "浙江树人学院（浙江树人大学）正方教务系统，登录方式为统一身份认证 CAS，教务首页会自动跳转。导入时自动拉取学生个人课表并可选学年/学期；作息时间取自学校官方校历，拱宸桥 / 杨汛桥两个校区节次时刻不同，导入时需选择所在校区。仅支持学生个人课表。"

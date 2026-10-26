@@ -1,0 +1,9 @@
+# resources/JHZYEDU/adapters.yaml
+adapters:
+  - adapter_id: "JHZYEDU_01"
+    adapter_name: "正方教务-江西航空职业技术学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zhengfang.js"
+    import_url: "https://jw.jhzyedu.cn/xtgl/login_slogin.html?ydType=0"
+    maintainer: "JN"
+    description: "江西航空职业技术学院正方教务V9.0 API导入。登录教务系统后即可一键导入，自动获取课表及作息时间。"

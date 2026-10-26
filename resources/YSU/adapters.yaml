@@ -1,0 +1,9 @@
+# resources/YSU/adapters.yaml
+adapters:
+  - adapter_id: "YSU_YJS"
+    adapter_name: "燕山大学研究生管理系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "ysu_yjs.js"
+    import_url: "https://cer.ysu.edu.cn/authserver/login?service=https%3A%2F%2Fyjsxt.ysu.edu.cn%2Fapi%2FcasLogin%2Fysu"
+    maintainer: "Haooz"
+    description: "燕山大学研究生课表导入，请先登录研究生管理系统，再点击导入！非本校开发者，如有误请提交issues。"

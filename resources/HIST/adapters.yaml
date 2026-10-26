@@ -1,0 +1,9 @@
+# resources/HIST/adapters.yaml
+adapters:
+  - adapter_id: "HIST_01"
+    adapter_name: "河南科技学院适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hist_01.js"
+    import_url: "http://jwgl.hist.edu.cn/cas/login.action"
+    maintainer: "zixij644-elaborate"
+    description: "河南科技学院(青果/KINGOSOFT教务)课表导入,自动按所选学年学期获取教务公布作息,失败回退内置备用作息"

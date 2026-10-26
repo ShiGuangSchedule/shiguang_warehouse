@@ -1,0 +1,9 @@
+# resources/WHUT/adapters.yaml
+adapters:
+  - adapter_id: "WHUT_01"
+    adapter_name: "武汉理工大学金智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "whut_01.js"
+    import_url: "https://jwxt.whut.edu.cn/"
+    maintainer: "星河欲转"
+    description: "武汉理工大学金智教务,支持自动获取开学日期,非本校开发者适配如果有误建议提交issues"

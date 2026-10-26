@@ -1,0 +1,9 @@
+# resources/CUPK/adapters.yaml
+adapters:
+  - adapter_id: "CUPK_01"
+    adapter_name: "中国石油大学(北京)克拉玛依校区本科教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cupk_01.js"
+    import_url: "https://eams.cupk.edu.cn/student/"
+    maintainer: "ARK-VALLEY"
+    description: "登录后直接导入既可，无需进入课表页面，注意登录密码不是融合门户密码，初始密码为个人完整身份证号"

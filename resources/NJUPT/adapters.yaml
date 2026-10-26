@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "NJUPT_01"
+    adapter_name: "南京邮电大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "njupt_01.js"
+    import_url: "https://i.njupt.edu.cn/"
+    maintainer: "kemi-20"
+    description: "南京邮电大学正方教务 V9 课表导入。请先登录智慧校园并进入教务系统课表页面，再点击导入；脚本将通过 API 获取学年学期、课程、开学日期及学校作息时间。"

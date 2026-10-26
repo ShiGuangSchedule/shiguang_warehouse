@@ -1,0 +1,9 @@
+# resources/BTBU/adapters.yaml
+adapters:
+  - adapter_id: "BTBU"
+    adapter_name: "北京工商大学本科教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "btbu.js"
+    import_url: "https://jwgl.btbu.edu.cn/"
+    maintainer: "lztttt"
+    description: "适配北京工商大学强智教务系统，教务系统登录后即可一键导入，自动获取学期列表选择学期，兼容校园网直连与WebVPN访问"

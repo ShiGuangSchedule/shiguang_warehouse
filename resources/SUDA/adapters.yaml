@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SUDA_01"
+    adapter_name: "苏州大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "suda.js"
+    import_url: "http://xk.suda.edu.cn/"
+    maintainer: "BernardYan2357"
+    description: "苏州大学教务系统适配，网页仅在校园网/连接校内VPN环境下可访问"

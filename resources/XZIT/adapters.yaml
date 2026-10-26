@@ -1,0 +1,9 @@
+# resources/XZIT/adapters.yaml
+adapters:
+  - adapter_id: "XZIT_01"
+    adapter_name: "徐州工程学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xzit_01.js"
+    import_url: "http://jwglxt.xzit.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "盐泡"
+    description: "徐州工程学院正方教务系统适配，登录选择个人课表页面导入即可。"

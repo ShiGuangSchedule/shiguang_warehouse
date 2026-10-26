@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "FIT"
+    adapter_name: "福州理工学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "fit.js"
+    import_url: "http://oaa.fitedu.net/jwglxt/xtgl/login_slogin.html"
+    maintainer: "Haooz"
+    description: "福州理工学院正方教务V9，进入教务系统后直接点击导入即可"

@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "NTU"
+    adapter_name: "南通大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ntu.js"
+    import_url: "https://tdjw.ntu.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "MX703"
+    description: "南通大学正方教务V9适配。"

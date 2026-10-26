@@ -1,0 +1,9 @@
+# resources/NIIT/adapters.yaml
+adapters:
+  - adapter_id: "NIIT"
+    adapter_name: "南京工业职业技术大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "niit.js"
+    import_url: "https://jwxt.niit.edu.cn/"
+    maintainer: "nifs1729"
+    description: "点击统一身份认证登录,登录后直接点击导入即可"

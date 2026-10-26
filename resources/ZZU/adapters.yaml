@@ -1,0 +1,11 @@
+# resources/ZZU/adapters.yaml
+# 郑州大学 拾光课程表适配
+adapters:
+  - adapter_id: "ZZU_01"
+    adapter_name: "郑州大学"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zzu.js"
+    import_url: "https://cas.s.zzu.edu.cn/cas/a/login?service=https%3A%2F%2Fjwxt.zzu.edu.cn%2Fstudent%2Fsso%2Flogin"
+    maintainer: "LilyCarry"
+    description: "登录之后向右下角滑,点击课表.课表出现后点击右下角导入即可."
+

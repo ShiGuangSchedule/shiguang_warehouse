@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SMXY"
+    adapter_name: "三明学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "smxy.js"
+    import_url: "https://one.fjsmu.edu.cn/tp_up/view?m=up"
+    maintainer: "Haooz"
+    description: "三明学院正方教务V9，通过CAS统一身份认证登录后进入教务系统执行导入"

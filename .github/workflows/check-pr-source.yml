@@ -1,0 +1,34 @@
+name: 检查main分支pr来源
+
+on:
+  pull_request:
+    branches:
+      - main 
+
+jobs:
+  check_branch_and_repo:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检查仓库来源 (阻止 Fork PR)
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          TARGET_REPO="${{ github.repository }}"
+          SOURCE_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          echo "::error file=check-pr-source.yml::[错误] main 分支只接受来自【本仓库】的合并请求。来源仓库 ($SOURCE_REPO) 与目标仓库 ($TARGET_REPO) 不一致。"
+          exit 1 
+
+      - name: 检查来源分支名称
+        if: github.head_ref != 'pending'
+        run: |
+          REQUIRED_BRANCH="pending"
+          SOURCE_BRANCH="${{ github.head_ref }}"
+
+          echo "::error file=check-pr-source.yml::[错误] main 分支只允许接受来自 '$REQUIRED_BRANCH' 分支的合并请求。当前来源分支为 '$SOURCE_BRANCH'。"
+          exit 1 # 步骤失败，Job 失败，阻止 PR 合并
+
+      # 3. 检查通过
+      - name: ✅ 检查通过
+        run: |
+          REQUIRED_BRANCH="pending"
+          echo "[通过] 检查成功：PR 满足合并条件。"

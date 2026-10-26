@@ -1,0 +1,9 @@
+# resources/BUPT/adapters.yaml
+adapters:
+  - adapter_id: "BUPT_01"
+    adapter_name: "北京邮电大学本科教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "bupt_01.js"
+    import_url: "https://jwgl.bupt.edu.cn/jsxsd/"
+    maintainer: "cstkn"
+    description: "适配北京邮电大学本科教务管理系统，登录后导入个人课表"

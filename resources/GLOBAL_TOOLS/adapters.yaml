@@ -1,0 +1,33 @@
+# resources/GLOBAL_TOOLS/adapters.yaml
+adapters:
+  - adapter_id: "GENERAL_TOOL_01"
+    adapter_name: "组件测试"
+    category: "GENERAL_TOOL"
+    asset_js_path: "school.js"
+    import_url: ""
+    maintainer: "星河欲转"
+    description: "这是一个空网站，用于组件测试与演示模式"
+
+  - adapter_id: "GENERAL_TOOL_02"
+    adapter_name: "适配代码测试"
+    category: "GENERAL_TOOL"
+    asset_js_path: "test.js"
+    import_url: ""
+    maintainer: "星河欲转"
+    description: "空网站以及不存在适配代码,用于在不更新索引的情况下给开发者进行适配的软件测试"
+
+  - adapter_id: "WakeUp"
+    adapter_name: "WakeUp课程表分享口令导入(支持新版)"
+    category: "GENERAL_TOOL"
+    asset_js_path: "wake_up.js"
+    import_url: "https://api.wakeup.fun/"
+    maintainer: "Airline233、星河欲转"
+    description: "从WakeUP获取分享口令后，进入适配直接点击\"执行导入\"，输入分享口令即可"
+
+  - adapter_id: "StarLink"
+    adapter_name: "星链课表分享码导入"
+    category: "GENERAL_TOOL"
+    asset_js_path: "starlink.js"
+    import_url: "https://api.starlinkkb.cn/"
+    maintainer: "星河欲转"
+    description: "首先,先去星链课表获取分享码，然后点击本适配，进入后不需要管网页，点击\"执行导入\"输入你刚刚获取的分享码就好"

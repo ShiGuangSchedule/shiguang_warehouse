@@ -1,0 +1,9 @@
+# resources/MKU/adapters.yaml
+adapters:
+  - adapter_id: "MKU_01"
+    adapter_name: "闽南科技学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "mku.js"
+    import_url: "https://jwgl.mku.edu.cn/"
+    maintainer: "Mutx163"
+    description: "适配闽南科技学院强智教务系统（新版 layui UI）。登录教务系统后运行，可选学期导入\"学期理论课表\"，自动附带节次时间模板与学期配置（当前学期自动识别开学日期，历史学期请在 App 内自行设置）。"

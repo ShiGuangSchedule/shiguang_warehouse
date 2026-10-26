@@ -1,0 +1,9 @@
+# resources/JSNU/adapters.yaml
+adapters:
+  - adapter_id: "JSNU_01"
+    adapter_name: "江苏师范大学适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "JSNU_01.js"
+    import_url: "https://i.jsnu.edu.cn/home"
+    maintainer: "dezige131"
+    description: "江苏师范大学适配教务,非本校开发者适配如果有误建议提交issues"

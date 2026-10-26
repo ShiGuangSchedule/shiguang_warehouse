@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CQEPC_01"
+    adapter_name: "重庆航天职业技术学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqepc.js"
+    import_url: "http://jw.cqepc.cn/"
+    maintainer: "yang01"
+    description: "重庆航天职业技术学院教务，请登录"

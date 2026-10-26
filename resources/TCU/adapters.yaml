@@ -1,0 +1,9 @@
+# resources/TCU/adapters.yaml
+adapters:
+  - adapter_id: "TCU_01"
+    adapter_name: "天津城建大学URP教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "tcu_01.js"
+    import_url: "https://authserver.tcu.edu.cn/authserver/login?service=https%3A%2F%2Fjwxs.tcu.edu.cn%2Flogin"
+    maintainer: "星河欲转"
+    description: "天津城建大学URP教务,非本校开发者适配如果有误建议提交issues"

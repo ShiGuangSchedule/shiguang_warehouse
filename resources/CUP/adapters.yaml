@@ -1,0 +1,17 @@
+# resources/CUP/adapters.yaml
+adapters:
+  - adapter_id: "CUP_01"
+    adapter_name: "中国石油大学(北京)本科教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cup_01.js"
+    import_url: "https://bk.cup.edu.cn/student/"
+    maintainer: "larryyan"
+    description: "点击统一身份认证登录"
+  
+  - adapter_id: "CUP_02"
+    adapter_name: "中国石油大学(北京)研究生教务系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "cup_02.js"
+    import_url: "https://gmis.cup.edu.cn/gmis/student/default/index"
+    maintainer: "larryyan"
+    description: "点击统一身份认证登录\n打开(培养管理=>学生课表查询)页面。\n包含克拉玛依校区"

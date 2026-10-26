@@ -1,0 +1,17 @@
+# resources/HNSF/adapters.yaml
+adapters:
+  - adapter_id: "HNSF_01"
+    adapter_name: "河南师范大学适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hnsf_01.js"
+    import_url: "https://jwc.htu.edu.cn/"
+    maintainer: "星河欲转"
+    description: "河南师范大学适配教务,添加双季作息,非本校开发者适配如果有误建议提交issues"
+
+  - adapter_id: "HNSF_02"
+    adapter_name: "河南师范大学适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hnsf_02.js"
+    import_url: "https://jwc.htu.edu.cn/"
+    maintainer: "一颗"
+    description: "该作者没有添加说明"

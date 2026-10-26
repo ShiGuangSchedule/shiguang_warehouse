@@ -1,0 +1,9 @@
+# resources/SCUEC/adapters.yaml
+adapters:
+  - adapter_id: "SCUEC"
+    adapter_name: "中南民族大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "scuec.js"
+    import_url: "https://webvpn.scuec.edu.cn/"
+    maintainer: "Zellon0w0"
+    description: "中南民族大学课程表导入适配 \n\n如果有适配问题请提issue"

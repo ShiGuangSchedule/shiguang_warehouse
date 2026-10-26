@@ -1,0 +1,17 @@
+# resources/AUFE/adapters.yaml
+adapters:
+  - adapter_id: "AUFE_01"
+    adapter_name: "安徽财经大学校内入口"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "aufe_01.js"
+    import_url: "http://all.aufe.edu.cn"
+    maintainer: "星河欲转"
+    description: "安徽财经大学urp教务适配，进入教务系统后点击开始导入，非本校开发者适配如果有误建议提交issues"
+
+  - adapter_id: "AUFE_02"
+    adapter_name: "安徽财经大学Webvpn入口"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "aufe_01.js"
+    import_url: "http://vpn.aufe.edu.cn"
+    maintainer: "星河欲转"
+    description: "安徽财经大学urp教务适配，进入教务系统后点击开始导入，非本校开发者适配如果有误建议提交issues"  

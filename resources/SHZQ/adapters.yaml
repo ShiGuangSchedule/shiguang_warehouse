@@ -1,0 +1,9 @@
+# resources/SHZQ/adapters.yaml
+adapters:
+  - adapter_id: "SHZQ_01"
+    adapter_name: "上海中侨职业技术大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "shzq.js"
+    import_url: "https://cas.shzq.edu.cn/cas/login?service=https://jw.shzq.edu.cn/sso/ddlogin"
+    maintainer: "Kredenk"
+    description: "上海中侨大学正方教务适配，支持获取开学日期"

@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CZIMT_01"
+    adapter_name: "常州机电职业技术学院-正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "czimt.js"
+    import_url: "https://webapp.czimt.edu.cn"
+    maintainer: "ShallowY"
+    description: "常州机电职业技术学院教务系统适配，采用新版Webapp(校内通)入口，统一身份认证后进入教务系统执行导入。"

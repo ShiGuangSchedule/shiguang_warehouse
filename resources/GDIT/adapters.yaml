@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "GDIT_01"
+    adapter_name: "广东科学技术职业学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdit.js"
+    import_url: "https://ids.gdit.edu.cn/authserver/login?service=https://wbdt.gdit.edu.cn/shiro-cas"
+    maintainer: "Haooz"
+    description: "广东科学技术职业学院网上办事大厅课程表导入适配。登录后进入课程表页面即可导入。"

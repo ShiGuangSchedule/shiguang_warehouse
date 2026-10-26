@@ -1,0 +1,9 @@
+# resources/TJAU/adapters.yaml
+adapters:
+  - adapter_id: "TJAU"
+    adapter_name: "天津农学院树维教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "tjau.js"
+    import_url: "http://jwxt.tjau.edu.cn/eams/homeExt.action"
+    maintainer: "星河欲转"
+    description: "天津农学院树维教务适配，登录后直接点击导入,无视可能出现的显示异常,非本校开发者适配如果有误建议提交issues"

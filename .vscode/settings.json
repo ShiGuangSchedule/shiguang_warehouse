@@ -1,0 +1,9 @@
+{
+  "yaml.schemas": {
+    "scripts/schemas/root_index.schema.json": "index/root_index.yaml",
+    "scripts/schemas/adapters.schema.json": "resources/**/adapters.yaml"
+  },
+  "yaml.format.enable": true,
+  "yaml.validate": true,
+  "js/ts.suggest.completeFunctionCalls": true
+}

@@ -1,0 +1,9 @@
+﻿# resources/GZMTU/adapters.yaml
+adapters:
+  - adapter_id: "GZMTU_01"
+    adapter_name: "广州航海学院本科教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gzmtu.js"
+    import_url: "http://jwx.gzmtu.edu.cn/jwglxt/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default"
+    maintainer: "weiwei221206"
+    description: "适用于广州航海学院本科教务系统一键导入"

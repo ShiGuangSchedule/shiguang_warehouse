@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "DLUTCI_01"
+    adapter_name: "大连工程学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "dlutci.js"
+    import_url: "https://jw.dlutci.edu.cn"
+    maintainer: "Haooz"
+    description: "大连工程学院教务系统课表导入，登录到应用管理平台后直接点击导入即可"

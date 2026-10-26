@@ -1,0 +1,9 @@
+# resources/FJCPC/adapters.yaml
+adapters:
+  - adapter_id: "FJCPC"
+    adapter_name: "福建船政交通职业学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "fjcpc.js"
+    import_url: "https://webvpn.fjcpc.edu.cn/"
+    maintainer: "星河欲转"
+    description: "点击本校师生统一身份验证进行登录，登录后点击新教务系统在点击教务管理\n 已使用自动获取开学日期，免去手动设置 \n福建船政交通职业学院教务适配,非本校开发者适配如果有误建议提交issues"

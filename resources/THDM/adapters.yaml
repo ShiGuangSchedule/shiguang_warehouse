@@ -1,0 +1,11 @@
+adapters:
+  - adapter_id: "THDM_01"
+    adapter_name: "南昌科技职业大学教务系统"
+    category: BACHELOR_AND_ASSOCIATE
+    asset_js_path: "THDM_01.js"
+    import_url: "http://jw.tellhowedu.com:19995/"
+    maintainer: "HOLLOWDREAM"
+    description: "联奕科技教务系统（南昌科技职业大学）"
+
+
+

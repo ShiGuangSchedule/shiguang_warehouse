@@ -1,0 +1,9 @@
+# resources/DLMU/adapters.yaml
+adapters:
+  - adapter_id: "DLMU_01"
+    adapter_name: "大连海事大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "dlmu_01.js"
+    import_url: "http://jw.xpaas.dlmu.edu.cn/eams"
+    maintainer: "whynusn"
+    description: "大连海事大学适配教务，可能与`海大在线`中课程不一致"

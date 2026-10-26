@@ -1,0 +1,9 @@
+# resources/chaoxing_jiaowu/adapters.yaml
+adapters:
+  - adapter_id: "chaoxing"
+    adapter_name: "超星教务系统"
+    category: "GENERAL_TOOL"
+    asset_js_path: "chaoxing.js"
+    import_url: ""
+    maintainer: "b1n23"
+    description: "超星教务系统理论通用，输入教务网址，登录后点击执行导入\n支持导入开学日期和节次时间"

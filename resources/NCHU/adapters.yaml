@@ -1,0 +1,9 @@
+# resources/NCHU/adapters.yaml
+adapters:
+  - adapter_id: "NCHU_01"
+    adapter_name: "南昌航空大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nchu.js"
+    import_url: "http://jwc-publish2.jwc.nchu.edu.cn/"
+    maintainer: "Haooz"
+    description: "南昌航空大学强智教务系统课表导入（需要校园网访问），进入课表查询界面以后，先点击查询所有全部周，再执行导入"

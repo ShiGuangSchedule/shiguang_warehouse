@@ -1,0 +1,9 @@
+# resources/SDJTU/adapters.yaml
+adapters:
+  - adapter_id: "SDJTU"
+    adapter_name: "山东交通学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sdjtu.js"
+    import_url: "https://wwebvpn.sdjtu.edu.cn"
+    maintainer: "WuL0ong"
+    description: "适配山东交通学院教务系统，登录成功后进入教务系统，找到“学期理论课表”，在“学年学期”下拉框内选择要导入的学期课表，之后点击“执行导入”按钮即可。\n学期理论课表默认为当前学期，若导入本学期课表则无需修改。\n目前仅支持导入“学期理论课表”内任意学期的课表，暂不支持导入其它类型的课表。"

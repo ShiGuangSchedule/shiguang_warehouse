@@ -1,0 +1,9 @@
+# resources/SWU/adapters.yaml
+adapters:
+  - adapter_id: "SWU_01"
+    adapter_name: "西南大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "swu.js"
+    import_url: "https://i.swu.edu.cn/"
+    maintainer: "小漫君"
+    description: "基于正方新一代教务接口取数。请从办事大厅(i.swu.edu.cn)登录后进入教务系统课表查询页面，再执行导入脚本；脚本会自动套用西南大学节次时间。"

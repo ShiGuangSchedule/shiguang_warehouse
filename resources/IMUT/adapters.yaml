@@ -1,0 +1,9 @@
+# resource/IMUT/adapters.yaml
+adapters:
+  - adapter_id: "IMUT_01"
+    adapter_name: "内蒙古工业大学教务处适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "IMUT_01.js"
+    import_url: "http://jw.imut.edu.cn/academic/login/imut/loginIds6Valid.jsp"
+    maintainer: "wuko233"
+    description: "内蒙古工业大学教务处适配，采用新版统一身份认证登录页面"

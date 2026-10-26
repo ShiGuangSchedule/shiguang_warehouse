@@ -1,0 +1,9 @@
+# resources/SXDZKJ/adapters.yaml
+adapters:
+  - adapter_id: "SXDZKJ"
+    adapter_name: "山西电子科技学院青果教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sxdzkj.js"
+    import_url: "https://sso.sxdzkj.edu.cn/sso-auth/#/login?service=https://jwxt.sxdzkj.edu.cn/caslogin"
+    maintainer: "REnss3536"
+    description: "山西电子科技学院青果教务系统适配，登录教务系统后进入课表查询页面进行导入"

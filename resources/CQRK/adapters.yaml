@@ -1,0 +1,9 @@
+# resources/CQRK/adapters.yaml
+adapters:
+  - adapter_id: "CQRK_01"
+    adapter_name: "重庆人文科技学院强智适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqrk_01.js"
+    import_url: "https://https-auth-cqrk-edu-cn-443.webvpn.cqrk.edu.cn:8480/cas/login?service=http%3A%2F%2Fportal.cqrk.edu.cn&rewrite=1"
+    maintainer: "星河欲转"
+    description: "登录后需要点击进入教务系统才可以导入\n重庆人文科技学院强智适配，适配双季作息，非本校开发者适配如果有误建议提交issues"

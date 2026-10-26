@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CQTBI_01"
+    adapter_name: "重庆工商职业学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqtbi.js"
+    import_url: "http://szxy.cqtbi.edu.cn/cqdddt/index.html?v=0.3672285490800563"
+    maintainer: "Haooz"
+    description: "重庆工商职业学院（重庆开放大学）教务系统课表导入，请先登录并打开课表页面，再点击导入。"

@@ -1,0 +1,16 @@
+adapters:
+  - adapter_id: "WBU_02"
+    adapter_name: "武汉商学院-校园网访问"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "wbu_02.js"
+    import_url: "https://jwxt.wbu.edu.cn/"
+    maintainer: "HJWqa"
+    description: "武汉商学院教务系统课表导入适配"
+
+  - adapter_id: "WBU_03"
+    adapter_name: "武汉商学院-WebVPN访问"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "wbu_02.js"
+    import_url: "https://webvpn.wbu.edu.cn/"
+    maintainer: "HJWqa"
+    description: "武汉商学院教务系统课表导入适配"

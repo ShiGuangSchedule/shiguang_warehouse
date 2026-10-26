@@ -1,0 +1,9 @@
+# resources/SDLIVC/adapters.yaml
+adapters:
+  - adapter_id: "SDLIVC"
+    adapter_name: "山东轻工职业学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sdlivc.js"
+    import_url: "https://crp.sdlivc.cn/xsgl/xs/login/login.aspx"
+    maintainer: "赛博丁真"
+    description: "山东轻工职业学院教务适配"

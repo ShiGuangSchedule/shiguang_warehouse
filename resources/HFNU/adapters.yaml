@@ -1,0 +1,9 @@
+# resources/HFNU/adapters.yaml
+adapters:
+  - adapter_id: "HFNU_01"
+    adapter_name: "合肥师范学院树维教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hfnu.js"
+    import_url: "https://jw.hfnu.edu.cn/eams/loginExt.action"
+    maintainer: "星河欲转"
+    description: "合肥师范学院树维教务，支持双校区作息，非本校开发者适配如果有误建议提交issues"

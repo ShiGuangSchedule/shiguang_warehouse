@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CSUFT_QZ_01"
+    adapter_name: "中南林业科技大学（强智教务）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "csuft.js"
+    import_url: "https://webvpn.csuft.edu.cn/"
+    maintainer: "jinnianliuxing"
+    description: "中南林业科技大学强智教务系统课表导入"

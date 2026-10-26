@@ -1,0 +1,9 @@
+# resources/QQHRU/adapters.yaml
+adapters:
+  - adapter_id: "QQHRU"
+    adapter_name: "齐齐哈尔大学URP教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "qqhru.js"
+    import_url: "https://webvpn.qqhru.edu.cn/users/sign_in"
+    maintainer: "星河欲转"
+    description: "齐齐哈尔大学URP教务，登录后只需要进入教务系统就可以点击导入了，非本校开发者适配如果有误建议提交issues"

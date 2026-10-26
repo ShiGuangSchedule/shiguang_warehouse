@@ -1,0 +1,10 @@
+# resources/FAFU/adapters.yaml
+# 福建农林大学教务系统适配器配置
+adapters:
+  - adapter_id: "FAFU_01"
+    adapter_name: "福建农林大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "FAFU.js"
+    import_url: "http://jwgl.fafu.edu.cn/"
+    maintainer: "Haooz"
+    description: "基于正方教务 HTML 课表网格解析，登录后在个人课表查询页面点击执行导入"

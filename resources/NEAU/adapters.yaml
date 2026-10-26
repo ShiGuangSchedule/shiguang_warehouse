@@ -1,0 +1,9 @@
+# resources/NEAU/adapters.yaml
+adapters:
+  - adapter_id: "NEAU_01"
+    adapter_name: "东北农业大学适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "NEAU_01.js"
+    import_url: "https://webvpn.neau.edu.cn/"
+    maintainer: "dezige131"
+    description: "东北农业大学适配教务,非本校开发者适配如果有误建议提交issues"

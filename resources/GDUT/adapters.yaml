@@ -1,0 +1,9 @@
+# resources/GDUT/adapters.yaml
+adapters:
+  - adapter_id: "GDUT_01"
+    adapter_name: "广东工业大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdut.js"
+    import_url: "https://authserver.gdut.edu.cn/authserver/login?service=https%3A%2F%2Fjxfw.gdut.edu.cn%2Fnew%2FssoLogin"
+    maintainer: "forer4433"
+    description: "广东工业大学教务系统课程导入适配。本校开发者适配，如有问题请提交issues。"

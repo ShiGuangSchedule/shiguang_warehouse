@@ -1,0 +1,9 @@
+# resources/GSMC/adapters.yaml
+adapters:
+  - adapter_id: "GSMC_01"
+    adapter_name: "甘肃医学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gsmc_01.js"
+    import_url: "https://jw.gsmc.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "星河欲转"
+    description: "甘肃医学院适配教务，非本校开发者适配如果有误建议提交issues"

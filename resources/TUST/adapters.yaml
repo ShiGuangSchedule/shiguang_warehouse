@@ -1,0 +1,9 @@
+# resources/TCU/adapters.yaml
+adapters:
+  - adapter_id: "TUST_01"
+    adapter_name: "天津科技大学URP教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "tust_01.js"
+    import_url: "https://id.tust.edu.cn/authserver/login?service=http://jwxtxs.tust.edu.cn:46110/j_spring_cas_security_check"
+    maintainer: "oneepointer"
+    description: "天津科技大学使用 URP 教务系统，该适配器对其进行适配"

@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "BBGU_01"
+    adapter_name: "北部湾大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "bbgu.js"
+    import_url: "https://zhjw.bbgu.edu.cn/workspace/home"
+    maintainer: "Haooz"
+    description: "北部湾大学智慧教务系统课表导入，登录统一身份认证平台后直接点击导入即可"

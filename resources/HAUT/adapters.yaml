@@ -1,0 +1,9 @@
+# resources/HAUT/adapters.yaml
+adapters:
+  - adapter_id: "HAUT_01"
+    adapter_name: "河南工业大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "haut_01.js"
+    import_url: "https://jwglxt.haut.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "星河欲转"
+    description: "河南工业大学适配教务，非本校开发者适配如果有误建议提交issues"

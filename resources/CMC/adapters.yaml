@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CMC_01"
+    adapter_name: "成都医学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cmc_01.js"
+    import_url: "https://jwweb.cmc.edu.cn/"
+    maintainer: "linlinli000"
+    description: "成都医学院乘方教务适配，请先登录教务系统后再执行导入"

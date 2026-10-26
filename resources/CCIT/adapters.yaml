@@ -1,0 +1,9 @@
+# resources/CCIT/adapters.yaml
+adapters:
+  - adapter_id: "CCIT"
+    adapter_name: "长春工程学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ccit.js"
+    import_url: "https://webvpn.ccit.edu.cn/auth/login"
+    maintainer: "星河欲转"
+    description: "长春工程学院强智教务适配，webvpn入口，请进入教务系统页面再点击导入，非本校开发者适配如果有误建议提交issues"

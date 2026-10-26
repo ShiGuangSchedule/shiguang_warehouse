@@ -1,0 +1,9 @@
+# resources/UZZ/adapters.yaml
+adapters:
+  - adapter_id: "UZZ_01"
+    adapter_name: "枣庄学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "uzz_01.js"
+    import_url: "https://iam.uzz.edu.cn/esc-sso/login/page"
+    maintainer: "素绫理"
+    description: "枣庄学院方正教务系统课表适配，登陆后点击【正方教务管理系统】，再点击【个人课表查询】，最后点击【执行导入】即可，导入后不要忘记设置本学期的开学日期"

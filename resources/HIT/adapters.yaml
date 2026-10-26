@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HIT"
+    adapter_name: "哈尔滨工业大学研究生系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "hit.js"
+    import_url: "http://yjsgl-hit-edu-cn.ivpn.hit.edu.cn:1080/xs/index"
+    maintainer: "Haooz"
+    description: "哈尔滨工业大学研究生教育管理系统，需通过VPN访问，登录后点击导入"

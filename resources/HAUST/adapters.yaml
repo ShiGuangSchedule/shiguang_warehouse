@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HAUST"
+    adapter_name: "河南科技大学树维教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "haust.js"
+    import_url: "https://vpn.haust.edu.cn"
+    maintainer: "Haooz"
+    description: "河南科技大学新版树维教务，需通过VPN访问，登录后进入课表页面点击导入"

@@ -1,0 +1,9 @@
+# resources/SDIPCT/adapters.yaml
+adapters:
+  - adapter_id: "SDIPCT"
+    adapter_name: "山东石油化工学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sdipct.js"
+    import_url: "https://webvpn.sdipct.edu.cn/https/77726476706e69737468656265737421fae0598869236c596e0b9de29d51367bd943/"
+    maintainer: "星河欲转"
+    description: "山东石油化工学院教务适配,非本校开发者适配如果有误建议提交issues"

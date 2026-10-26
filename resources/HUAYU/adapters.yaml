@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HUAYU_01"
+    adapter_name: "山东华宇工学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "huayu.js"
+    import_url: "http://jwgl.huayu.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "Noxiouskoala1"
+    description: "适配山东华宇工学院正方教务系统"

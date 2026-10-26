@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "GSCMXY_01"
+    adapter_name: "甘肃财贸职业学院-金智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gscmxy.js"
+    import_url: "https://jwxt.gscmxy.edu.cn/"
+    maintainer: "ShallowY"
+    description: "甘肃财贸职业学院教务系统适配，统一身份认证后执行导入。"

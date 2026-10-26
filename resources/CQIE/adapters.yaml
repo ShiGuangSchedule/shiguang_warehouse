@@ -1,0 +1,9 @@
+# resources/CQIE/adapters.yaml
+adapters:
+  - adapter_id: "CQIE_01"
+    adapter_name: "重庆工程学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqie_01.js"
+    import_url: "https://i.cqie.edu.cn/"
+    maintainer: "haha12358"
+    description: "适配重庆工程学院新教务系统，登录门户后进入教务系统页面执行导入"

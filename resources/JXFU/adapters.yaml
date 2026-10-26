@@ -1,0 +1,9 @@
+# resources/JXFU/adapters.yaml
+adapters:
+  - adapter_id: "JXFU_01"
+    adapter_name: "江西飞行学院适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "JXFU_01.js"
+    import_url: "https://jwxt.jxfu.edu.cn/"
+    maintainer: "dezige131"
+    description: "江西飞行学院适配教务,非本校开发者适配如果有误建议提交issues"

@@ -1,0 +1,17 @@
+# resources/SYSU/adapters.yaml
+adapters:
+  - adapter_id: "SYSU"
+    adapter_name: "中山大学"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sysu.js"
+    import_url: "https://jwxt.sysu.edu.cn/"
+    maintainer: "JXCZ"
+    description: "中山大学NetID版本教务系统课程表导入,注：先点击右上角切换为电脑模式再登陆，登陆后可直接导入。"
+
+  - adapter_id: "SYSU_01"
+    adapter_name: "中山大学研究生教务课表导入"
+    category: "POSTGRADUATE"
+    asset_js_path: "sysu_01.js"
+    import_url: "https://cms.sysu.edu.cn/"
+    maintainer: "JR2714"
+    description: "中山大学研究生教务(cms.sysu.edu.cn)"

@@ -1,0 +1,9 @@
+# resources/MYSY/adapters.yaml
+adapters:
+  - adapter_id: "MYSY"
+    adapter_name: "绵阳师范学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "mysy.js"
+    import_url: "http://jw.mtc.edu.cn/"
+    maintainer: "Guzheng3"
+    description: "登录教务系统后，在个人课表页面一键导入课表，自动附带上课时间。"

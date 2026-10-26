@@ -1,0 +1,9 @@
+# resources/LNU/adapters.yaml
+adapters:
+  - adapter_id: "LNU_01"
+    adapter_name: "辽宁大学URP教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "LNU_01.js"
+    import_url: "http://jwstudent.lnu.edu.cn/"
+    maintainer: "739C1AE2"
+    description: "辽宁大学URP教务适配"

@@ -1,0 +1,9 @@
+# resources/HUEL/adapters.yaml
+adapters:
+  - adapter_id: "HUEL_01"
+    adapter_name: "河南财经政法大学"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "huel_01.js"
+    import_url: "https://xk.huel.edu.cn"
+    maintainer: "Mercury"
+    description: "河南财经政法大学适配教务"

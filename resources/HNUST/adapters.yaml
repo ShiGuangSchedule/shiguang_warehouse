@@ -1,0 +1,9 @@
+# resources/HNUST/adapters.yaml
+adapters:
+  - adapter_id: "HNUST_01"
+    adapter_name: "湖南科技大学适配教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "HNUST_01.js"
+    import_url: "https://kdjw.hnust.edu.cn/"
+    maintainer: "dezige131"
+    description: "湖南科技大学适配教务,请使用企业微信登录"

@@ -1,0 +1,9 @@
+# resources/GZU/adapters.yaml
+adapters:
+  - adapter_id: "GZU"
+    adapter_name: "贵州大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gzu.js"
+    import_url: "https://zhjw.gzu.edu.cn/jwglxt/xtgl/"
+    maintainer: "Daoguan-king"
+    description: "贵州大学需要登录学校VPN，登录后需要进入教务系统“个人课表查询”页面再点击导入，最后特别致谢24级农学波波的帮助，没有他我VPN登录不了，非本校开发者适配如果有误建议提交issues"

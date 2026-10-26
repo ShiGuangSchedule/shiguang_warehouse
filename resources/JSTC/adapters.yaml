@@ -1,0 +1,9 @@
+# resources/JSTC/adapters.yaml
+adapters:
+  - adapter_id: "JSTC_01"
+    adapter_name: "江苏旅游职业学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jstc_01.js"
+    import_url: "https://authserver.jstc.edu.cn/authserver/login?service=https%3A%2F%2Fjwxt.jstc.edu.cn%2Fstudent%2Fsso%2Flogin"
+    maintainer: "星河欲转"
+    description: "江苏旅游职业学院教务，进入教务系统页面即可开始导入，支持自动获取开学日期，非本校开发者适配如果有误建议提交issues"

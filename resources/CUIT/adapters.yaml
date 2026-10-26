@@ -1,0 +1,17 @@
+# resources/CUIT/adapters.yaml
+adapters:
+  - adapter_id: "CUIT_01"
+    adapter_name: "成都信息工程大学本科实践教学平台"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cuit_bk_new.js"
+    import_url: "https://ywtb.cuit.edu.cn/"
+    maintainer: "igugyj(Pfolg)"
+    description: "登录（外网用户把二维码发到另一台设备），进入「本科实践教学（管理）平台」进行导入"
+
+  - adapter_id: "CUIT_02"
+    adapter_name: "成都信息工程大学教务管理系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cuit_bk_old.js"
+    import_url: "https://jwc.cuit.edu.cn/"
+    maintainer: "igugyj(Pfolg)"
+    description: "登录教务导入"

@@ -1,0 +1,9 @@
+# resources/GDKM/adapters.yaml
+adapters:
+  - adapter_id: "GDKM"
+    adapter_name: "广东科贸职业学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "GDKM.js"
+    import_url: "https://aic.gdkm.edu.cn/cas_server/login"
+    maintainer: "qwwshs"
+    description: "广东科贸职业学院强智教务，非本校开发者适配如果有误建议提交issues喵"

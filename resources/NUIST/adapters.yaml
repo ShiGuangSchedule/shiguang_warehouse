@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "NUIST_01"
+    adapter_name: "南京信息工程大学教务课表"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nuist.js"
+    import_url: "https://jwxt.nuist.edu.cn/"
+    maintainer: "wild0408"
+    description: "南京信息工程大学金智教务系统课表适配"

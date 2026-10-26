@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "LYU"
+    adapter_name: "临沂大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "lyu.js"
+    import_url: "https://sdp.lyu.edu.cn/https/webvpn3146b55e2aeee09087ebc4ebe6dbd770/jwglxt/xtgl/login_slogin.html"
+    maintainer: "Haooz"
+    description: "临沂大学正方教务V9，需通过webvpn访问，登录后进入课表页面点击导入"

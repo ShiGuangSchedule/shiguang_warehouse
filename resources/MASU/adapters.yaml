@@ -1,0 +1,9 @@
+adapters:
+  - adapter_id: "MASU_01"
+    adapter_name: "马鞍山学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "masu.js"
+    import_url: "https://jwxt.masu.edu.cn/"
+    maintainer: "Haooz"
+    description: "马鞍山学院教务系统课表导入，登录后进入“”我的课表”页面，再点击导入！"
+    

@@ -1,0 +1,9 @@
+# resources/GXDLXY/adapters.yaml
+adapters:
+  - adapter_id: "HBMU_01"
+    adapter_name: "湖北医药学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hbmu.js"
+    import_url: "https://jw.hbmu.edu.cn/"
+    maintainer: "xhh李"
+    description: "湖北医药学院教务,由桂医开发者适配，如果有误请加入QQ频道：pd12631377"

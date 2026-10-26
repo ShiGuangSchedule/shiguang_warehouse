@@ -1,0 +1,9 @@
+# resources/CQRK/adapters.yaml
+adapters:
+  - adapter_id: "CQCST_01"
+    adapter_name: "重庆城市科技学院强智适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqcst_01.js"
+    import_url: "http://jw.cqcst.edu.cn/cqdxcskjxy_jsxsd/"
+    maintainer: "Mutx163"
+    description: "登录后需要点击进入教务系统才可以导入，重庆城市科技学院强智适配，"

@@ -1,0 +1,9 @@
+# resources/CUST/adapters.yaml
+adapters:
+  - adapter_id: "YXHMC"
+    adapter_name: "成都银杏酒店管理学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "yxhmc.js"
+    import_url: "http://zfjw.gingkoc.edu.cn/xtgl/login_slogin.html"
+    maintainer: "Xuan-Xuann"
+    description: "适配成都银杏酒店管理学院智慧教务系统。使用须知：请先登录再进入个人课表查询界面，然后按照流程即可导入当前课表。请注意！暂不适配调课补课，请及时关注教务系统按时修改"

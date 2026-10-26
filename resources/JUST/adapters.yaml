@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "JUST"
+    adapter_name: "江苏科技大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "just.js"
+    import_url: "https://my.just.edu.cn/"
+    maintainer: "abyss-stars"
+    description: "江苏科技大学正方新一代教务（jwglxt）。入口为官方信息门户（my.just.edu.cn）：统一身份认证登录后进入教务系统，在「信息查询-学生课表查询」页面执行导入；校外由门户自动代理，无需手动记 WebVPN 地址。脚本读取页面上的学年（.xnm）/学期（.xqm）下拉供确认，再自动获取个人课表、校区节次作息与开学日期。"

@@ -1,0 +1,10 @@
+adapters:
+  - adapter_id: "CDUTCM_01"
+    adapter_name: "成都中医药大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cdutcm_01.js"
+    import_url: "https://jwweb.cdutcm.edu.cn/"
+    maintainer: "wwwhyDB"
+    description: |
+      登录教务系统后一键导入完整课表，自动附带上课时间。
+      支持单双周、多教师多地点等课程；导入时会询问学期开始日期。

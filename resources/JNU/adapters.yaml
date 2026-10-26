@@ -1,0 +1,9 @@
+# resources/JNU/adapters.yaml
+adapters:
+  - adapter_id: "JNU_01"
+    adapter_name: "暨南大学金智教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jnu_01.js"
+    import_url: "https://jw.jnu.edu.cn"
+    maintainer: "White-Dew-Boy"
+    description: "登录教务系统后进入我的课表界面。自动导入上课时间段仅适用于珠海校区，其它校区可自行配置"

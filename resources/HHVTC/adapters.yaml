@@ -1,0 +1,9 @@
+# resources/HHVTC/adapters.yaml
+adapters:
+  - adapter_id: "HHVTC"
+    adapter_name: "怀化职业技术学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hhvt.js"
+    import_url: "http://jwgl.hhvtc.com.cn/"
+    maintainer: "Haooz"
+    description: "怀化职业技术学院青果教务课表导入，请先登录并打开课表查询页面，再点击导入！"

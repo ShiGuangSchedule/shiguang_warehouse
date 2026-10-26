@@ -1,0 +1,9 @@
+# resources/CAUC/adapters.yaml
+adapters:
+  - adapter_id: "CAUC"
+    adapter_name: "中国民航大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cauc.js"
+    import_url: "https://http-jwgl-cauc-edu-cn-80.webvpn.cauc.edu.cn/xtgl/login_slogin.html"
+    maintainer: "星河欲转"
+    description: "中国民航大学正方教务，webvpn入口，非本校开发者适配如果有误建议提交issues"

@@ -1,0 +1,9 @@
+# resources/LZU/adapters.yaml
+adapters:
+  - adapter_id: "LZU_01"
+    adapter_name: "兰州大学本科生教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "lzu.js"
+    import_url: "http://jwk.lzu.edu.cn/academic/common/security/login.jsp"
+    maintainer: "yalerove"
+    description: "兰州大学本科生教务。登录后在【学生课表】(网格/列表视图均可)点击执行导入，自带兰大作息时间"

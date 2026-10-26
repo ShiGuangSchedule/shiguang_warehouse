@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "UJN_01"
+    adapter_name: "济南大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "school.js"
+    import_url: "https://sso.ujn.edu.cn/tpass/login?service=http%3A%2F%2Fjwgl.ujn.edu.cn%2Fsso%2Fdriotlogin"
+    maintainer: "Moyu"
+    description: "济南大学教务系统适配，支持班级课表和个人课表的导入，通过统一认证登录"

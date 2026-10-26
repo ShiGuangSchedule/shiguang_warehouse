@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "GXCME"
+    adapter_name: "广西机电职业技术学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gxcme.js"
+    import_url: "https://sso.gxcme.edu.cn/login?service=https://nportal.gxcme.edu.cn/login"
+    maintainer: "Haooz"
+    description: "广西机电职业技术学院正方教务V9（Mobile版API），进入课表页面后点击导入"

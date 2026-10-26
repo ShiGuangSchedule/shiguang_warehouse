@@ -1,0 +1,9 @@
+# resources/NYNU/adapters.yaml
+adapters:
+  - adapter_id: "NYNU_01"
+    adapter_name: "南阳师范学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "nynu.js"
+    import_url: "https://vpn.nynu.edu.cn/"
+    maintainer: "Haooz"
+    description: "南阳师范学院青果教务系统课表导入，需先登录学校VPN并通过统一身份认证进入教务系统后执行导入"

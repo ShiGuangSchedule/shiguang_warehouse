@@ -1,0 +1,9 @@
+# resources/HNVCC/adapters.yaml
+adapters:
+  - adapter_id: "HNVCC_01"
+    adapter_name: "湖南商务职业技术学院强智适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "HNVCC_01.js"
+    import_url: "http://jwxt.hnvcc.edu.cn/"
+    maintainer: "星河欲转"
+    description: "湖南商务职业技术学院强智适配,添加双季作息,非本校开发者适配如果有误建议提交issues"

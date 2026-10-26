@@ -1,0 +1,9 @@
+# resources/NJNU/adapters.yaml
+adapters:
+  - adapter_id: "NJNU"
+    adapter_name: "南京师范大学金智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "njnu.js"
+    import_url: "https://authserver.nnu.edu.cn/authserver/login?service=https://hsnnu.nnu.edu.cn/login"
+    maintainer: "aryunm"
+    description: "南京师范大学金智教务适配"

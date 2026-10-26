@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "NCUT_01"
+    adapter_name: "北方工业大学-教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ncut_01.js"
+    import_url: "https://jwxtbk.ncut.edu.cn/jsxsd/"
+    maintainer: "EnderHCO3"
+    description: "适配北方工业大学本科教务管理系统课表导入 请在导入时将'我的课表'后的'第x周'改为全部周次"

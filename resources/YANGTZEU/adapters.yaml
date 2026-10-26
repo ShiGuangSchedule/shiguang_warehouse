@@ -1,0 +1,9 @@
+# resources\YANGTZEU\adapters.yaml
+adapters:
+  - adapter_id: "YU_01"
+    adapter_name: "长江大学教务系统适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "yu.js"
+    import_url: "https://cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn/authserver/login?service=https%3A%2F%2Fatrust.yangtzeu.edu.cn%3A4443%2Fpassport%2Fv1%2Fauth%2Fcas%3FsfDomain%3DCAS"
+    maintainer: "Jursin"
+    description: "适配长江大学教务系统（树维）导入，进入教务系统后页面空白只有⌈我的账户⌋⌈返回首页⌋⌈退出⌋字样，此时点击执行导入即可"

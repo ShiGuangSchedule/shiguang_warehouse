@@ -1,0 +1,9 @@
+# resources/BNUZH/adapters.yaml
+adapters:
+  - adapter_id: "BNUZH_01"
+    adapter_name: "北京师范大学珠海校区金智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "school.js"
+    import_url: "https://jwxt.bnuzh.edu.cn/caslogin"
+    maintainer: "sbVAN"
+    description: "北京师范大学珠海校区教务(金智/青果KINGOSOFT)适配，网络请求直取课表数据与作息时间，自动获取开学日期(可确认修改)，不依赖课表页面。登录教务系统后直接点击执行导入即可，无需切换到课表页面"

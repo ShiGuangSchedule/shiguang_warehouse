@@ -1,0 +1,9 @@
+# resources/JNMC/adapters.yaml
+adapters:
+  - adapter_id: "JNMC_01"
+    adapter_name: "济宁医学院教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jnmc.js"
+    import_url: "http://210.44.16.13/"
+    maintainer: "yukoimi"
+    description: "济宁医学院乘方教务适配，请先登录教务系统后再执行导入"

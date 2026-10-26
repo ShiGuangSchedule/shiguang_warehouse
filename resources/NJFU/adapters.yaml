@@ -1,0 +1,9 @@
+# resources/HUEL/adapters.yaml
+adapters:
+  - adapter_id: "NJFU_01"
+    adapter_name: "南京林业大学"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "njfu_01.js"
+    import_url: "https://jwxt.njfu.edu.cn/sso.jsp"
+    maintainer: "Mercury"
+    description: "南京林业大学适配教务"

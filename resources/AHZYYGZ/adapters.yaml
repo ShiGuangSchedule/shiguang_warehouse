@@ -1,0 +1,8 @@
+adapters: 
+  - adapter_id: "AHZYYGZ_01" 
+    adapter_name: "安徽中医药高等专科学校" 
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "AHZYYGZ.js" 
+    import_url: "https://authserver.ahzyygz.edu.cn/authserver/login?service=http://jwxt.ahzyygz.edu.cn/ahzyygzjw/caslogin"
+    maintainer: "glxgo"
+    description: "安徽中医药高等专科学校青果教务适配器，非本校开发者适配，如果有误建议提交issues"

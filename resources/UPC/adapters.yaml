@@ -1,0 +1,17 @@
+# resources/UPC/adapters.yaml
+adapters:
+  - adapter_id: "UPC"
+    adapter_name: "中国石油大学(华东)教务适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "upc.js"
+    import_url: "https://webvpn.upc.edu.cn/users/sign_in"
+    maintainer: "星河欲转"
+    description: "中国石油大学(华东)强智教务适配,webvpn入口,登录后需要进入教务系统页面才可以点击导入,非本校开发者适配如果有误建议提交issues"
+
+  - adapter_id: "UPC_GRAD"
+    adapter_name: "中国石油大学(华东)研究生综合管理系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "upc_graduate.js"
+    import_url: "https://degrees.upc.edu.cn/"
+    maintainer: "Haooz"
+    description: "中国石油大学(华东)研究生综合管理系统课表导入，登录打开学期课表查询页面，再点击导入！"

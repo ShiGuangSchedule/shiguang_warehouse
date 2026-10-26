@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SUSTECH"
+    adapter_name: "南方科技大学教学管理与服务平台"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sustech.js"
+    import_url: "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
+    maintainer: "yusancky"
+    description: "南方科技大学 TIS 教学管理与服务平台（tis.sustech.edu.cn），需先通过 CAS 登录，登录后可直接导入；移动端需切换为电脑模式访问教务系统"

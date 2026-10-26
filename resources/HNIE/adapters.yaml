@@ -1,0 +1,9 @@
+# resources/HNIE/adapters.yaml
+adapters:
+  - adapter_id: "hnie_01"
+    adapter_name: "湖南工程学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hnie_01.js"
+    import_url: "http://jwcmis.hnie.edu.cn"
+    maintainer: "Mercury"
+    description: "湖南工程学院适配教务。"

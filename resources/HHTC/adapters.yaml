@@ -1,0 +1,9 @@
+# resources/HHTC/adapters.yaml
+adapters:
+  - adapter_id: "HHTC_01"
+    adapter_name: "怀化学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hhtc.js"
+    import_url: "https://jwmis.hhtc.edu.cn/"
+    maintainer: "星河欲转"
+    description: "怀化学院强智教务，非本校开发者适配如果有误建议提交issues"

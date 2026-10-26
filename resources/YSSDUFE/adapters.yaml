@@ -1,0 +1,9 @@
+# resources/YSSDUFE/adapters.yaml
+adapters:
+  - adapter_id: "YSSDUFE_01"
+    adapter_name: "山东财经大学燕山学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "yssdufe_01.js"
+    import_url: "https://ysjw.sdufe.edu.cn:8081/jsxsd/"
+    maintainer: "星河欲转"
+    description: "山东财经大学燕山学院强智教务，进入教务后直接点击开始导入，支持获取开学日期，非本校开发者适配如果有误建议提交issues"

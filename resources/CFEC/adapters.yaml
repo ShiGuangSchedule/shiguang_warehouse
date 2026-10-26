@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CFEC_01"
+    adapter_name: "重庆财经学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "CFEC.js" #相对路径
+    import_url: "http://jwmis.cfec.edu.cn/jwglxt/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default"
+    maintainer: "glxgo"
+    description: "重庆财经学院正方教务适配器，非本校开发者适配，如果有误建议提交issues"

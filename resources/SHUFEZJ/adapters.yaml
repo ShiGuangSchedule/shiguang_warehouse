@@ -1,0 +1,9 @@
+# resources/SHUFEZJ/adapters.yaml
+adapters:
+  - adapter_id: "SHUFEZJ"
+    adapter_name: "上海财经大学浙江学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "shufezj.js"
+    import_url: "https://jwxt.shufe-zj.edu.cn/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default"
+    maintainer: "ZnonEn"
+    description: "上海财经大学浙江学院正方教务，通过CAS统一身份认证登录后，进入个人课表查询页面即可点击导入。非本校开发者适配如果有误建议提交issues"

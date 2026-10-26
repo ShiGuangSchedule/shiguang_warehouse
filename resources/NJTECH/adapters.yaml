@@ -1,0 +1,9 @@
+# resources/NJTECH/adapters.yaml
+adapters:
+  - adapter_id: "NJTECH"
+    adapter_name: "南京工业大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "njtech.js"
+    import_url: "https://jwgl.njtech.edu.cn/xtgl/login_slogin.html"
+    maintainer: "星河欲转"
+    description: "南京工业大学正方教务,非本校开发者适配如果有误建议提交issues"

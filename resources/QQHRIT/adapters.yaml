@@ -1,0 +1,9 @@
+# resources/QQHRIT/adapters.yaml
+adapters:
+  - adapter_id: "QQHRIT"
+    adapter_name: "齐齐哈尔工程学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "qqhrit.js"
+    import_url: "http://tysf.qqhrit.com:20261/cas/login"
+    maintainer: "星河欲转"
+    description: "齐齐哈尔工程学院正方教务，进入教务系统再点击导入，已添加特殊时间方案，非本校开发者适配如果有误建议提交issues"

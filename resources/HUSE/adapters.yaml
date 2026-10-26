@@ -1,0 +1,9 @@
+# resources/HUSE/adapters.yaml
+adapters:
+  - adapter_id: "HUSE"
+    adapter_name: "湖南科技学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "HUSE.js"
+    import_url: "http://jw.huse.cn/jsxsd"
+    maintainer: "KevinZ"
+    description: "湖南科技学院适配教务,如有错误请联系作者QQ:2865467965"

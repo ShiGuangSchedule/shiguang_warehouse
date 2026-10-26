@@ -1,0 +1,9 @@
+# resources/ZJUT/adapters.yaml
+adapters:
+  - adapter_id: "ZJUT_01"
+    adapter_name: "浙江工业大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zjut_01.js"
+    import_url: "http://www.gdjw.zjut.edu.cn/jwglxt/xtgl/login_slogin.html?kickout=1"
+    maintainer: "glxgo"
+    description: "浙江工业大学教务,登录后需要进入教务系统才可以点击导入,非本校开发者适配如果有误建议提交issues"

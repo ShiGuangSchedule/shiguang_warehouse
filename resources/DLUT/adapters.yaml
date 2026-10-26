@@ -1,0 +1,9 @@
+# resources/DLUT/adapters.yaml
+adapters:
+  - adapter_id: "DLUT_01"
+    adapter_name: "大连理工大学本科教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "dlut_01.js"
+    import_url: "http://jxgl.dlut.edu.cn/student/for-std/course-table"
+    maintainer: "dffzcqs78694"
+    description: "登录统一身份认证后自动跳转到课表页面。\n支持自动选择学期、导入课程与作息时间、自动配置开学日期。"

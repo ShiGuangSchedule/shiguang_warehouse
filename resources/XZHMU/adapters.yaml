@@ -1,0 +1,9 @@
+# resources/XZHMU/adapters.yaml
+adapters:
+  - adapter_id: "XZHMU_01"
+    adapter_name: "徐州医科大学研究生教务"
+    category: "POSTGRADUATE"
+    asset_js_path: "xzhmu_01.js"
+    import_url: "https://authserver.xzhmu.edu.cn/authserver/login?service=https%3A%2F%2Fehall.xzhmu.edu.cn%2Flogin"
+    maintainer: "星河欲转"
+    description: "徐州医科大学研究生教务，切换到个人课表页面点击执行导入，非本校开发者适配如果有误建议提交issues"

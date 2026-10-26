@@ -1,0 +1,9 @@
+# resources/HNIU/adapters.yaml
+adapters:
+  - adapter_id: "HNIU_01"
+    adapter_name: "湖南信息职业技术学院强智适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hniu_01.js"
+    import_url: "https://authserver.hniu.cn/authserver/login?service=https%3A%2F%2Fehall.hniu.cn%3A443%2Flogin%3Fservice%3Dhttps%3A%2F%2Fehall.hniu.cn%2Fnew%2Findex.html%3Fbrowser%3Dno%25EF%25BC%2589#StudentAffairsA"
+    maintainer: "星河欲转"
+    description: "湖南信息职业技术学院强智适配，登录后需要点击进入教务系统才可以点开始导入，非本校开发者适配如果有误建议提交issues"

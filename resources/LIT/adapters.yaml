@@ -1,0 +1,9 @@
+# resources/LIT/adapters.yaml
+adapters:
+  - adapter_id: "LIT_01"
+    adapter_name: "洛阳理工学院乘方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "lit_01.js"
+    import_url: "https://lljw.lit.edu.cn/"
+    maintainer: "小漫君"
+    description: "洛阳理工学院乘方教务适配，请先登录教务系统后再执行导入"

@@ -1,0 +1,9 @@
+# resources/QDHHC/adapters.yaml
+adapters:
+  - adapter_id: "QDHHC"
+    adapter_name: "青岛黄海学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "qdhhc.js"
+    import_url: "http://jwxt.qdhhc.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "星河欲转"
+    description: "青岛黄海学院正方教务,非本校开发者适配如果有误建议提交issues"

@@ -1,0 +1,9 @@
+# resources/DZU/adapters.yaml
+adapters:
+  - adapter_id: "DZU_01" # id加上序号
+    adapter_name: "德州学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "dzu_deep.js" #相对路径
+    import_url: "http://211.64.47.165/jwglxt/xtgl/login_slogin.html"
+    maintainer: "yvmu"
+    description: "登录后在任意页面点击执行导入，自动读取学年学期与开学日期，并写入德州学院作息时间"

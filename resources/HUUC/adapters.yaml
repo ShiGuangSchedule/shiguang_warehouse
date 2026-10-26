@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HUUC_01"
+    adapter_name: "河南城建学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "huuc_01.js"
+    import_url: "http://jwglxt.huuc.edu.cn:8061/admin/login"
+    maintainer: "拉里"
+    description: "河南城建学院本科超星教务适配。登录并打开个人课表后执行，支持选择学期和校区；尝试读取作息时间与开学日期。"

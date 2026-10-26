@@ -1,0 +1,9 @@
+# resources/YZU/adapters.yaml
+adapters:
+  - adapter_id: "YZU_01"
+    adapter_name: "扬州大学URP教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "yzu.js"
+    import_url: "https://webvpn.yzu.edu.cn/login"
+    maintainer: "Thanatos"
+    description: "扬州大学URP教务适配,通过网瑞达WebVPN访问,登录后需进入PC端教务系统「选课管理」页面,选择历年学期课表,再点击导入."

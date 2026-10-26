@@ -1,0 +1,9 @@
+# resources\YIBINU\adapters.yaml
+adapters:
+  - adapter_id: "YIBINU_01"
+    adapter_name: "宜宾学院教务系统适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "yibinu_01.js"
+    import_url: "https://authserver.yibinu.edu.cn/authserver/login?service=https://ehall.yibinu.edu.cn:443/login?service=https://ehall.yibinu.edu.cn/new/index.html"
+    maintainer: "空灵"
+    description: "适配宜宾学院教务，登录智慧校园后就可以执行导入，由于网站限制，需要执行2次导入才能导入包含理论和实验的完整课表，所以请仔细阅读操作提醒！！"

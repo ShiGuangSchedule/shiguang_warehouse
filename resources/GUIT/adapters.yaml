@@ -1,0 +1,9 @@
+# resources/GUIT/adapters.yaml
+adapters:
+  - adapter_id: "GUIT_01"
+    adapter_name: "桂林信息科技学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "guit_01.js"
+    import_url: "https://172-16-18-132.webvpn.guit.edu.cn"
+    maintainer: "Mercury"
+    description: "桂林信息科技学院适配教务"

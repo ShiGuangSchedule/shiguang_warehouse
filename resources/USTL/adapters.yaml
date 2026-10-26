@@ -1,0 +1,9 @@
+# resources/GDUST/adapters.yaml
+adapters:
+  - adapter_id: "USTL"
+    adapter_name: "辽宁科技大学综合教务管理系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ustl.js"
+    import_url: "https://ustl.jw.chaoxing.com/admin/login"
+    maintainer: "Cure"
+    description: "辽宁科技大学适配教务, 登陆后点击【信息查询】, 再点击【我的课表】, 最后点击【执行导入】即可,本校毕业生适配, 如果有误建议提交issues"

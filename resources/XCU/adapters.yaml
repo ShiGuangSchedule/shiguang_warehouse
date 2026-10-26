@@ -1,0 +1,9 @@
+adapters:
+  - adapter_id: "XCU_01"
+    adapter_name: "许昌学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xcu_01.js"
+    import_url: "https://jwglxt.xcu.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "拉里"
+    description: "登录教务系统后开始导入，确认默认学期即可导入，也可更换学年、学期。自动获取课程和作息，并尝试获取开学日期及学期总周数；未排定时间或解析异常的课程会提示，请核对后保存。"
+

@@ -1,0 +1,9 @@
+# resources/GXDLXY/adapters.yaml
+adapters:
+  - adapter_id: "GXDLXY_01"
+    adapter_name: "广西电力职业技术学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gxdlxy_01.js"
+    import_url: "https://jw.gxdlxy.com/jsxsd/framework/xsMain.jsp"
+    maintainer: "星河欲转"
+    description: "广西电力职业技术学院强智教务,非本校开发者适配如果有误建议提交issues"

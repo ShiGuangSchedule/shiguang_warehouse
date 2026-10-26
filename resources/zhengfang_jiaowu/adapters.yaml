@@ -1,0 +1,9 @@
+# resources/zhengfang_jiaowu/adapters.yaml
+adapters:
+  - adapter_id: "zhengfang_01"
+    adapter_name: "正方教务html通用获取"
+    category: "GENERAL_TOOL"
+    asset_js_path: "zhengfang_01.js"
+    import_url: ""
+    maintainer: "星河欲转"
+    description: "输入教务网址，登录，切换到个人课表页面点击执行导入"

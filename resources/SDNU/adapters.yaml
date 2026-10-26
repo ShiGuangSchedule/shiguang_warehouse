@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SDNU"
+    adapter_name: "山东师范大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sdnu.js"
+    import_url: "http://jwxt.sdnu.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "LiquoriceHy"
+    description: "山东师范大学教务系统适配"

@@ -1,0 +1,9 @@
+# resources/JXUST/adapters.yaml
+adapters:
+  - adapter_id: "JXUST"
+    adapter_name: "江西理工大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jxust.js"
+    import_url: "https://authserver.jxust.edu.cn/authserver/login?service=https://jw.jxust.edu.cn/jsxsd/"
+    maintainer: "星河欲转"
+    description: "江西理工大学强智教务适配\n非本校开发者适配,如果有误建议提交issues"

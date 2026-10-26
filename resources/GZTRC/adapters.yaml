@@ -1,0 +1,16 @@
+# resources/GZTRC/adapters.yaml
+adapters:
+  - adapter_id: "GZTRC"
+    adapter_name: "铜仁学院联奕教务（新版教务）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gztrc.js"
+    import_url: "https://gztrc.edu.cn:17232/"
+    maintainer: "Daoguan-king"
+    description: "由于教务系统未适配手机端，须在右上角选择\"切换到电脑模式\"，然后点击\"刷新\"，正常登录后点击下方\"执行导入\"按钮进行导入。"
+  - adapter_id: "GZTRC_OLD"
+    adapter_name: "铜仁学院移动教务（旧版教务）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gztrc_old.js"
+    import_url: "https://gztrc.edu.cn:17230/yjw/pages/login/login.html"
+    maintainer: "Daoguan-king"
+    description: "此教务系统适配手机端，请在教务系统中正常登录并进入主页后，点击教务系统下方\"快捷查询->课程表\"页面后再电击\"执行导入\"按钮进行导入。由于学校太懒，校历数据未配置，导入后需在软件中手动设置开学日期。"

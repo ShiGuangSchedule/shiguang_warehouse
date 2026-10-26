@@ -1,0 +1,9 @@
+# resources/ZCMU/adapters.yaml
+adapters:
+  - adapter_id: "ZCMU"
+    adapter_name: "浙江中医药大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zcmu.js"
+    import_url: "https://jwmk.zcmu.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "Daoguan-king"
+    description: "登录浙江中医药大学教务系统后需要进入“信息查询”的“个人课表查询”页面再点击导入。\n滨文校区和富春校区两个校区的时间安排不一致，请在导入课程表前选择对应的校区。\n这是通过滨文校区的教务数据开发的，不确定富春校区是否支持。\n特别感谢滨文校区生命科学学院杰哥的帮助，他在我的软磨硬泡下提供了学号和密码。\n非本校开发者适配如果有误建议提交issues"

@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "XJTU_01"
+    adapter_name: "西安交通大学-本科教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xjtu.js"
+    import_url: "https://ehall.xjtu.edu.cn"
+    maintainer: "SDPD, TiaoFeng"
+    description: "适配西安交通大学教务系统(wdkb)本科课表导入"

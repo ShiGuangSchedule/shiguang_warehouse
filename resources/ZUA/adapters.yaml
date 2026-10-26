@@ -1,0 +1,9 @@
+# resources/ZUA/adapters.yaml
+adapters:
+  - adapter_id: "ZUA_01"
+    adapter_name: "郑州航空工业管理学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zua.js"
+    import_url: "http://jwglxt.zua.edu.cn/eams/loginExt.action"
+    maintainer: "xBefore"
+    description: "郑州航空工业管理学院树维 EAMS 教务课表导入。请在右上角切换为电脑版后登录教务；若页面显示异常，请手动刷新。登录成功后即可执行导入，无需进入“我的课表”等具体课程页面。支持自动同步学期日期与学校标准作息。"

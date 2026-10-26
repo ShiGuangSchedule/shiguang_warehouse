@@ -1,0 +1,9 @@
+# resources/SYIST/adapters.yaml
+adapters:
+  - adapter_id: "SYIST_01"
+    adapter_name: "沈阳科技学院金智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "syist_01.js"
+    import_url: "http://jwxt.syist.edu.cn:30334/jwapp/sys/emaphome/portal/index.do"
+    maintainer: "星河欲转"
+    description: "沈阳科技学院金智教务，支持自动获取开学日期，非本校开发者适配如果有误建议提交issues"

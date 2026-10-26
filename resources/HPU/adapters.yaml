@@ -1,0 +1,9 @@
+# resources/HPU/adapters.yaml
+adapters:
+  - adapter_id: "HPU_01"
+    adapter_name: "河南理工大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hpu.js"
+    import_url: "https://zhjw.hpu.edu.cn/eams/login.action"
+    maintainer: "ca1q1an"
+    description: "河南理工大学树维教务系统(eams架构)，统一身份认证CAS登录\n导入后请在App中设置本学期开学日期"

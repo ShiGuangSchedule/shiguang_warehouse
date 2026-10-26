@@ -1,0 +1,9 @@
+# resources/GXMU/adapters.yaml
+adapters:
+  - adapter_id: "GXMU_01"
+    adapter_name: "广西医科大学智慧教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gxmu.js"
+    import_url: "https://cas.gxmu.edu.cn/lyuapServer/login"
+    maintainer: "Haooz"
+    description: "广西医科大学智慧教务系统课表导入，登录门户站点以后，进入教务系统，直接点击导入即可"

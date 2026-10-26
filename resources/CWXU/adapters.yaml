@@ -1,0 +1,9 @@
+# resources/CWXU/adapters.yaml
+adapters:
+  - adapter_id: "CWXU_01"
+    adapter_name: "无锡学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cwxu_01.js"
+    import_url: "https://jwgl.cwxu.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "ewiro"
+    description: "无锡学院正方教务系统适配，登录后选择学年和学期即可通过教务接口导入课表。"

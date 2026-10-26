@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HNPTC_01"
+    adapter_name: "湘邮教学管理平台"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hnptc_01.js"
+    import_url: "http://jx.hnxyjf.com:10081/jsxsd/"
+    maintainer: "小漫君"
+    description: "登录湘邮教学管理平台学生端后选择学期导入，读取整学期课表与教学周历。作息时间参考学校 2025-2026 学年校历，请按最新安排核对。"

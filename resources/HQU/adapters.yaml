@@ -1,0 +1,9 @@
+# resources/CUST/adapters.yaml
+adapters:
+  - adapter_id: "HQU"
+    adapter_name: "华侨大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hquadap.js"
+    import_url: "https://atrust.hqu.edu.cn/portal/?redirectid=0.6668972084789097#/login"
+    maintainer: "Xuan-Xuann"
+    description: "适配华侨大学。登录成功后选择个人课表查询，进入后等待加载完毕即可导入。"

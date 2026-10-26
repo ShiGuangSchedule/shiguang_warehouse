@@ -1,0 +1,9 @@
+# resources/CTGU/adapters.yaml
+adapters:
+  - adapter_id: "CTGU"
+    adapter_name: "三峡大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ctgu.js"
+    import_url: "http://jwxt.ctgu.edu.cn/jwapp/sys/yjsrzfwapp/dbLogin/main.do"
+    maintainer: "星河欲转"
+    description: "点击统一身份认证登录,\n由于存在作用域问题,登录后需要点击课程表跳转课表页面才能让一键导入课表使用,\n非本校开发者适配如果有误建议提交issues"

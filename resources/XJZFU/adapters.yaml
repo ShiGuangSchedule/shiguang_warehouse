@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "XJZFU_01"
+    adapter_name: "新疆政法学院新教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xjzfu.js"
+    import_url: "https://jwxt.xjzfu.edu.cn/jwapp/sys/homeapp/home/index.html"
+    maintainer: "jesse-s4"
+    description: "适配新疆政法学院金智教务系统 2026.07.20"

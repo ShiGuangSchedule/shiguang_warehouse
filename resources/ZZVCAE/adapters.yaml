@@ -1,0 +1,12 @@
+# resources/zzvcae/adapters.yaml
+# 郑州汽车工程职业学院 拾光课程表适配
+# 教务平台：树维 EAMS（与郑州航空工业管理学院同平台）
+# 适配脚本：zzvcae.js
+adapters:
+  - adapter_id: "zzvcae_01"
+    adapter_name: "郑州汽车工程职业学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zzvcae.js"
+    import_url: "https://cas.zzvcae.edu.cn/cas/login"
+    maintainer: "Gr11nJ"
+    description: "郑州汽车工程职业学院树维 EAMS 教务课表一键导入。本教务禁止从 jw.zzvcae.edu.cn 直接登录，请先在统一身份认证（CAS）页面登录，随后在【服务大厅】→【学生课表查询】打开过课表页面后，点击执行导入。自动同步课程、作息与学期日期（学期日期获取失败时会提示手动输入开学日期）。"

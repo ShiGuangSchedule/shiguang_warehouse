@@ -1,0 +1,9 @@
+# resources/TONGJI/adapters.yaml
+adapters:
+  - adapter_id: "TONGJI_01"
+    adapter_name: "同济大学 1 系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "tongji_01.js"
+    import_url: "https://1.tongji.edu.cn/"
+    maintainer: "Linho1219"
+    description: "同济大学教学信息管理一体化系统（1 系统）适配。无需进入课表页面，统一认证登录完成进入 1 系统后即可提取"

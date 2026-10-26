@@ -1,0 +1,9 @@
+# resources/CQUET/adapters.yaml
+adapters:
+  - adapter_id: "CQUET_01"
+    adapter_name: "强智"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cquet_01.js"
+    import_url: "https://cquet.edu.cn/"
+    maintainer: "Mutx666"
+    description: ""

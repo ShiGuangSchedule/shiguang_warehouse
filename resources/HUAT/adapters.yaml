@@ -1,0 +1,9 @@
+# resources/HUAT/adapters.yaml
+adapters:
+  - adapter_id: "HUAT"
+    adapter_name: "湖北汽车工业学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "HUAT.js"
+    import_url: "https://cas.huat.edu.cn/authserver/login?service=http%3A%2F%2Fneweas.huat.edu.cn%2Flogin"
+    maintainer: "老考滤一下"
+    description: "湖北汽车工业学院适配教务"

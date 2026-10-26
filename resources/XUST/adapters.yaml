@@ -1,0 +1,9 @@
+# resources/XUST/adapters.yaml
+adapters:
+  - adapter_id: "XUST_01"
+    adapter_name: "西安科技大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xust_01.js"
+    import_url: "http://jwsso.xust.edu.cn/frontend/center_portal/home/index.html#/"
+    maintainer: "星河欲转"
+    description: "西安科技大学正方教务，已适配西区差异时间，非本校开发者适配如果有误建议提交issues"

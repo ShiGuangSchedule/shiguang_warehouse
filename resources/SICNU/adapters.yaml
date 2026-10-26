@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SICNU_01"
+    adapter_name: "四川师范大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "school.js"
+    import_url: "http://202.115.194.60/"
+    maintainer: "llingqing"
+    description: "支持狮子山校区和成龙校区，自动识别学期和课程时间，另可从大学生通进入教务系统(https://zhxg.sicnu.edu.cn/edu/admin/)"

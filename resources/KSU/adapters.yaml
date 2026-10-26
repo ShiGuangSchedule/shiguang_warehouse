@@ -1,0 +1,9 @@
+# resources/KSU/adapters.yaml
+adapters:
+  - adapter_id: "KSU_01"
+    adapter_name: "喀什大学正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ksu_01.js"
+    import_url: "https://cas.ksu.edu.cn/cas/login?service=https://jwnet.ksu.edu.cn/sso/ddlogin"
+    maintainer: "星河欲转"
+    description: "喀什大学适配教务,非本校开发者适配如果有误建议提交issues"

@@ -1,0 +1,16 @@
+adapters:
+  - adapter_id: "HRBEU"
+    adapter_name: "哈尔滨工程大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hrbeu.js"
+    import_url: "https://jwgl.hrbeu.edu.cn/jwapp/sys/emaphome/portal/index.do"
+    maintainer: "penguinway"
+    description: "哈尔滨工程大学金智教务(EMAP)适配，需校园网或WebVPN访问。登录后，切换到课表页面，点击导入即可。"
+
+  - adapter_id: "HRBEU_YJS"
+    adapter_name: "哈尔滨工程大学研究生系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "hrbeu_yjs.js"
+    import_url: "https://yjs.hrbeu.edu.cn/"
+    maintainer: "penguinway"
+    description: "哈尔滨工程大学研究生教育管理系统适配。登录后进入课表查询页面，等待课表加载完成后点击导入。"

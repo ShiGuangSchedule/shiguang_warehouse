@@ -1,0 +1,9 @@
+# resources/HBGUHX/adapters.yaml
+adapters:
+  - adapter_id: "HBGUHX"
+    adapter_name: "河北地质大学华信学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hbguhx_01.js"
+    import_url: "http://61.182.88.214:8090"
+    maintainer: "未来之乡"
+    description: "河北地质大学华信学院强智教务,本校25届开发者适配如果有误请联系4831884790@qq.com"

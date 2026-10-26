@@ -1,0 +1,9 @@
+# resources/CUST/adapters.yaml
+adapters:
+  - adapter_id: "CQU"
+    adapter_name: "重庆大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqu.js"
+    import_url: "https://my.cqu.edu.cn/"
+    maintainer: "茵符草"
+    description: "适配重庆大学智慧教务系统"

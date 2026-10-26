@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["adapters"],
+  "properties": {
+    "adapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["adapter_id", "adapter_name", "category", "asset_js_path", "maintainer", "description"],
+        "properties": {
+          "adapter_id": { "type": "string", "description": "唯一标识，建议格式：学校ID_序号" },
+          "adapter_name": { "type": "string", "description": "适配器中文名称" },
+          "category": {
+            "type": "string",
+            "enum": ["BACHELOR_AND_ASSOCIATE", "POSTGRADUATE", "GENERAL_TOOL"],
+            "description": "分类：本科/专科、研究生、通用工具"
+          },
+          "asset_js_path": { "type": "string", "description": "适配脚本相对路径（如 school.js）" },
+          "import_url": { "type": "string", "description": "系统登录URL（教务系统必填）" },
+          "maintainer": { "type": "string", "description": "维护者 GitHub 用户名或姓名" },
+          "description": { "type": "string", "description": "简要说明" }
+        }
+      }
+    }
+  }
+}

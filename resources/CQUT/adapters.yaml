@@ -1,0 +1,9 @@
+# resources/CQUT/adapters.yaml
+adapters:
+  - adapter_id: "CQUT"
+    adapter_name: "重庆理工大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cqut_01.js"
+    import_url: "https://timetable-cfc.cqut.edu.cn/"
+    maintainer: "Dawn Drizzle"
+    description: "适配重庆理工大学教务系统"

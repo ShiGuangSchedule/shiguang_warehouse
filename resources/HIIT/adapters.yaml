@@ -1,0 +1,9 @@
+# resources/HIIT/adapters.yaml
+adapters:
+  - adapter_id: "HIIT_01"
+    adapter_name: "河南信息科技学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hiit_01.js"
+    import_url: "http://39.164.230.243:9527/#/authserver/login?redirect_uri=aHR0cDovLzM5LjE2NC4yMzAuMjQzOjkxL2VhbXMvbG9naW4uYWN0aW9u"
+    maintainer: "Mercury"
+    description: "河南信息科技学院适配教务。登陆后点击导入即可，无视界面异常显示问题。"

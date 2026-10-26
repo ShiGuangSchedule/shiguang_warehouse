@@ -1,0 +1,9 @@
+# resources/AHSZU/adapters.yaml
+adapters:
+  - adapter_id: "AHSZU_01"
+    adapter_name: "宿州学院青果教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ahszu_01.js"
+    import_url: "http://211.86.128.194/suzxyjw/cas/login.action"
+    maintainer: "星河欲转"
+    description: "宿州学院青果教务适配,非本校开发者适配如果有误建议提交issues"
