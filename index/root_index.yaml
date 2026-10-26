@@ -1347,4 +1347,9 @@ schools:
     name: "南方医科大学"
     initial: "N"
     resource_folder: "SMU"
+
+  - id: "JNGCXY"
+    name: "济南工程职业技术学院"
+    initial: "J"
+    resource_folder: "JNGCXY"
     
