@@ -1342,4 +1342,8 @@ schools:
     name: "西安石油大学"
     initial: "X"
     resource_folder: "XSYU"
-    
+
+  - id: "JNGCXY"
+    name: "济南工程职业技术学院"
+    initial: "J"
+    resource_folder: "JNGCXY"
