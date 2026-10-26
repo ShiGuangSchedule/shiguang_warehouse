@@ -1343,3 +1343,8 @@ schools:
     initial: "X"
     resource_folder: "XSYU"
     
+  - id: "SMU"
+    name: "南方医科大学"
+    initial: "N"
+    resource_folder: "SMU"
+    
