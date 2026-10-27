@@ -3,6 +3,6 @@ adapters:
   adapter_name: 华北电力大学（保定）教务系统
   category: BACHELOR_AND_ASSOCIATE
   asset_js_path: ncepu_baoding.js
-  import_url: https://ids.ncepu.edu.cn/?timestamp=1793009307516&service=https%3A%2F%2Fjwxt.ncepu.edu.cn%2FLogon.do%3Fmethod%3DlogonByHbdldx
+  import_url: https://jwxt.ncepu.edu.cn/
   maintainer: Wisabel2025
   description: 适配华北电力大学（保定）教务系统，需校园网或WebVPN访问。登陆后切换到课表页面，点击导入即可。
