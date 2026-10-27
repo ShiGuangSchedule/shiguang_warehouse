@@ -1352,4 +1352,8 @@ schools:
     name: "济南工程职业技术学院"
     initial: "J"
     resource_folder: "JNGCXY"
-    
+
+  - id: NCEPU_BAODING
+    name: 华北电力大学（保定）
+    initial: H
+    resource_folder: NCEPU_BAODING
