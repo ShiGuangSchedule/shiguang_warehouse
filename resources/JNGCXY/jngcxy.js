@@ -2,7 +2,7 @@
 // 维护者：西郊有密林(@xianzhaowang0-code)
 //
 // 教务入口 vpnxt.jngcxy.edu.cn 位于学校深信服 aTrust 网关之后，校外需先连接 aTrust 才能打开教务页面。
-// 登录教务后停在任意 /jwglxt/ 页面执行即可：脚本读取页面上的学年/学期选项供选择，
+// 登录教务后进入教务系统即可执行，不需要打开课表页面：脚本请求教务接口取得学年/学期选项供选择，
 // 再从 cxXsgrkb 取课表、cxRjc 取节次作息、cxZccx 取开学日期。
 
 const GNMKDM = "N2151";
@@ -190,7 +190,7 @@ function readOptions(doc, selector) {
     return options;
 }
 
-/** 课表查询页上的学年/学期下拉选项 */
+/** 课表查询页里的学年/学期选项（脚本自行请求该页面） */
 async function fetchAcademicOptions() {
     const response = await fetch(buildApiUrl("/kbcx/xskbcx_cxXskbcxIndex.html"), {
         method: "GET",
@@ -204,7 +204,7 @@ async function fetchAcademicOptions() {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const yearOptions = readOptions(doc, "#xnm");
     const termOptions = readOptions(doc, "#xqm");
-    if (!yearOptions.length || !termOptions.length) throw new Error("页面中没有学年/学期选项");
+    if (!yearOptions.length || !termOptions.length) throw new Error("未取到学年/学期选项");
     return { yearOptions: yearOptions, termOptions: termOptions };
 }
 
