@@ -9,6 +9,20 @@ const GNMKDM = "N2151";
 const JW_ORIGIN = "http://vpnxt.jngcxy.edu.cn";
 const MIN_TOTAL_WEEKS = 20;
 
+// 本校节次作息（10 节，含两节晚课），cxRjc 取不到时使用
+const DEFAULT_TIME_SLOTS = [
+    { number: 1, startTime: "08:30", endTime: "09:15" },
+    { number: 2, startTime: "09:20", endTime: "10:05" },
+    { number: 3, startTime: "10:20", endTime: "11:05" },
+    { number: 4, startTime: "11:10", endTime: "11:55" },
+    { number: 5, startTime: "13:30", endTime: "14:15" },
+    { number: 6, startTime: "14:20", endTime: "15:05" },
+    { number: 7, startTime: "15:15", endTime: "16:00" },
+    { number: 8, startTime: "16:05", endTime: "16:50" },
+    { number: 9, startTime: "19:00", endTime: "19:50" },
+    { number: 10, startTime: "20:00", endTime: "20:50" }
+];
+
 /* ==================== 工具 ==================== */
 
 // 页面自带的 zftal / jquery.extends.contact-min.js 改写了 Array.prototype 上的高阶方法
@@ -246,10 +260,16 @@ async function fetchStartDate(xnm, xqm) {
     return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
 }
 
-/** 本校真实节次作息 */
+/** 本校真实节次作息；取不到时由调用方回退到 DEFAULT_TIME_SLOTS */
 async function fetchTimeSlots(xnm, xqm) {
     const body = `xnm=${encodeURIComponent(xnm)}&xqm=${encodeURIComponent(xqm)}&kzlx=ck&xsdm=&kclbdm=&kclxdm=`;
-    const rows = toList(await postForm("/kbcx/xskbcx_cxRjc.html", body));
+    let rows;
+    try {
+        rows = toList(await postForm("/kbcx/xskbcx_cxRjc.html", body));
+    } catch (e) {
+        console.warn("JS: 读取节次作息失败：" + (e && e.message));
+        return [];
+    }
 
     const slots = [];
     for (let i = 0; i < rows.length; i++) {
@@ -261,7 +281,6 @@ async function fetchTimeSlots(xnm, xqm) {
         if (!(number > 0) || !startTime || !endTime) continue;
         slots.push({ number: number, startTime: startTime, endTime: endTime });
     }
-    if (!slots.length) throw new Error("未取到节次作息");
     return sortBy(slots, (slot) => slot.number);
 }
 
@@ -342,7 +361,11 @@ async function runImportFlow() {
 
         startDate = await fetchStartDate(selection.xnm, selection.xqm);
         slots = await fetchTimeSlots(selection.xnm, selection.xqm);
-        if (slots.length < 2) throw new Error("节次作息不足两项");
+        if (slots.length < 2) {
+            slots = DEFAULT_TIME_SLOTS;
+            console.warn("JS: 未取到节次作息，使用内置的本校作息");
+            window.shiguangBridge.showToast("未取到真实作息，改用内置的本校作息。");
+        }
 
         const qsxqj = Number(json.qsxqj);
         firstDayOfWeek = (qsxqj >= 1 && qsxqj <= 7) ? qsxqj : 1;
