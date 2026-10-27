@@ -1,8 +1,8 @@
 adapters:
-- adapter_id: NCEPU_BAODING_PORTAL
-  adapter_name: 华北电力大学（保定）教务系统
-  category: BACHELOR_AND_ASSOCIATE
-  asset_js_path: BDNCEPU.js
-  import_url: https://jwxt.ncepu.edu.cn/
+- adapter_id: "NCEPU_BAODING_PORTAL"
+  adapter_name: "华北电力大学（保定）教务系统"
+  category: "BACHELOR_AND_ASSOCIATE"
+  asset_js_path: "BDNCEPU.js"
+  import_url: "https://jwxt.ncepu.edu.cn/"
   maintainer: "星河欲转"
   description: "适配华北电力大学（保定）教务系统，需校园网或WebVPN访问。登陆后切换到课表页面，点击导入即可。"
