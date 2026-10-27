@@ -1,15 +1,10 @@
 // 济南工程职业技术学院 — 正方新一代教务（jwglxt）
 // 维护者：西郊有密林(@xianzhaowang0-code)
-//
-// 教务入口 vpnxt.jngcxy.edu.cn 位于学校深信服 aTrust 网关之后，校外需先连接 aTrust 才能打开教务页面。
-// 登录教务后进入教务系统即可执行，不需要打开课表页面：脚本请求教务接口取得学年/学期选项供选择，
-// 再从 cxXsgrkb 取课表、cxRjc 取节次作息、cxZccx 取开学日期。
 
 const GNMKDM = "N2151";
 const JW_ORIGIN = "http://vpnxt.jngcxy.edu.cn";
 const MIN_TOTAL_WEEKS = 20;
 
-// 本校节次作息（10 节，含两节晚课），cxRjc 取不到时使用
 const DEFAULT_TIME_SLOTS = [
     { number: 1, startTime: "08:30", endTime: "09:15" },
     { number: 2, startTime: "09:20", endTime: "10:05" },
@@ -23,10 +18,7 @@ const DEFAULT_TIME_SLOTS = [
     { number: 10, startTime: "20:00", endTime: "20:50" }
 ];
 
-/* ==================== 工具 ==================== */
-
-// 页面自带的 zftal / jquery.extends.contact-min.js 改写了 Array.prototype 上的高阶方法
-// （回调第一个实参变成数组下标），所以遍历与排序一律用显式循环。
+// 教务页面自带的 zftal 会改写 Array.prototype 上的高阶方法，遍历与排序一律用显式循环
 
 function sortBy(list, key) {
     const out = [];
@@ -44,13 +36,11 @@ function sortBy(list, key) {
     return out;
 }
 
-/** 接口结果可能直接是数组，也可能包在 data/rows 里 */
 function toList(data) {
     if (Array.isArray(data)) return data;
     return (data && (data.data || data.rows)) || [];
 }
 
-/** 接口地址；经 aTrust/WebVPN 访问时保留 /http/<hex> 路径前缀 */
 function buildApiUrl(modulePath) {
     const path = String(window.location.pathname || "");
     const prefix = (path.match(/^\/(?:https?|webvpn)\/[0-9a-z]+/i) || [""])[0];
@@ -58,7 +48,6 @@ function buildApiUrl(modulePath) {
     return origin + prefix + "/jwglxt" + modulePath + "?gnmkdm=" + GNMKDM;
 }
 
-/** POST 表单并解析 JSON；会话失效时正方返回登录页 HTML，统一抛 SESSION_LOST */
 async function postForm(modulePath, body) {
     const response = await fetch(buildApiUrl(modulePath), {
         method: "POST",
@@ -75,16 +64,12 @@ async function postForm(modulePath, body) {
     return JSON.parse(text);
 }
 
-/** 页面是否还停在金智统一认证 */
 function isOnSsoPage() {
     const host = String(window.location.hostname || "");
     const path = String(window.location.pathname || "");
     return /^uap\./i.test(host) || /\/authserver\//i.test(path) || /\/lyuapServer\//i.test(path);
 }
 
-/* ==================== 解析 ==================== */
-
-/** "1-16周" / "1-16周(单)" / "2-4周,9-13周,16周" -> [1,2,…] */
 function parseWeeks(text) {
     const weeks = new Set();
     const parts = String(text || "")
@@ -114,7 +99,6 @@ function parseWeeks(text) {
     return sortBy(Array.from(weeks), (week) => week);
 }
 
-/** "1-2" / "3-4节" -> [1,2]；多段时取最小与最大节次 */
 function parseSections(text) {
     const nums = String(text || "").match(/\d+/g);
     if (!nums) return null;
@@ -129,7 +113,6 @@ function parseSections(text) {
     return start ? [start, end] : null;
 }
 
-/** kbList -> 课程数组（字段见 scripts/types/shiguang-bridge.d.ts） */
 function parseKbList(json) {
     const rows = (json && json.kbList) || [];
     const courses = [];
@@ -143,7 +126,6 @@ function parseKbList(json) {
         const weeks = parseWeeks(row.zcd);
         const sections = parseSections(row.jcs);
 
-        // 集中实践课等没有星期/节次，无法排入课表
         if (!name || !(day >= 1 && day <= 7) || !weeks.length || !sections) {
             skipped++;
             continue;
@@ -172,8 +154,6 @@ function parseKbList(json) {
     return sorted;
 }
 
-/* ==================== 接口 ==================== */
-
 function readOptions(doc, selector) {
     const nodes = doc.querySelectorAll(selector + " option");
     const options = [];
@@ -190,7 +170,6 @@ function readOptions(doc, selector) {
     return options;
 }
 
-/** 课表查询页里的学年/学期选项（脚本自行请求该页面） */
 async function fetchAcademicOptions() {
     const response = await fetch(buildApiUrl("/kbcx/xskbcx_cxXskbcxIndex.html"), {
         method: "GET",
@@ -245,7 +224,6 @@ async function fetchCourseTable(xnm, xqm) {
     return postForm("/kbcx/xskbcx_cxXsgrkb.html", body);
 }
 
-/** 所选学期第 1 周的日期 */
 async function fetchStartDate(xnm, xqm) {
     const body = `xnm=${encodeURIComponent(xnm)}&xqm=${encodeURIComponent(xqm)}`;
     const rows = toList(await postForm("/kbcx/xskbcxZccx_cxZcByXnxq.html", body));
@@ -260,7 +238,6 @@ async function fetchStartDate(xnm, xqm) {
     return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
 }
 
-/** 本校真实节次作息；取不到时由调用方回退到 DEFAULT_TIME_SLOTS */
 async function fetchTimeSlots(xnm, xqm) {
     const body = `xnm=${encodeURIComponent(xnm)}&xqm=${encodeURIComponent(xqm)}&kzlx=ck&xsdm=&kclbdm=&kclxdm=`;
     let rows;
@@ -283,8 +260,6 @@ async function fetchTimeSlots(xnm, xqm) {
     }
     return sortBy(slots, (slot) => slot.number);
 }
-
-/* ==================== 主流程 ==================== */
 
 function toMinutes(time) {
     const match = String(time || "").match(/(\d{1,2}):(\d{2})/);
