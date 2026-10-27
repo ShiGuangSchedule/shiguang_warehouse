@@ -188,7 +188,14 @@
   }
 
   function inspectTimetablePage(doc) {
+    const topDocument = doc;
+    try {
+      doc = findTimetableDocument(topDocument);
+    } catch (_) {
+      // Retain top-page counts when no supported timetable can be selected.
+    }
     return {
+      inFrame: doc !== topDocument,
       trustedSchoolPage: isSchoolUrl(doc.location?.href),
       kbtable: doc.querySelectorAll("table#kbtable").length,
       timetable: doc.querySelectorAll("table#timetable").length,
