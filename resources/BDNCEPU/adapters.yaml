@@ -3,7 +3,7 @@ adapters:
   - adapter_id: "BDNCEPU_01"
     adapter_name: "华北电力大学（保定）强智教务"
     category: "BACHELOR_AND_ASSOCIATE"
-    asset_js_path: "bdncepu_01.js"
+    asset_js_path: "BDNCEPU.js"
     import_url: "https://jwxt.ncepu.edu.cn/jsxsd/"
     maintainer: "星河欲转"
     description: "华北电力大学（保定）强智教务系统，需校园网或WebVPN访问。登录后进入教务系统，点击开始导入，输入开学日期即可。"
