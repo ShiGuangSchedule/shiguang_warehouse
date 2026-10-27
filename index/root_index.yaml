@@ -1353,7 +1353,7 @@ schools:
     initial: "J"
     resource_folder: "JNGCXY"
 
-  - id: BDNCEPU
-    name: 华北电力大学（保定）
-    initial: H
-    resource_folder: BDNCEPU
+  - id: "BDNCEPU"
+    name: "华北电力大学（保定）"
+    initial: "H"
+    resource_folder: "BDNCEPU"
