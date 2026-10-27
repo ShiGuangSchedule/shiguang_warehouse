@@ -4,9 +4,7 @@ adapters:
     adapter_name: "济南工程职业技术学院正方教务"
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "jngcxy.js"
-    # 正方教务登录页：未登录会跳转金智统一认证(uap.jngcxy.edu.cn)，登录成功后回到教务首页。
-    # 入口 vpnxt.jngcxy.edu.cn 位于学校深信服 aTrust 零信任网关之后，校外必须先连接学校 aTrust 客户端。
+    # 正方登录页，未登录会跳转金智统一认证；入口在学校 aTrust 网关之后，校外需先连接 aTrust
     import_url: "http://vpnxt.jngcxy.edu.cn/jwglxt/xtgl/login_slogin.html"
-    # 维护者信息：姓名 Github@用户名，会随索引下发给所有用户
     maintainer: "西郊有密林 Github@xianzhaowang0-code"
-    description: "济南工程职业技术学院正方新一代教务(jwglxt)导入，自动读取学年/学期下拉选项、拉取个人课表、写入真实节次作息与开学日期。校外访问需先连接学校 aTrust 客户端。非本校开发者适配，问题请提 Issue。"
+    description: "济南工程职业技术学院正方新一代教务(jwglxt)导入：自动读取页面上的学年/学期选项，拉取个人课表，并写入真实节次作息与开学日期。校外访问需先连接学校 aTrust 客户端。"
