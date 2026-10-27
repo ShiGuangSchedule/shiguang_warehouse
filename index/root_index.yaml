@@ -1352,4 +1352,8 @@ schools:
     name: "济南工程职业技术学院"
     initial: "J"
     resource_folder: "JNGCXY"
-    
+
+  - id: "ZSC"
+    name: "电子科技大学中山学院"
+    initial: "Z"
+    resource_folder: "ZSC"

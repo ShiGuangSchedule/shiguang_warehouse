@@ -18,7 +18,6 @@ const DEFAULT_TIME_SLOTS = [
     { number: 10, startTime: "20:00", endTime: "20:50" }
 ];
 
-// 教务页面自带的 zftal 会改写 Array.prototype 上的高阶方法，遍历与排序一律用显式循环
 
 function sortBy(list, key) {
     const out = [];
@@ -289,8 +288,8 @@ async function runImportFlow() {
     if (isOnSsoPage()) {
         await bridge.showAlert(
             "还停在统一认证页",
-            "当前页面是统一认证，请先完成登录，再从门户进入「教务系统」，" +
-            "等地址栏变成 vpnxt.jngcxy.edu.cn/jwglxt/... 之后再执行导入。",
+            "当前页面是统一认证或门户，请先完成登录，并进入「教务系统」，" +
+            "等地址栏变成教务系统的 /jwglxt/ 页面之后再执行导入。",
             "知道了"
         );
         return;
