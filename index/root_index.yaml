@@ -1353,7 +1353,7 @@ schools:
     initial: "J"
     resource_folder: "JNGCXY"
 
-  - id: NCEPU_BAODING
+  - id: BDNCEPU
     name: 华北电力大学（保定）
     initial: H
     resource_folder: NCEPU_BAODING
