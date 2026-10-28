@@ -1,0 +1,9 @@
+# resources/ZSC/adapters.yaml
+adapters:
+  - adapter_id: "ZSC_01"
+    adapter_name: "电子科技大学中山学院强智教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zsc_01.js"
+    import_url: "https://jwgln.zsc.edu.cn/jsxsd/"
+    maintainer: "Lanjunyee"
+    description: "电子科技大学中山学院强智教务系统适配，支持学期理论课表导入；登录教务系统后点击开始导入，按提示选择学期即可"
