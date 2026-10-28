@@ -48,7 +48,9 @@ function parseWeeks(weekStr) {
 }
 
 /**
- * 合并去重课程
+ * 节次与周次合并去重函数
+ * @param {Array<Object>} courses 原始解析课程数组
+ * @returns {Array<Object>} 合并去重后的课程数组
  */
 function mergeAndDistinctCourses(courses) {
   if (!Array.isArray(courses) || courses.length <= 1) return courses;
@@ -61,6 +63,7 @@ function mergeAndDistinctCourses(courses) {
     weeks: Array.isArray(c.weeks) ? [...c.weeks].sort((a, b) => a - b) : []
   }));
 
+  // 阶段 1：合并连续节次与完全重复记录
   list.sort((a, b) => {
     return a.name.localeCompare(b.name) ||
       a.teacher.localeCompare(b.teacher) ||
@@ -96,6 +99,7 @@ function mergeAndDistinctCourses(courses) {
   }
   step1Merged.push(current);
 
+  // 阶段 2：合并同节次的周次
   step1Merged.sort((a, b) => {
     return a.name.localeCompare(b.name) ||
       a.teacher.localeCompare(b.teacher) ||
@@ -185,18 +189,25 @@ function parseTimetableToModel(doc) {
 
           const lines = block.split(/<br\s*\/?>/i);
           let courseName = "";
+          let foundFirstValidLine = false;
 
-          for (let line of lines) {
-            const cleanLine = line.replace(/<[^>]*>/g, '').trim();
-            if (cleanLine && !cleanLine.includes('课堂派') && !cleanLine.includes('分组') && courseName === "") {
-              const parts = cleanLine.split(/[-－]/);
-              if (parts.length >= 2) {
-                courseName = parts.slice(1).join('-').trim();
-              } else {
-                courseName = cleanLine;
+          // 华电课表格式：第一行是课程编号（如 21010602-22），第二行是课程名称
+          for (let i = 0; i < lines.length; i++) {
+            const cleanLine = lines[i].replace(/<[^>]*>/g, '').trim();
+            if (!cleanLine || cleanLine.includes('课堂派') || cleanLine.includes('分组')) continue;
+
+            // 第一个有效行：判断是否为课程编号格式（数字-数字）
+            if (!foundFirstValidLine) {
+              foundFirstValidLine = true;
+              if (/^\d+-\d+$/.test(cleanLine)) {
+                // 这是课程编号，跳过，读取下一个有效行作为课程名称
+                continue;
               }
-              break;
             }
+
+            // 找到课程名称
+            courseName = cleanLine;
+            break;
           }
 
           const teacherFont = tempDiv.querySelector('font[title="老师"], font[title="教师"]');
@@ -227,8 +238,11 @@ function parseTimetableToModel(doc) {
   return mergeAndDistinctCourses(rawCourses);
 }
 
-// 网络请求
+// 网络请求封装
 
+/**
+ * GET 教学周历页面（用于获取学期列表）
+ */
 async function requestSemesterPage() {
   const response = await fetch(URL_SEMESTER, {
     method: "GET",
@@ -237,6 +251,10 @@ async function requestSemesterPage() {
   return await response.text();
 }
 
+/**
+ * POST 教学周历页面（用于获取指定学期的开学日期与最大周次）
+ * @param {string} semesterId 形如 "2025-2026-2"
+ */
 async function requestSemesterDetailPage(semesterId) {
   const response = await fetch(URL_SEMESTER, {
     method: "POST",
@@ -247,6 +265,10 @@ async function requestSemesterDetailPage(semesterId) {
   return await response.text();
 }
 
+/**
+ * POST 课表页面（用于获取课程数据）
+ * @param {string} semesterId 形如 "2025-2026-2"
+ */
 async function requestCoursePage(semesterId) {
   const response = await fetch(URL_COURSE, {
     method: "POST",
@@ -259,11 +281,14 @@ async function requestCoursePage(semesterId) {
 
 // 业务逻辑
 
+/**
+ * 获取学期列表，以 selected 为原点上下各取 3 个
+ * @returns {Promise<{list: Array<{value:string,label:string}>, defaultIndex:number}>}
+ */
 async function fetchSemesterList() {
   const html = await requestSemesterPage();
   const doc = new DOMParser().parseFromString(html, "text/html");
   const select = doc.getElementById("xnxq01id");
-
   if (!select) return { list: [], defaultIndex: -1 };
 
   const allOptions = Array.from(select.querySelectorAll("option")).map(opt => ({
@@ -284,11 +309,15 @@ async function fetchSemesterList() {
   return { list, defaultIndex };
 }
 
+/**
+ * 获取指定学期的开学日期 + 最大周次
+ * @param {string} semesterId 形如 "2025-2026-2"
+ * @returns {Promise<{startDate: string|null, totalWeeks: number|null}>}
+ */
 async function fetchSemesterInfo(semesterId) {
   const html = await requestSemesterDetailPage(semesterId);
   const doc = new DOMParser().parseFromString(html, "text/html");
   const timetable = doc.getElementById("kbtable");
-
   if (!timetable) return { startDate: null, totalWeeks: null };
 
   const rows = Array.from(timetable.querySelectorAll("tr")).filter(r => r.querySelector("td"));
@@ -312,112 +341,135 @@ async function fetchSemesterInfo(semesterId) {
   return { startDate, totalWeeks };
 }
 
+/**
+ * 获取并解析指定学期的课程
+ * @param {string} semesterId 形如 "2025-2026-2"
+ * @returns {Promise<Array<Object>>}
+ */
 async function fetchCourses(semesterId) {
   const html = await requestCoursePage(semesterId);
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  return parseTimetableToModel(doc);
+  return parseTimetableToModel(new DOMParser().parseFromString(html, "text/html"));
 }
 
-// 主流程
+// 配置保存
 
-async function scheduleHtmlProvider() {
-  const shiguangBridge = window.shiguangBridge;
-  const shiguangBridgePromise = window.shiguangBridgePromise;
-
-  if (!shiguangBridge || !shiguangBridgePromise) {
-    throw new Error("桥接对象不存在，请确保在拾光课程表环境中运行");
+async function saveAppConfig(semesterStartDate, totalWeeks) {
+  const config = {
+    "semesterTotalWeeks": totalWeeks || 20,
+    "defaultClassDuration": 45,
+    "defaultBreakDuration": 5,
+    "firstDayOfWeek": 1
+  };
+  if (semesterStartDate) {
+    config.semesterStartDate = semesterStartDate;
   }
+  return await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
+}
 
+/**
+ * 统一作息（华北电力大学保定校区）
+ */
+async function saveAppTimeSlots() {
+  const unifiedSlots = [
+    { "number": 1,  "startTime": "08:00", "endTime": "08:45" },
+    { "number": 2,  "startTime": "08:50", "endTime": "09:35" },
+    { "number": 3,  "startTime": "10:00", "endTime": "10:45" },
+    { "number": 4,  "startTime": "10:50", "endTime": "11:35" },
+    { "number": 5,  "startTime": "14:30", "endTime": "15:15" },
+    { "number": 6,  "startTime": "15:20", "endTime": "16:05" },
+    { "number": 7,  "startTime": "16:30", "endTime": "17:15" },
+    { "number": 8,  "startTime": "17:20", "endTime": "18:05" },
+    { "number": 9,  "startTime": "19:30", "endTime": "20:15" },
+    { "number": 10, "startTime": "20:20", "endTime": "21:05" }
+  ];
+
+  return await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(unifiedSlots));
+}
+
+// 流程编排
+
+async function runImportFlow() {
   try {
-    shiguangBridge.showToast("正在获取学期列表...");
-    const { list: semesterList, defaultIndex } = await fetchSemesterList();
+    // 1. 用户确认
+    const confirmed = await window.shiguangBridgePromise.showAlert(
+      "提示", "请确保已成功登录教务系统。是否开始导入？", "开始"
+    );
+    if (!confirmed) return;
 
-    if (semesterList.length === 0) {
-      throw new Error("未找到学期列表，请确认已登录教务系统");
+    // 2. 获取学期列表
+    window.shiguangBridge.showToast("正在获取学期列表...");
+    const { list: semesters, defaultIndex } = await fetchSemesterList();
+    if (!semesters || semesters.length === 0) {
+      window.shiguangBridge.showToast("未获取到学期列表，请检查登录状态。");
+      return;
     }
 
-    const semesterChoice = await shiguangBridgePromise.showSingleSelection({
-      title: "选择学期",
-      options: semesterList.map(s => s.label),
-      defaultIndex: defaultIndex >= 0 ? defaultIndex : 0
-    });
+    // 3. 用户选择学期
+    const labels = semesters.map(s => s.label);
+    const selectedIndex = await window.shiguangBridgePromise.showSingleSelection(
+      "选择学期", JSON.stringify(labels), defaultIndex
+    );
+    if (selectedIndex === null) {
+      window.shiguangBridge.showToast("已取消导入");
+      return;
+    }
+    const semesterId = semesters[selectedIndex].value;
 
-    const selectedSemester = semesterList[semesterChoice];
-    shiguangBridge.showToast(`已选择：${selectedSemester.label}`);
+    // 4. 获取开学日期 + 最大周次
+    window.shiguangBridge.showToast("正在获取学期信息...");
+    let { startDate: semesterStartDate, totalWeeks } = await fetchSemesterInfo(semesterId);
 
-    shiguangBridge.showToast("正在尝试获取校历信息...");
-    const { startDate, totalWeeks } = await fetchSemesterInfo(selectedSemester.value);
-
-    let finalStartDate = startDate;
-    let finalTotalWeeks = totalWeeks || 20;
-
-    if (!startDate) {
-      shiguangBridge.showToast("未能从系统获取开学日期，需要手动输入");
-      const inputDate = await shiguangBridgePromise.showPrompt({
-        title: "输入开学日期",
-        message: "请输入本学期第一周星期一的日期\n格式：YYYY-MM-DD\n例如：2024-09-02",
-        defaultValue: ""
-      });
-
-      if (!inputDate || !/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
-        throw new Error("开学日期格式不正确，请使用 YYYY-MM-DD 格式");
+    // 5. 如果未获取到开学日期，让用户手动输入
+    if (!semesterStartDate) {
+      window.shiguangBridge.showToast("未能从系统获取开学日期，需要手动输入");
+      const inputDate = await window.shiguangBridgePromise.showPrompt(
+        "输入开学日期",
+        "请输入本学期第一周星期一的日期\n格式：YYYY-MM-DD\n例如：2024-09-02",
+        ""
+      );
+      if (inputDate === null || !/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+        window.shiguangBridge.showToast("开学日期格式不正确或已取消");
+        return;
       }
-      finalStartDate = inputDate;
+      semesterStartDate = inputDate;
     }
 
+    // 6. 如果未获取到总周数，让用户手动输入
     if (!totalWeeks) {
-      const inputWeeks = await shiguangBridgePromise.showPrompt({
-        title: "输入总周数",
-        message: "请输入本学期总周数",
-        defaultValue: "20"
-      });
-      const weeks = parseInt(inputWeeks);
-      if (!isNaN(weeks) && weeks > 0) {
-        finalTotalWeeks = weeks;
+      const inputWeeks = await window.shiguangBridgePromise.showPrompt(
+        "输入总周数",
+        "请输入本学期总周数",
+        "20"
+      );
+      if (inputWeeks !== null) {
+        const weeks = parseInt(inputWeeks);
+        if (!isNaN(weeks) && weeks > 0) {
+          totalWeeks = weeks;
+        }
       }
+      if (!totalWeeks) totalWeeks = 20;
     }
 
-    await shiguangBridgePromise.saveCourseConfig({
-      defaultClassDuration: 45,
-      classDurationBreak: 5,
-      firstDayOfWeek: 1
-    });
-
-    shiguangBridge.showToast("正在获取课表数据...");
-    const courses = await fetchCourses(selectedSemester.value);
-
-    if (courses.length === 0) {
-      throw new Error("未能解析到课程数据，请确认当前页面为课表页面");
+    // 7. 获取课程
+    window.shiguangBridge.showToast("正在请求课程数据...");
+    const finalCourses = await fetchCourses(semesterId);
+    if (finalCourses.length === 0) {
+      window.shiguangBridge.showToast("未发现课程，请检查学期选择或登录状态。");
+      return;
     }
 
-    await shiguangBridgePromise.savePresetTimeSlots([
-      { startTime: "08:00", endTime: "08:45" },
-      { startTime: "08:50", endTime: "09:35" },
-      { startTime: "10:00", endTime: "10:45" },
-      { startTime: "10:50", endTime: "11:35" },
-      { startTime: "14:30", endTime: "15:15" },
-      { startTime: "15:20", endTime: "16:05" },
-      { startTime: "16:30", endTime: "17:15" },
-      { startTime: "17:20", endTime: "18:05" },
-      { startTime: "19:30", endTime: "20:15" },
-      { startTime: "20:20", endTime: "21:05" }
-    ]);
+    // 8. 保存配置（含开学日期 + 最大周次）/ 作息 / 课程
+    await saveAppTimeSlots();
+    await saveAppConfig(semesterStartDate, totalWeeks);
+    await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(finalCourses));
 
-    await shiguangBridgePromise.saveImportedCourses({
-      courses: courses,
-      totalWeeks: finalTotalWeeks,
-      startDate: finalStartDate
-    });
-
-    shiguangBridge.showToast(`导入成功！共 ${courses.length} 门课程`);
-    shiguangBridge.notifyTaskCompletion();
+    // 9. 完成
+    window.shiguangBridge.showToast(`成功导入 ${finalCourses.length} 门课程`);
+    window.shiguangBridge.notifyTaskCompletion();
   } catch (error) {
-    const errMsg = error.message || "未知错误";
-    shiguangBridge.showToast(`导入失败：${errMsg}`);
-    await shiguangBridgePromise.showAlert({
-      title: "导入失败",
-      message: errMsg
-    });
-    shiguangBridge.notifyTaskCompletion();
+    window.shiguangBridge.showToast("异常: " + error.message);
   }
 }
+
+// 启动导入流程
+runImportFlow();
