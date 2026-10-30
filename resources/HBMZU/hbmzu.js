@@ -131,8 +131,8 @@ function parseCourseTable(container) {
                 if (weeks.length === 0) continue;
                 courses.push({
                     name,
-                    teacher: teacher || "未知",
-                    position: position || "待定",
+                    teacher: teacher || "",
+                    position: position || "",
                     day: i + 1,
                     startSection,
                     endSection,
