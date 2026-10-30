@@ -1353,7 +1353,7 @@ schools:
     initial: "J"
     resource_folder: "JNGCXY"
 
-  - id: "ZSC"
-    name: "电子科技大学中山学院"
-    initial: "Z"
-    resource_folder: "ZSC"
+  - id: "BDNCEPU"
+    name: "华北电力大学（保定）"
+    initial: "H"
+    resource_folder: "BDNCEPU"
