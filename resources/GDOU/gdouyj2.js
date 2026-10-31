@@ -1,11 +1,13 @@
 /**
- * 广东海洋大学阳江校区教务适配（校外免 VPN 通道）
+ * 广东海洋大学阳江校区教务适配（备用通道）
  * @date 2026-9-12
- * @author Yihe-ng
+ * @author Yihe-ng，海大百事通
  * @version 1.0
  *
- * 数据取自教学质量综合评价系统（jxpj.gdou.edu.cn），校外可直连，无需 VPN 或校园网。
+ * 教务系统不可用时的备用通道：数据取自教学质量综合评价系统（jxpj.gdou.edu.cn），
+ * 校内外均可直连，无需 VPN 或校园网。
  * 该系统课表与教务同源同步，字段含周次、星期、节次、教室，可直接生成课表。
+ * 该方法由海大百事通与20260912发现
  *
  * 接口链路（均为同源请求，复用页面登录态）：
  *   POST /apiservice/University/GetAllSemester          学期列表
@@ -50,6 +52,7 @@ const TimeSlots = [
 /**
  * 阳江校区其他场地（非慎思楼）的作息。
  * 只有第 3、4 节在校区作息表中是不同的连续时间块，使用自定义时间表示。
+ * 貌似无法动态获取时间
  */
 const OTHER_VENUE_SECTION_3_4_TIME = { startTime: "10:10", endTime: "11:40" };
 
@@ -672,7 +675,7 @@ function showToast(message) {
 
 async function promptUserToStart() {
     return await window.shiguangBridgePromise.showAlert(
-        "广东海洋大学阳江校区课表导入（校外免 VPN）",
+        "广东海洋大学阳江校区课表导入（备用通道）",
         "本适配器通过接口直接获取课表，无需停留在课表页面。\n\n"
         + "导入步骤：\n"
         + "1. 确认已登录教学质量综合评价系统（未登录请先完成统一认证）\n"

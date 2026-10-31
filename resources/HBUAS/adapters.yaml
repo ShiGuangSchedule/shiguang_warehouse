@@ -1,0 +1,9 @@
+# resources/HBUAS/adapters.yaml
+adapters:
+  - adapter_id: "HBUAS_01"
+    adapter_name: "湖北文理学院超星教务适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hbuas_01.js"
+    import_url: "https://hbuas.jw.chaoxing.com/admin/login"
+    maintainer: "salt-fishes"
+    description: "湖北文理学院超星教务适配，自动识别当前学期与校区，自动导入课程、作息时间与开学日期，支持账密登录与学习通扫码登录"

@@ -266,13 +266,7 @@ function findNextFont(fonts, startIndex, predicate) {
 	return null;
 }
 
-// 教务页面会用 display:none 隐藏辅助节点，这里只保留可见信息
-function isVisibleFont(font) {
-	const styleText = (font.getAttribute("style") ?? "").replace(/\s+/g, "").toLowerCase();
-	return !styleText.includes("display:none");
-}
-
-// 从课表 iframe 中解析课程
+// 从课表文档中解析课程
 // 输出为扁平数组，不做同名课程合并
 function parseCoursesFromIframeDocument(iframeDoc) {
 	const courses = [];
@@ -294,9 +288,6 @@ function parseCoursesFromIframeDocument(iframeDoc) {
 			if (!title.includes("周次")) {
 				return;
 			}
-			if (!isVisibleFont(font)) {
-				return;
-			}
 
 			const weekText = cleanText(font.textContent);
 			if (weekText === "") {
@@ -306,7 +297,7 @@ function parseCoursesFromIframeDocument(iframeDoc) {
 			// 以“周次(节次)”行为锚点，向前找教师和课程名，向后找教室
 			const teacherFont = findPreviousFont(fonts, idx, (candidate) => {
 				const candidateTitle = cleanText(candidate.getAttribute("title") ?? "");
-				return candidateTitle.includes("教师") && isVisibleFont(candidate);
+				return candidateTitle.includes("教师");
 			});
 
 			const teacherIndex = teacherFont == null ? idx : fonts.indexOf(teacherFont);
@@ -317,14 +308,13 @@ function parseCoursesFromIframeDocument(iframeDoc) {
 				return (
 					candidateTitle === "" &&
 					candidateNameAttr === "" &&
-					isVisibleFont(candidate) &&
 					text !== ""
 				);
 			});
 
 			const locationFont = findNextFont(fonts, idx, (candidate) => {
 				const candidateTitle = cleanText(candidate.getAttribute("title") ?? "");
-				return candidateTitle.includes("教室") && isVisibleFont(candidate);
+				return candidateTitle.includes("教室");
 			});
 
 			const courseName = cleanText(nameFont?.textContent ?? "");
@@ -384,22 +374,79 @@ function parseCoursesFromIframeDocument(iframeDoc) {
 // 获取课表 iframe 的文档对象
 function getScheduleIframeDocument() {
 	const iframe = document.querySelector("iframe[src*='/jsxsd/xskb/xskb_list.do']");
-	if (iframe == null || iframe.contentDocument == null) {
-		throw new Error("未找到课表 iframe，或 iframe 内容尚未加载完成");
+	if (iframe == null) {
+		return null;
+	}
+	if (iframe.contentDocument == null) {
+		throw new Error("课表 iframe 内容尚未加载完成");
 	}
 	return iframe.contentDocument;
 }
 
-// 获取当前学年学期 ID，例如 2025-2026-2
-function getSemesterId(iframeDoc) {
+// 获取列表中的全部以及当前选择的学年学期 ID
+function getSemesterIds(iframeDoc) {
 	const select = iframeDoc.querySelector("#xnxq01id");
 	if (select == null) {
-		throw new Error("未找到学年学期选择框 #xnxq01id");
+		throw new Error("未找到学年学期选择框 #xnxq01id，请确认已登录教务系统");
 	}
 
-	// 优先读取 option[selected]，读取失败再回退到 select.value
-	const selectedOption = select.querySelector("option[selected]");
-	return cleanText(selectedOption?.value ?? select.value);
+	const options = Array.from(select.querySelectorAll("option"))
+		.map((opt) => cleanText(opt.value))
+		.filter((value) => value !== "");
+	const selectedOption = cleanText(select.value);
+
+	if (selectedOption === "") {
+		throw new Error("未找到当前激活的学年学期，请确认已登录教务系统");
+	}
+
+	return { options, selectedOption };
+}
+
+// 拉取学期理论课表并解析为文档对象
+// 未指定学年学期时，教务系统返回当前激活学期的课表
+async function fetchScheduleDocument(semesterId = "") {
+	const query = semesterId === "" ? "" : `?xnxq01id=${encodeURIComponent(semesterId)}`;
+	const url = `https://edu-admin.zhku.edu.cn/jsxsd/xskb/xskb_list.do${query}`;
+	const response = await fetch(url, {
+		method: "GET",
+		credentials: "include"
+	});
+	if (!response.ok) {
+		throw new Error(`获取学期理论课表失败：HTTP ${response.status}`);
+	}
+
+	const html = await response.text();
+	const parser = new DOMParser();
+	const doc = parser.parseFromString(html, "text/html");
+	return doc;
+}
+
+// 获取学年学期列表并让用户选择，默认选中当前激活学期
+async function chooseScheduleDocument() {
+	const cachedDoc = await fetchScheduleDocument();
+	const { options, selectedOption } = getSemesterIds(cachedDoc);
+	const selection = await window.shiguangBridgePromise.showSingleSelection(
+		"选择导入的学年学期",
+		JSON.stringify(options),
+		options.indexOf(selectedOption)
+	);
+	if (selection == null) {
+		throw new Error("已取消选择学年学期");
+	}
+
+	const selectedIndex = Number(selection);
+	if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= options.length) {
+		throw new Error("未选择有效的学年学期");
+	}
+
+	const semesterId = options[selectedIndex];
+
+	// 激活学期直接复用首次获取的课表，其它学期再按 ID 拉取
+	let scheduleDoc = semesterId === selectedOption
+		? cachedDoc
+		: await fetchScheduleDocument(semesterId);
+
+	return { scheduleDoc, semesterId };
 }
 
 // 拉取教学周历并提取开学日期与总周数
@@ -441,16 +488,40 @@ async function fetchSemesterCalendarInfo(semesterId) {
 	};
 }
 
+// 单独区分未登录错误，入口处使用弹窗提示
+class LoginRequiredError extends Error {}
+
+// 通过登录表单识别登录页面
+function checkLoginDocument(doc) {
+	const loginForm = doc.querySelector('#loginForm[action="/Logon.do?method=logon"]');
+	if (loginForm != null) {
+		throw new LoginRequiredError("请先登录教务系统，再点击“执行导入”。");
+	}
+}
+
 // 主流程：读取课表 -> 选择校区 -> 拉周历 -> 生成节次 -> 调桥接导入
+// 传统流程：从页面中读取用户打开的课表 iframe
+// 便捷流程：若未打开课表，则让用户选择学年学期，直接拉取课表
 async function importSchedule() {
+	// 未登录时直接提示，不继续读取课表
+	checkLoginDocument(document);
+
 	window.shiguangBridge.showToast("开始读取教务课表……");
 
-	// 读取 iframe 并获取当前学年学期 ID
+	// 读取 iframe，未打开课表时则走便捷导入流程
 	const iframeDoc = getScheduleIframeDocument();
-	const semesterId = getSemesterId(iframeDoc);
+	let scheduleDoc = iframeDoc;
+	let semesterId;
+	if (iframeDoc == null) {
+		const selectedSchedule = await chooseScheduleDocument();
+		scheduleDoc = selectedSchedule.scheduleDoc;
+		semesterId = selectedSchedule.semesterId;
+	} else {
+		semesterId = getSemesterIds(iframeDoc).selectedOption;
+	}
 
 	// 解析课程信息
-	const courses = parseCoursesFromIframeDocument(iframeDoc);
+	const courses = parseCoursesFromIframeDocument(scheduleDoc);
 	if (courses.length === 0) {
 		throw new Error("未解析到任何课程，请确认当前课表页面已加载完成");
 	}
@@ -487,6 +558,11 @@ async function importSchedule() {
 	try {
 		await importSchedule();
 	} catch (error) {
+		if (error instanceof LoginRequiredError) {
+			// 弹窗强提醒，同时也在控制台输出并展示 Toast
+			await window.shiguangBridgePromise.showAlert("未登录教务系统", error.message, "好的");
+		}
+
 		console.error("课表导入失败：", error);
 		// 失败原因直接提示给用户，便于在移动端快速定位问题
 		window.shiguangBridge.showToast(`导入失败：${error.message}`);

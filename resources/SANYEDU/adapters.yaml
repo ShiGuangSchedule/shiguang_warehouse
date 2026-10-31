@@ -1,0 +1,9 @@
+# resources/SANYEDU/adapters.yaml
+adapters:
+  - adapter_id: "SANYEDU"
+    adapter_name: "湖南三一工业职业技术学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sany.js"
+    import_url: "https://ehall.sanyedu.com/new/index.html"
+    maintainer: "Haooz"
+    description: "湖南三一工业职业技术学院课表导入，请先登录并打开个人课表页面，再点击导入！"

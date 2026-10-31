@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "HZU"
+    adapter_name: "菏泽学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hzu.js"
+    import_url: "https://222.206.176.102/jsxsd/"
+    maintainer: "yukoimi"
+    description: "登录后即可导入学期理论课表，支持学期选择、单双周、单节课、教学周历及冬夏季作息自动切换（5月1日夏季、10月5日冬季）。"

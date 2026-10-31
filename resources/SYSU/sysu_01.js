@@ -160,9 +160,10 @@
      * 解析接口返回的字段串。
      * 接口每个星期字段(如 tuesday)的值是若干 "键:值" 对用 ";;" 连接的字符串,
      * 例如: "kcmc:课程名;;rkjs:教师;;skdd:地点;;zs:1-12周;;js:周二 2-4节;;..."。
+     * weekly 是该条记录的实际上课周次, 优先于课程总体范围 zs/sksj。
      * 本函数按 ";;" 切分后提取各键值, 返回 { name, teacher, position, weeks, startSection, endSection }。
      */
-    function parseCourseField(fieldText) {
+    function parseCourseField(fieldText, weekly) {
         const fields = {};
         String(fieldText).split(";;").forEach(function (part) {
             const idx = part.indexOf(":");
@@ -173,21 +174,27 @@
         const name = fields.kcmc;
         if (!name) return null;
 
-        // 周次范围: 取 zs(如 "1-12周"); 个别学期 zs 缺失时回退到 sksj(如 "1-12每周（2-4节）")
-        // 中同样的 "x-y周" 片段。
-        const zsText = String(fields.zs || fields.sksj || "");
-        const zsMatch = zsText.match(/(\d+)\s*-\s*(\d+)\s*每?周/) || zsText.match(/(\d+)\s*每?周/);
-        if (!zsMatch) {
-            console.warn("[SYSU] 无法解析周次:", zsText || "(空)", "字段:", fieldText);
-            return null;
-        }
-        const weekStart = parseInt(zsMatch[1], 10);
-        const weekEnd = zsMatch[2] ? parseInt(zsMatch[2], 10) : weekStart;
+        // weekly=0 的请求返回逐周实际排课。不能把 zs 总体范围展开到每条记录,
+        // 否则调休补课会被复制到每周, 放假停课的周次也会被重新补上。
+        const actualWeek = Number(weekly);
         const weeks = [];
-        for (let w = weekStart; w <= weekEnd; w++) weeks.push(w);
-        if (!weeks.length) {
-            console.warn("[SYSU] 周次区间为空:", zsText);
-            return null;
+        if (Number.isInteger(actualWeek) && actualWeek > 0) {
+            weeks.push(actualWeek);
+        } else {
+            // 兼容没有有效 weekly 的汇总记录, 才回退到 zs/sksj 总体范围。
+            const zsText = String(fields.zs || fields.sksj || "");
+            const zsMatch = zsText.match(/(\d+)\s*-\s*(\d+)\s*每?周/) || zsText.match(/(\d+)\s*每?周/);
+            if (!zsMatch) {
+                console.warn("[SYSU] 无法解析周次:", zsText || "(空)", "字段:", fieldText);
+                return null;
+            }
+            const weekStart = parseInt(zsMatch[1], 10);
+            const weekEnd = zsMatch[2] ? parseInt(zsMatch[2], 10) : weekStart;
+            for (let w = weekStart; w <= weekEnd; w++) weeks.push(w);
+            if (!weeks.length) {
+                console.warn("[SYSU] 周次区间为空:", zsText);
+                return null;
+            }
         }
 
         // 节次: js 形如 "周二 2-4节" 或 "周二 3节"; 星期由外层 JSON 键决定。
@@ -214,30 +221,34 @@
         };
     }
 
-    /** 遍历响应数组(每项 = 某周某节次的当日课程), 提取全部上课并去重 */
+    /** 遍历逐周排课, 按实际星期提取课程, 合并相同时段的周次并去重 */
     function buildCoursesFromApi(data) {
         const meetings = [];
         let maxWeek = 0;
 
         data.forEach(function (entry) {
             if (!entry) return;
-            if (entry.weekly > maxWeek) maxWeek = entry.weekly;
+            const weekly = Number(entry.weekly);
+            if (Number.isInteger(weekly) && weekly > maxWeek) maxWeek = weekly;
             Object.keys(DAY_KEYS).forEach(function (dayKey) {
                 const field = entry[dayKey];
                 if (!field || typeof field !== "string" || field.length < 4) return;
-                const course = parseCourseField(field);
-                if (!course) return;
-                course.weeks.forEach(function (w) {
-                    if (w > maxWeek) maxWeek = w;
-                });
-                meetings.push({
-                    name: course.name,
-                    teacher: course.teacher,
-                    position: course.position,
-                    day: DAY_KEYS[dayKey],
-                    startSection: course.startSection,
-                    endSection: course.endSection,
-                    weeks: course.weeks
+                // 官方前端用 ",," 分隔同一单元格内的多门课程。
+                field.split(",,").forEach(function (courseField) {
+                    const course = parseCourseField(courseField, entry.weekly);
+                    if (!course) return;
+                    course.weeks.forEach(function (w) {
+                        if (w > maxWeek) maxWeek = w;
+                    });
+                    meetings.push({
+                        name: course.name,
+                        teacher: course.teacher,
+                        position: course.position,
+                        day: DAY_KEYS[dayKey],
+                        startSection: course.startSection,
+                        endSection: course.endSection,
+                        weeks: course.weeks
+                    });
                 });
             });
         });
@@ -249,10 +260,18 @@
         const seen = {};
         const out = [];
         meetings.forEach(function (m) {
-            const key = [m.day, m.startSection, m.endSection, m.name, m.weeks.join(","), m.teacher, m.position].join("|");
-            if (seen[key]) return;
-            seen[key] = true;
+            // 同一课程可能按节次重复出现, 也可能分布在不连续的周次。
+            // 身份键不包含 weeks, 只合并实际出现过的周次, 不填补中间的空周。
+            const key = JSON.stringify([m.day, m.startSection, m.endSection, m.name, m.teacher, m.position]);
+            if (seen[key]) {
+                seen[key].weeks = Array.from(new Set(seen[key].weeks.concat(m.weeks)));
+                return;
+            }
+            seen[key] = m;
             out.push(m);
+        });
+        out.forEach(function (m) {
+            m.weeks.sort(function (a, b) { return a - b; });
         });
         return out.sort(function (a, b) {
             return a.day - b.day || a.startSection - b.startSection;
@@ -308,7 +327,7 @@
                 if (result.meetings.length) {
                     courses = result.meetings;
                     maxWeek = result.maxWeek;
-                    toast("接口获取成功, 一周共 " + courses.length + " 次上课");
+                    toast("接口获取成功, 共 " + courses.length + " 个课程时段");
                 } else {
                     console.warn("[SYSU] 接口返回空数据: academicYear=" + academicYear);
                 }

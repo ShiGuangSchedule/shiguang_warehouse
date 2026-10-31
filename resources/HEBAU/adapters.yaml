@@ -1,0 +1,9 @@
+# resources/HEBAU/adapters.yaml
+adapters:
+  - adapter_id: "HEBAU"
+    adapter_name: "河北农业大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hebau.js"
+    import_url: "http://urp.hebau.edu.cn:1009/jwapp/sys/homeapp/home/index.html#/"
+    maintainer: "Haooz"
+    description: "河北农业大学课表导入，请先登录教务系统，再点击导入！非本校开发者，如有误请提交issues。"

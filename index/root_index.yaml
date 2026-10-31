@@ -88,6 +88,11 @@ schools:
     initial: "S"
     resource_folder: "SHZQ"
 
+  - id: "SANYEDU"
+    name: "湖南三一工业职业技术学院"
+    initial: "H"
+    resource_folder: "SANYEDU"
+
   - id: "HNZY"
     name: "河南职业技术学院"
     initial: "H"
@@ -163,6 +168,11 @@ schools:
     initial: "H"
     resource_folder: "HNVCC"
 
+  - id: "HNPTC"
+    name: "湖南邮电职业技术学院"
+    initial: "H"
+    resource_folder: "HNPTC"
+
   - id: "IMUT"
     name: "内蒙古工业大学"
     initial: "N"
@@ -193,6 +203,11 @@ schools:
     initial: "G"
     resource_folder: "GZST"
 
+  - id: "GZIST"
+    name: "广州理工学院"
+    initial: "G"
+    resource_folder: "GZIST"
+
   - id: "FJCPC"
     name: "福建船政交通职业学院"
     initial: "F"
@@ -202,6 +217,16 @@ schools:
     name: "福建农林大学"
     initial: "F"
     resource_folder: "FAFU"
+
+  - id: "FJPIT"
+    name: "福建信息职业技术学院"
+    initial: "F"
+    resource_folder: "FJPIT"
+
+  - id: "FVTI"
+    name: "福州职业技术大学"
+    initial: "F"
+    resource_folder: "FVTI"
 
   - id: "FOSU"
     name: "佛山大学"
@@ -242,6 +267,11 @@ schools:
     name: "南京航空航天大学"
     initial: "N"
     resource_folder: "NUAA"
+
+  - id: "USC"
+    name: "南华大学"
+    initial: "N"
+    resource_folder: "USC"
 
   - id: "XMCU"
     name: "厦门城市职业学院"
@@ -503,6 +533,11 @@ schools:
     initial: "H"
     resource_folder: "HBMZU"
 
+  - id: "HBUAS"
+    name: "湖北文理学院"
+    initial: "H"
+    resource_folder: "HBUAS"
+
   - id: "TONGJI"
     name: "同济大学"
     initial: "T"
@@ -757,6 +792,11 @@ schools:
     name: "中南林业科技大学"
     initial: "Z"
     resource_folder: "CSUFT"
+
+  - id: "CSU"
+    name: "中南大学"
+    initial: "Z"
+    resource_folder: "CSU"
 
   - id: "JLU"
     name: "吉林大学"
@@ -1098,3 +1138,227 @@ schools:
     initial: "D"
     resource_folder: "DLUT"    
     
+  - id: "QFNU"
+    name: "曲阜师范大学"
+    initial: "Q"
+    resource_folder: "QFNU"
+
+  - id: "SCEMI"
+    name: "四川机电职业技术学院"
+    initial: "S"
+    resource_folder: "SCEMI"
+
+  - id: "FJNU"
+    name: "福建师范大学"
+    initial: "F"
+    resource_folder: "FJNU"
+
+  - id: "HAUE"
+    name: "河南工程学院"
+    initial: "H"
+    resource_folder: "HAUE"
+    
+  - id: "XCU"
+    name: "许昌学院"
+    initial: "X"
+    resource_folder: "XCU"
+    
+  - id: "GDKM"
+    name: "广东科贸职业学院"
+    initial: "G"
+    resource_folder: "GDKM"
+
+  - id: "SHIEP"
+    name: "上海电力大学"
+    initial: "S"
+    resource_folder: "SHIEP"
+
+  - id: "SHNU"
+    name: "上海师范大学"
+    initial: "S"
+    resource_folder: "SHNU"
+
+  - id: "NEFU"
+    name: "东北林业大学"
+    initial: "D"
+    resource_folder: "NEFU"
+    
+  - id: "SCETOP"
+    name: "四川托普信息技术职业学院"
+    initial: "S"
+    resource_folder: "SCETOP"
+
+  - id: "HUNAU"
+    name: "湖南农业大学"
+    initial: "H"
+    resource_folder: "HUNAU"
+  
+  - id: "YSSDUFE"
+    name: "山东财经大学燕山学院"
+    initial: "S"
+    resource_folder: "YSSDUFE"
+
+  - id: "NJCIT"
+    name: "南京信息职业技术学院"
+    initial: "N"
+    resource_folder: "NJCIT"
+
+  - id: "QVTU"
+    name: "泉州职业技术大学"
+    initial: "Q"
+    resource_folder: "QVTU"
+
+  - id: "ZJBTI"
+    name: "浙江工商职业技术学院"
+    initial: "Z"
+    resource_folder: "ZJBTI"
+    
+  - id: "XHSYSU"
+    name: "广州新华学院"
+    initial: "G"
+    resource_folder: "XHSYSU"
+
+  - id: "QDU"
+    name: "青岛大学"
+    initial: "Q"
+    resource_folder: "QDU"
+
+  - id: "ZQU"
+    name: "肇庆学院"
+    initial: "Z"
+    resource_folder: "ZQU"
+
+  - id: "HZU"
+    name: "菏泽学院"
+    initial: "H"
+    resource_folder: "HZU"
+
+  - id: "YSU"
+    name: "燕山大学"
+    initial: "Y"
+    resource_folder: "YSU"
+
+  - id: "XHKJZYXY"
+    name: "宣化科技职业学院"
+    initial: "X"
+    resource_folder: "XHKJZYXY"
+
+  - id: "HEBAU"
+    name: "河北农业大学"
+    initial: "H"
+    resource_folder: "HEBAU"
+    
+  - id: "BNUZH"
+    name: "北京师范大学珠海校区"
+    initial: "B"
+    resource_folder: "BNUZH"    
+
+  - id: "SCTBC"
+    name: "四川工商职业技术学院"
+    initial: "S"
+    resource_folder: "SCTBC"
+
+  - id: "HNU"
+    name: "湖南大学"
+    initial: "H"
+    resource_folder: "HNU"
+
+  - id: "SDUFE"
+    name: "山东财经大学"
+    initial: "S"
+    resource_folder: "SDUFE"
+
+  - id: "CCSUT"
+    name: "长沙工业学院"
+    initial: "C"
+    resource_folder: "CCSUT"
+
+  - id: "JDZVUA"
+    name: "景德镇艺术职业大学"
+    initial: "J"
+    resource_folder: "JDZVUA"
+
+  - id: "ZWU"
+    name: "浙江万里学院"
+    initial: "Z"
+    resource_folder: "ZWU"
+
+  - id: "HEBEU"
+    name: "河北工程大学"
+    initial: "H"
+    resource_folder: "HEBEU"
+
+  - id: "LIDAPOLY"
+    name: "上海立达学院"
+    initial: "S"
+    resource_folder: "LIDAPOLY"
+
+  - id: "SWFU"
+    name: "西南林业大学"
+    initial: "X"
+    resource_folder: "SWFU"
+    
+  - id: "BJTU"
+    name: "北京交通大学"
+    initial: "B"
+    resource_folder: "BJTU"
+
+  - id: "NWAFU"
+    name: "西北农林科技大学"
+    initial: "X"
+    resource_folder: "NWAFU"
+
+  - id: "GDCP"
+    name: "广东交通职业技术学院"
+    initial: "G"
+    resource_folder: "GDCP"
+    
+  - id: "OUC"
+    name: "中国海洋大学"
+    initial: "Z"
+    resource_folder: "OUC"
+
+  - id: "SDWCVC"
+    name: "山东水利职业学院"
+    initial: "S"
+    resource_folder: "SDWCVC"
+
+  - id: "HBDFXY"
+    name: "河北东方学院"
+    initial: "H"
+    resource_folder: "HBDFXY"
+
+  - id: "ZUST"
+    name: "浙江科技大学"
+    initial: "Z"
+    resource_folder: "ZUST"
+
+  - id: "GZTCME"
+    name: "贵州机电职业技术学院"
+    initial: "G"
+    resource_folder: "GZTCME"
+
+  - id: "GZHMU"
+    name: "广州医科大学"
+    initial: "G"
+    resource_folder: "GZHMU"
+
+  - id: "XSYU"
+    name: "西安石油大学"
+    initial: "X"
+    resource_folder: "XSYU"
+    
+  - id: "SMU"
+    name: "南方医科大学"
+    initial: "N"
+    resource_folder: "SMU"
+
+  - id: "JNGCXY"
+    name: "济南工程职业技术学院"
+    initial: "J"
+    resource_folder: "JNGCXY"
+
+  - id: "ZSC"
+    name: "电子科技大学中山学院"
+    initial: "Z"
+    resource_folder: "ZSC"

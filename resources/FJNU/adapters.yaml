@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "FJNU_01"
+    adapter_name: "福建师范大学研究生教务系统"
+    category: "POSTGRADUATE"
+    asset_js_path: "fjnu_01.js"
+    import_url: "https://gedu.fjnu.edu.cn/cas/login?service=https%3A%2F%2Fgedu.fjnu.edu.cn%2Findex"
+    maintainer: "Hui0069"
+    description: "登录后进入课程表，选择目标学期并等待加载完成，再执行导入。导入课程及学校12节作息时间，学期开始日期和总周数需手动核对。支持连续节次、单双周和同一时段多门课程；自定时间课程需先在教务系统确认排课。"

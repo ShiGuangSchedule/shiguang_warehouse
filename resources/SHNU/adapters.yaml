@@ -1,0 +1,9 @@
+# resources/SHNU/adapters.yaml
+adapters:
+  - adapter_id: "SHNU_01"
+    adapter_name: "上海师范大学树维教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "shnu.js"
+    import_url: "https://course.shnu.edu.cn/"
+    maintainer: "FaQxD233"
+    description: "上海师范大学本科生教务系统(course.shnu.edu.cn/eams)适配，支持选择学期。登录之后直接导入不用点网页，加载不出来不重要。"

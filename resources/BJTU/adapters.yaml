@@ -1,0 +1,9 @@
+# resources/BJTU/adapters.yaml
+adapters:
+  - adapter_id: "BJTU"
+    adapter_name: "北京交通大学教学支撑平台"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "bjtu.js"
+    import_url: "https://mis.bjtu.edu.cn/home/"
+    maintainer: "Haooz"
+    description: "北京交通大学课表导入，请先登录后进入教务系统，再点击导入！非本校开发者，如有误请提交issues。"

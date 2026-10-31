@@ -1,0 +1,9 @@
+# resources/FJPIT/adapters.yaml
+adapters:
+  - adapter_id: "FJPIT_01"
+    adapter_name: "福建信息职业技术学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "fjpit_01.js"
+    import_url: "https://jw.fjpit.com/#/auth/login"
+    maintainer: "Panda君"
+    description: "登录完成后，直接点击“导入按钮”即可；龙腰校区实测可用，如有问题请提issues"

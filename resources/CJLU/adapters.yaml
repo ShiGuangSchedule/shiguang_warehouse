@@ -1,9 +1,10 @@
 # resources/CJLU/adapters.yaml
 adapters:
+  # 原适配脚本作者：ying-ck；本适配由 salt-fishes 按正方教务 v9 规范重构（接口取数、自动获取开学日期与作息）
   - adapter_id: "CJLU"
-    adapter_name: "中国计量大学正方教务"
+    adapter_name: "中国计量大学（正方教务）"
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "cjlu.js"
-    import_url: "https://jwxt.cjlu.edu.cn/jwglxt/xtgl/login_slogin.html"
-    maintainer: "ying-ck"
-    description: "中国计量大学正方教务系统课表导入，登录后执行导入。"
+    import_url: "https://jwxt.cjlu.edu.cn/xtgl/login_slogin.html"
+    maintainer: "salt-fishes, ying-ck"
+    description: "登录中国计量大学教务系统后即可导入课表，支持选择学年学期，自动获取开学日期与作息时间"

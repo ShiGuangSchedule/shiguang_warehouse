@@ -1,0 +1,9 @@
+# resources/QDU/adapters.yaml
+adapters:
+  - adapter_id: "QDU_01"
+    adapter_name: "青岛大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "qdu_01.js"
+    import_url: "https://xjw.qdu.edu.cn/"
+    maintainer: "JellyfisHawthorn"
+    description: "青岛大学强智教务，由本校开发者适配。T1、T2时段的名称需要自行设置且课程需要自行导入。T1、T2时段的时间仅供参考，请以实际为准。"

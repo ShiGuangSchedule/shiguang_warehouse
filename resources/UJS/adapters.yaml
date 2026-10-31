@@ -13,4 +13,4 @@ adapters: #固定字段
     asset_js_path: "ujs_yjs_v1.0.js"
     import_url: "http://yjsgll.ujs.edu.cn/pyxx/"
     maintainer: "洛初 Github@gongfuture"
-    description: "江苏大学研究生管理系统适配，仅支持个人课表的导入，通过统一身份认证登录  ver.1"
+    description: "江苏大学研究生管理系统适配，仅支持个人课表的导入，通过统一身份认证登录  ver.2"

@@ -1,0 +1,9 @@
+# resources/HUNAU/adapters.yaml
+adapters:
+  - adapter_id: "HUNAU_01"
+    adapter_name: "湖南农业大学（强智教务）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hunau_01.js"
+    import_url: "https://webvpn.hunau.edu.cn/login?cas_login=true"
+    maintainer: "salt-fishes"
+    description: "登录湖南农业大学教务系统后即可导入课表（校外经 WebVPN 访问）"

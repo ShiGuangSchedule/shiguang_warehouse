@@ -1,9 +1,11 @@
 // 成都医学院教务（乘方教务）适配器
-// 流程：选一次学期（课表与考试共用）→ 导入课表 → 询问是否导入考试 → 合并保存
+// 流程：选一次学期（课表/考试/上课任务/开学日期共用）→ 拉上课任务与课表 → 询问是否导入考试 → 保存配置、课程与作息
 // 接口：
-//   GET  /new/student/xsgrkb/week.page            课表页（学期下拉 + 作息表）
+//   GET  /new/student/xsgrkb/week.page             课表页（学期下拉 + 作息表）
 //   POST /new/student/xsgrkb/getCalendarWeekDatas  整学期课程数据
 //   POST /new/student/xsksrw/paginateXsksrw        学生考试任务
+//   POST /new/student/xskcrw/skrwDatas             上课任务（学分与选修类别）
+//   POST /new/xlxx/getDatesOfWeek                  第1周日期（开学日期）
 
 // 周次字符串
 function parseWeeks(weekStr) {
@@ -12,14 +14,13 @@ function parseWeeks(weekStr) {
     return [...new Set(weeks)].sort((a, b) => a - b);
 }
 
-// 解析按周场地字符串
+// 按周场地字符串
 function parseVenueWeeks(jxcdmc2) {
     const venueMap = new Map();
     String(jxcdmc2 || "").split(",").forEach(part => {
         const match = part.trim().match(/^(.*?)-(\d+)$/);
         if (!match) return;
         const week = parseInt(match[2], 10);
-        if (isNaN(week)) return;
         const key = match[1].trim() || "不用场地";
         if (!venueMap.has(key)) venueMap.set(key, []);
         venueMap.get(key).push(week);
@@ -35,12 +36,13 @@ function resolvePosition(item) {
     return "待定";
 }
 
+// 教师名
 function cleanTeacherName(raw) {
     return [...new Set(String(raw || "").replace(/\[[^\]]*\]/g, "").split(",").map(n => n.trim()).filter(Boolean))].join(",");
 }
 
 // 课表接口数据
-function parseCourseList(apiJson, slotMap) {
+function parseCourseList(apiJson, slotMap, taskMap) {
     if (!apiJson) throw new Error("课表接口无响应");
     if (apiJson.code !== 0) {
         const message = String(apiJson.message || "").trim();
@@ -57,27 +59,30 @@ function parseCourseList(apiJson, slotMap) {
         if (!item.kcmc || !allWeeks.length || isNaN(day) || isNaN(startSection) || isNaN(endSection) ||
             day < 1 || day > 7 || startSection > endSection) return;
 
-        const teacher = cleanTeacherName(item.teaxms || item.pkr) || "未知";
+        const teacher = cleanTeacherName(item.teaxms) || "未知";
+        const info = taskMap.get(item.kcrwdm);
+        const name = `${item.kcmc.trim()}${info && info.tag ? `(${info.tag})` : ""}`;
+        const actualStart = String(item.qssj || "").slice(0, 5);
+        const actualEnd = String(item.jssj || "").slice(0, 5);
+        const expectedStart = slotMap[startSection] && slotMap[startSection].start;
+        const expectedEnd = slotMap[endSection] && slotMap[endSection].end;
+        const isCustomTime = actualStart && actualEnd && (actualStart !== expectedStart || actualEnd !== expectedEnd);
         const venues = parseVenueWeeks(item.jxcdmc2);
         const venueEntries = venues.size > 0
             ? Array.from(venues.entries(), ([position, weeks]) => ({ position, weeks: [...new Set(weeks)].sort((a, b) => a - b) }))
             : [{ position: resolvePosition(item), weeks: allWeeks }];
 
         venueEntries.forEach(({ position, weeks }) => {
-            const course = { name: item.kcmc.trim(), teacher, position, day, startSection, endSection, weeks };
-
-            const actualStart = String(item.qssj || "").slice(0, 5);
-            const actualEnd = String(item.jssj || "").slice(0, 5);
-            const expectedStart = slotMap[startSection] && slotMap[startSection].start;
-            const expectedEnd = slotMap[endSection] && slotMap[endSection].end;
-            if (actualStart && actualEnd && (actualStart !== expectedStart || actualEnd !== expectedEnd)) {
+            const course = { name, teacher, position, day, startSection, endSection, weeks };
+            if (info) course.credit = info.credit;
+            if (isCustomTime) {
                 course.isCustomTime = true;
                 course.customStartTime = actualStart;
                 course.customEndTime = actualEnd;
             }
-            
+
             const key = [course.name, teacher, position, day,
-                course.isCustomTime ? actualStart + actualEnd : `${startSection}-${endSection}`].join("__");
+                isCustomTime ? `${actualStart}${actualEnd}` : `${startSection}-${endSection}`].join("__");
             const existing = courseMap.get(key);
             if (existing) existing.weeks = [...new Set([...existing.weeks, ...course.weeks])].sort((a, b) => a - b);
             else courseMap.set(key, course);
@@ -118,6 +123,22 @@ function parseExamList(rows, slots) {
         exams.push(exam);
     });
     return exams;
+}
+
+// 任选课类别标识
+function resolveElectiveTag(task) {
+    if (String(task.xdfsmc || "").trim() !== "任选") return "";
+    if (String(task.kcflmc || "").includes("艺术")) return "艺术";
+    if (String(task.kcdlmc || "").includes("通识")) return "通识";
+    if (String(task.kcdlmc || "").includes("专业")) return "专业";
+    return "";
+}
+
+// 上课任务数据
+function parseTaskList(rows) {
+    const map = new Map();
+    rows.forEach(item => map.set(item.kcrwdm, { credit: item.xf, tag: resolveElectiveTag(item) }));
+    return map;
 }
 
 // 从 week.page 源码提取作息表
@@ -196,9 +217,7 @@ async function selectSemester(semesterOptions) {
 
 // 询问是否同时导入考试
 async function askImportExams() {
-    const bridge = window.shiguangBridgePromise;
-    if (!bridge || typeof bridge.showAlert !== "function") return true;
-    return await bridge.showAlert(
+    return await window.shiguangBridgePromise.showAlert(
         "导入考试安排",
         "是否同时导入本学期的考试安排？\n（期中/期末/补考将显示在课表对应日期）",
         "确定导入"
@@ -212,7 +231,7 @@ async function fetchSchedulePage() {
     return response.text();
 }
 
-// 乘方统一表单 POST（课表/考试共用），附带 JSON 请求头与会话
+// 乘方统一表单 POST（课表/考试/任务/开学日期共用），附带 JSON 请求头与会话
 async function postForm(url, formData) {
     const response = await fetch(url, {
         method: "POST",
@@ -238,21 +257,28 @@ async function fetchCourseData(xnxqdm) {
     return (await postForm("/new/student/xsgrkb/getCalendarWeekDatas", formData)).json();
 }
 
-// 分页拉取指定学期的全部考试任务
-async function fetchExamData(xnxqdm) {
+// 请求第 1 周日期（开学日期）
+async function fetchSemesterStartDate(xnxqdm) {
+    const formData = new URLSearchParams();
+    formData.append("xnxqdm", xnxqdm);
+    formData.append("zc", "1");
+    const rows = await (await postForm("/new/xlxx/getDatesOfWeek", formData)).json();
+    return rows.find(item => item.xqmc === "1").rq;
+}
+
+// 分页拉取 rows/total 数据（考试/任务共用）
+async function fetchPagedRows(url, baseParams, sort) {
     const allRows = [];
-    const pageSize = 100;
     let page = 1;
 
     for (;;) {
-        const formData = new URLSearchParams();
-        formData.append("xnxqdm", xnxqdm);
+        const formData = new URLSearchParams(baseParams);
         formData.append("page", String(page));
-        formData.append("rows", String(pageSize));
-        formData.append("sort", "zc,xq,jcdm2");
+        formData.append("rows", "100");
+        formData.append("sort", sort);
         formData.append("order", "asc");
 
-        const json = await (await postForm("/new/student/xsksrw/paginateXsksrw", formData)).json();
+        const json = await (await postForm(url, formData)).json();
         const rows = Array.isArray(json.rows) ? json.rows : [];
         allRows.push(...rows);
 
@@ -263,16 +289,37 @@ async function fetchExamData(xnxqdm) {
     return allRows;
 }
 
+// 分页拉取指定学期的全部考试任务
+async function fetchExamData(xnxqdm) {
+    return fetchPagedRows("/new/student/xsksrw/paginateXsksrw", { xnxqdm, ksaplxdm: "", kslbdm: "" }, "zc,xq,jcdm2");
+}
+
+// 分页拉取指定学期的全部上课任务
+async function fetchTaskData(xnxqdm) {
+    return fetchPagedRows("/new/student/xskcrw/skrwDatas", { xnxqdm, kcdldm: "", kcfldm: "", kcmc: "" }, "kcrwdm,xdfsdm");
+}
+
+// 保存课表配置（学期 20 周、单节 40 分钟）
+async function saveConfig(semesterStartDate) {
+    await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify({
+        semesterStartDate,
+        semesterTotalWeeks: 20,
+        defaultClassDuration: 40
+    }));
+}
+
+// 保存课程
 async function saveCourses(courses) {
     await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(courses));
 }
 
+// 保存作息时间
 async function saveTimeSlots(timeSlots) {
     if (timeSlots.length === 0) return;
     await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(timeSlots));
 }
 
-// 编排导入流程：提示 → 选学期 → 请求课表与考试 → 合并保存课程与作息时间
+// 编排导入流程：提示 → 选学期 → 拉任务与课表 → 询问考试 → 保存配置、课程与作息
 async function runImportFlow() {
     try {
         const confirmed = await promptUserToStart();
@@ -287,7 +334,13 @@ async function runImportFlow() {
 
         const { slots, map: slotMap } = parseBusinessHoursFromHtml(pageHtml);
         window.shiguangBridge.showToast(`正在获取 ${semester.label} 的课表...`);
-        const courses = parseCourseList(await fetchCourseData(semester.value), slotMap);
+        let taskMap = new Map();
+        try {
+            taskMap = parseTaskList(await fetchTaskData(semester.value));
+        } catch (error) {
+            window.shiguangBridge.showToast(`上课任务获取失败，学分与类别标识已跳过：${error.message}`);
+        }
+        const courses = parseCourseList(await fetchCourseData(semester.value), slotMap, taskMap);
 
         if (courses.length === 0) {
             await window.shiguangBridgePromise.showAlert(
@@ -309,6 +362,12 @@ async function runImportFlow() {
             window.shiguangBridge.showToast("正在获取考试安排...");
             exams.push(...parseExamList(await fetchExamData(semester.value), timeSlots));
             if (exams.length === 0) window.shiguangBridge.showToast("该学期暂时没有考试安排");
+        }
+
+        try {
+            await saveConfig(await fetchSemesterStartDate(semester.value));
+        } catch (error) {
+            window.shiguangBridge.showToast(`课表配置导入失败，已跳过：${error.message}`);
         }
 
         await saveCourses([...courses, ...exams]);

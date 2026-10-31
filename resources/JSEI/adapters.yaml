@@ -7,3 +7,11 @@ adapters:
     import_url: "https://webvpn.jsei.edu.cn/"
     maintainer: "星河欲转"
     description: "江苏电子信息职业学院正方教务，登录后进入教务系统点击开始导入，支持自动获取开学日期，非本校开发者适配如果有误建议提交issue"
+
+  - adapter_id: "JSEI_02"
+    adapter_name: "江苏电子信息职业学院（校园网）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jsei_01.js"
+    import_url: "https://ehall.jsei.edu.cn/new/index.html"
+    maintainer: "星河欲转"
+    description: "江苏电子信息职业学院正方教务，统一身份认证入口，登录后进入教务系统点击开始导入，支持自动获取开学日期，非本校开发者适配如果有误建议提交issue"    

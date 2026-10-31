@@ -7,3 +7,11 @@ adapters:
   import_url: "https://yjsglxt.hlju.edu.cn/"
   maintainer: "lixu-030506"
   description: "黑龙江大学研究生教育综合管理信息系统课表适配。登录教务系统并查询当前学期课表后即可导入。"
+
+- adapter_id: "HLJU_BACHELOR"
+  adapter_name: "黑龙江大学本科教务系统"
+  category: "BACHELOR_AND_ASSOCIATE"
+  asset_js_path: "hlju_bachelor.js"
+  import_url: "http://xsxk.hlju.edu.cn/"
+  maintainer: "Haooz"
+  description: "黑龙江大学本科教务系统课表导入，请先登录，再点击导入！"

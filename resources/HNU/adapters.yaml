@@ -1,0 +1,9 @@
+# resources/HNU/adapters.yaml
+adapters:
+  - adapter_id: "HNU_01"
+    adapter_name: "湖南大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hnu_01.js"
+    import_url: "http://hdjw.hnu.edu.cn/jsxsd/sso.jsp"
+    maintainer: "星河欲转"
+    description: "湖南大学强智教务适配，支持获取开学日期,非本校开发者适配如果有误建议提交issues"

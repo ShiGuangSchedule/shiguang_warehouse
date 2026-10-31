@@ -1,0 +1,9 @@
+# resources/SWFU/adapters.yaml
+adapters:
+  - adapter_id: "SWFU"
+    adapter_name: "西南林业大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "swfu.js"
+    import_url: "https://jw.swfu.edu.cn/jwglxt/xtgl/login_slogin.html"
+    maintainer: "Haooz"
+    description: "西南林业大学课表导入，请先登录教务系统，再点击导入！非本校开发者，如有误请提交issues。"

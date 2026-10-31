@@ -3,7 +3,11 @@
  * @date 2026-7-30
  * @author Mccurtain (原始 GDOU 适配)
  * @adapted-by Yihe-ng (阳江校区作息与适配)
- * @version 1.1
+ * @version 1.2
+ *
+ * @note 教务系统已关闭外网直连，现行入口为学校提供的零信任地址
+ *       （https://wfw.gdou.edu.cn/https://jw.gdou.edu.cn/），校内外均可访问。
+ *       接口地址改为运行时推导，
  */
 
 (function () {
@@ -100,7 +104,7 @@ function mergeAndDistinctCourses(courses) {
 
 /**
  * 解析周次字符串，处理单双周和周次范围。
- * 兼容格式："1-16周"、"6周"、"1-8周(单)"、"1-10周(双)"、"1-5周,9周"
+ * 兼容格式："1-16周"、"6周"、"第6周"、"1-8周(单)"、"1-10周(双)"、"1-5周,9周"
  */
 function parseWeeks(weekStr) {
     if (!weekStr) return [];
@@ -113,7 +117,7 @@ function parseWeeks(weekStr) {
         const trimmedSet = set.trim();
 
         const rangeMatch = trimmedSet.match(/(\d+)\s*-\s*(\d+)\s*周?/);
-        const singleMatch = trimmedSet.match(/^(\d+)\s*周?/); // 匹配单个周次
+        const singleMatch = trimmedSet.match(/^(?:第\s*)?(\d+)\s*周?/); // 匹配单个周次，包括调课返回的“第N周”
 
         let start = 0;
         let end = 0;
@@ -206,6 +210,16 @@ function applyOtherVenueCustomTime(courses) {
 }
 
 /**
+ * 学分允许小数和零；缺失或非法值保持未知，不影响课程导入。
+ */
+function parseCredit(value) {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    const credit = Number(value);
+    return Number.isFinite(credit) && credit >= 0 ? credit : null;
+}
+
+/**
  * 解析正方 v9 课表查询接口返回的 JSON 数据。
  */
 function parseJsonData(jsonData) {
@@ -258,7 +272,8 @@ function parseJsonData(jsonData) {
             day: day,
             startSection: sectionRange.startSection,
             endSection: sectionRange.endSection,
-            weeks: weeksArray
+            weeks: weeksArray,
+            credit: parseCredit(rawCourse.xf)
         });
     }
 
@@ -279,7 +294,7 @@ async function promptUserToStart() {
     console.log("JS: 流程开始：显示公告。");
     return await window.shiguangBridgePromise.showAlert(
         "广东海洋大学阳江校区教务系统课表导入",
-        "请先登录广东海洋大学教务系统（jw.gdou.edu.cn），并在个人课表页选择要导入的学年学期。点击确认后按提示继续即可。",
+        "请确认页面上的学年和学期，再按提示导入课程。\n\n如果登录后页面显示不全，下次登录前可点右上角菜单，选择“电脑模式”。",
         "好的，开始导入"
     );
 }
@@ -334,11 +349,147 @@ function isOnTimetablePage() {
 }
 
 function getCurrentPageAcademicOptions() {
+    const frame = typeof document !== "undefined"
+        ? document.getElementById("gdouyj-timetable-frame")
+        : null;
+    if (frame) {
+        try {
+            return parseAcademicOptionsFromDocument(frame.contentDocument);
+        } catch (error) {
+            return null;
+        }
+    }
     if (!isOnTimetablePage() || typeof document === "undefined" || !document.querySelector) {
         return null;
     }
 
     return parseAcademicOptionsFromDocument(document);
+}
+
+/**
+ * WFW 移动门户生成的代理前缀会使页面资源跳转到登录页。
+ * 只修正本校 WFW 前缀，保留学校原页面和原查询逻辑。
+ */
+function normalizeWfwPageHtml(html, origin) {
+    const prefix = `${origin}/https://jw.gdou.edu.cn`;
+    const escapedPrefix = prefix.replace(/\//g, "\\/");
+    const escapedOrigin = origin.replace(/\//g, "\\/");
+    return html.split(prefix).join(origin).split(escapedPrefix).join(escapedOrigin);
+}
+
+async function prepareWfwTimetableHtml(html, origin) {
+    const page = new DOMParser().parseFromString(normalizeWfwPageHtml(html, origin), "text/html");
+    for (const existing of Array.from(page.querySelectorAll("base"))) existing.remove();
+    const base = page.createElement("base");
+    base.href = `${origin}/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default`;
+    page.head.prepend(base);
+    // 顺序获取原站依赖，避免 WFW 同时加载大量资源时返回 503 后留下半成品页面。
+    for (const script of Array.from(page.querySelectorAll("script[src]"))) {
+        const url = new URL(script.getAttribute("src"), `${origin}/`);
+        if (url.origin !== origin) throw new Error("课表页包含非同源脚本，已停止打开");
+        let response;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            response = await fetch(url.href, { credentials: "include", cache: "no-store" });
+            if (response.status !== 503) break;
+            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        if (!response.ok) throw new Error(`页面资源加载失败：${url.pathname}，HTTP ${response.status}`);
+        const type = response.headers.get("content-type") || "";
+        if (!/(?:javascript|ecmascript)/i.test(type)) {
+            throw new Error("页面资源未返回脚本，请重新登录");
+        }
+        const code = normalizeWfwPageHtml(await response.text(), origin);
+        script.removeAttribute("src");
+        script.removeAttribute("async");
+        script.removeAttribute("defer");
+        script.textContent = code.replace(/<\/script/gi, "<\\/script");
+    }
+    return `<!doctype html>\n${page.documentElement.outerHTML}`;
+}
+
+async function openTimetableFromMobilePortal() {
+    if (window.location.hostname !== "wfw.gdou.edu.cn" ||
+        window.location.pathname !== "/xtgl/index_cxAllApp.html" ||
+        document.getElementById("gdouyj-timetable-frame")) {
+        return false;
+    }
+
+    const confirmed = await window.shiguangBridgePromise.showAlert(
+        "打开课表",
+        "这里暂时看不到课表。点“打开课表”后，请确认页面上的学年和学期，再点一次拾光的“导入”按钮保存课程。",
+        "打开课表"
+    );
+    if (!confirmed) return true;
+
+    try {
+        const url = buildScheduleUrl("xskbcx_cxXskbcxIndex.html", "gnmkdm=N2151&layout=default");
+        const response = await fetch(url, { credentials: "include" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const html = await response.text();
+        const parsed = new DOMParser().parseFromString(html, "text/html");
+        if (!parseAcademicOptionsFromDocument(parsed)) {
+            throw new Error("未取得个人课表页面，请重新登录；必要时在登录前切换电脑模式");
+        }
+        window.shiguangBridge.showToast("正在加载个人课表页面，请稍候...");
+        const preparedHtml = await prepareWfwTimetableHtml(html, window.location.origin);
+
+        const panel = document.createElement("div");
+        panel.id = "gdouyj-timetable-panel";
+        panel.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;background:white";
+        const toolbar = document.createElement("div");
+        toolbar.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#087ebc;color:white;font:16px sans-serif";
+        const label = document.createElement("span");
+        label.textContent = "确认学年学期后，再点“导入”";
+        const close = document.createElement("button");
+        close.textContent = "返回";
+        close.type = "button";
+        const previousTitle = document.title;
+        close.onclick = () => {
+            panel.remove();
+            document.title = previousTitle;
+        };
+        toolbar.append(label, close);
+        const frame = document.createElement("iframe");
+        frame.id = "gdouyj-timetable-frame";
+        frame.title = "广东海洋大学个人课表查询";
+        frame.style.cssText = "flex:1;min-height:0;width:100%;border:0;background:white";
+        frame.srcdoc = preparedHtml;
+        panel.append(toolbar, frame);
+        document.body.appendChild(panel);
+        document.title = "个人课表查询";
+    } catch (error) {
+        window.shiguangBridge.showToast(`打开课表页面失败：${error.message}`);
+    }
+    return true;
+}
+
+/**
+ * 推导教务系统接口前缀：
+ *   直接访问：pathname 形如 /kbcx/xskbcx_cxXsgrkb.html                    → 前缀为 ""
+ *   反代·拼接态：pathname 形如 /https://jw.gdou.edu.cn/kbcx/xskbcx_...html → 前缀为 "/https://jw.gdou.edu.cn"
+ *   反代·哈希态：pathname 形如 /http/<hash>/kbcx/xskbcx_...html            → 前缀为 "/http/<hash>"
+ * 以 "/kbcx/" 为锚点即可同时覆盖以上三种情况。
+ */
+function getScheduleBase() {
+    const path = (window.location && window.location.pathname) || "";
+
+    const kbIndex = path.indexOf("/kbcx/");
+    if (kbIndex >= 0) return path.slice(0, kbIndex);
+
+    // 兜底：停留在教务系统非课表页（例如首页）时，直接识别反代前缀。
+    const proxyPrefix = path.match(/^\/(?:https?:\/\/[^/]+|(?:http|https|https-443)\/[^/]+)/i);
+    return proxyPrefix ? proxyPrefix[0] : "";
+}
+
+/**
+ * 拼接教务系统接口地址，自动带上直连/反代前缀。
+ * @param {string} modulePath 接口文件名，例如 "xskbcx_cxXsgrkb.html"
+ * @param {string} query 可选查询串，例如 "gnmkdm=N2151"
+ */
+function buildScheduleUrl(modulePath, query) {
+    const base = getScheduleBase();
+    const queryString = query ? `?${query}` : "";
+    return `${window.location.origin}${base}/kbcx/${modulePath}${queryString}`;
 }
 
 /**
@@ -352,7 +503,7 @@ async function fetchAcademicOptions() {
         return currentPageOptions;
     }
 
-    const url = "https://jw.gdou.edu.cn/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
+    const url = buildScheduleUrl("xskbcx_cxXskbcxIndex.html", "gnmkdm=N2151&layout=default");
 
     try {
         const response = await fetch(url, {
@@ -471,7 +622,7 @@ function findSemesterStartDate(value) {
  * 日期接口失败时返回 null，不阻断课表导入。
  */
 async function fetchSemesterStartDate(academicYear, semesterCode) {
-    const url = "https://jw.gdou.edu.cn/kbcx/xskbcxZccx_cxZcByXnxq.html?gnmkdm=N2154";
+    const url = buildScheduleUrl("xskbcxZccx_cxZcByXnxq.html", "gnmkdm=N2154");
     const requestBody = `xnm=${encodeURIComponent(academicYear)}&xqm=${encodeURIComponent(semesterCode)}`;
 
     try {
@@ -517,7 +668,7 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
     const requestBody = `xnm=${encodeURIComponent(academicYear)}&xqm=${encodeURIComponent(semesterCode)}&kzlx=ck&xsdm=&kclbdm=`;
 
     // 广东海洋大学正方教务 v9 个人课表查询接口
-    const targetUrl = "https://jw.gdou.edu.cn/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151";
+    const targetUrl = buildScheduleUrl("xskbcx_cxXsgrkb.html", "gnmkdm=N2151");
 
     try {
         // 课表和校历互不依赖，并行请求以减少导入等待时间。
@@ -564,7 +715,7 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
         };
     } catch (e) {
         console.error("JS: 获取课表失败:", e);
-        window.shiguangBridge.showToast("获取课表失败，请确认已登录教务系统且网络可访问 jw.gdou.edu.cn。");
+        window.shiguangBridge.showToast("获取课表失败：请确认已在教务系统登录并停留在个人课表页，且登录状态未过期。");
         return null;
     }
 }
@@ -616,6 +767,8 @@ async function importPresetTimeSlots(timeSlots) {
 }
 
 async function runImportFlow() {
+    // 首次在异常移动门户执行时只打开查询页，保留用户核对与选择学期的机会。
+    if (await openTimetableFromMobilePortal()) return;
     const alertConfirmed = await promptUserToStart();
     if (!alertConfirmed) {
         window.shiguangBridge.showToast("用户取消了导入。");

@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "shzq.js"
     import_url: "https://cas.shzq.edu.cn/cas/login?service=https://jw.shzq.edu.cn/sso/ddlogin"
     maintainer: "Kredenk"
-    description: "上海中侨大学,正方教务适配"
+    description: "上海中侨大学正方教务适配，支持获取开学日期"
