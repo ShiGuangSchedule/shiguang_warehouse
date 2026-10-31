@@ -6,3 +6,6 @@
 
 # 忽略适配占位符文件，防止开发者误提交测试代码
 resources/GLOBAL_TOOLS/test.js
+
+# Local parser test dependencies
+tests/xjnu/node_modules/

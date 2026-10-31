@@ -1,0 +1,9 @@
+# 新疆师范大学本科教务系统
+adapters:
+  - adapter_id: "XJNU_01"
+    adapter_name: "新疆师范大学本科教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xjnu.js"
+    import_url: "https://jwxt.xjnu.edu.cn/jsxsd/"
+    maintainer: "CkYtxwz"
+    description: "登录后导入个人学期理论课表。支持2025年春季起的官方作息，按校区和楼宇处理错峰时间，也可保留已有作息；提示教学周历和未排课记录。"
