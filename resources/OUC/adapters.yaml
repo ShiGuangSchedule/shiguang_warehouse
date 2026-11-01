@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "OUC_01"
+    adapter_name: "中国海洋大学本科教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ouc_01.js"
+    import_url: "https://id.ouc.edu.cn/sso/login?service=https%3A%2F%2Fjwgl2024.ouc.edu.cn%2F"
+    maintainer: "anOsprey"
+    description: "中国海洋大学本科生教务课程表导入，基于强智教务系统网络请求适配。使用校园网络登录教务系统后，可选择目标学期一键导入课程表，自动读取教学周历获取开学日期与总周数，并对课程进行合并去重；导入时可按需选择崂山/鱼山或西海岸校区的作息时间进行配置。如遇问题可及时反馈"

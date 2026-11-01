@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "xjie_01.js"
     import_url: "https://authserver.xjie.edu.cn/authserver/login?service=https%3A%2F%2Fjwxt.xjie.edu.cn%2Fjsxsd%2F"
     maintainer: "星河欲转"
-    description: "新疆工程学院强智适配，非本校开发者适配如果有误建议提交issues"
+    description: "新疆工程学院强智适配，支持获取开学日期，非本校开发者适配如果有误建议提交issues"

@@ -1,0 +1,9 @@
+# resources/JDZVUA/adapters.yaml
+adapters:
+  - adapter_id: "JDZVUA"
+    adapter_name: "景德镇艺术职业大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jdzvua.js"
+    import_url: "https://jwc.jdzvua.edu.cn/"
+    maintainer: "Haooz"
+    description: "景德镇艺术职业大学课表导入，请先在页面上切换到要导入的学期课表，再点击导入！非本校开发者，如有误请提交issues。"

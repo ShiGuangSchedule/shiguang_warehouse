@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "ZUST_01"
+    adapter_name: "浙江科技大学（正方教务）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zust_01.js"
+    import_url: "https://https-authserver-zust-edu-cn-443.webvpn.zust.edu.cn/authserver/login?appid=https://https-authserver-zust-edu-cn-443.webvpn.zust.edu.cn/authserver/logout?service=${redirect_url}&service=https://webvpn.zust.edu.cn/callback/cas/TKBCDGsz"
+    maintainer: "小漫君"
+    description: "登录 WebVPN 后点击教务系统，进入教学管理信息服务平台再导入。支持选择学年学期，自动读取校历和课程所属校区作息，保留原节次。"

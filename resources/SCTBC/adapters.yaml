@@ -1,0 +1,9 @@
+# resources/SCTBC/adapters.yaml
+adapters:
+  - adapter_id: "SCTBC_01"
+    adapter_name: "四川工商职业技术学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sctbc.js"
+    import_url: "http://jw.sctbc.edu.cn/xtgl/login_slogin.html"
+    maintainer: "dclindev"
+    description: "正方教务 V9 新一代（前端 zftal-ui-v5，根路径部署）。可用正方直登（本条目地址）或统一身份认证 cas.sctbc.edu.cn 登录，停留在任意教务页面点击导入即可，自动读取学年学期、课表、开学日期与节次作息。"

@@ -4,5 +4,6 @@
     "scripts/schemas/adapters.schema.json": "resources/**/adapters.yaml"
   },
   "yaml.format.enable": true,
-  "yaml.validate": true
+  "yaml.validate": true,
+  "js/ts.suggest.completeFunctionCalls": true
 }

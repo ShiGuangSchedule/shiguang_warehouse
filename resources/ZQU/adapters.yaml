@@ -1,0 +1,9 @@
+# resources/ZQU/adapters.yaml
+adapters:
+  - adapter_id: "ZQU_01"
+    adapter_name: "肇庆学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zqu_01.js"
+    import_url: "https://jwgl.zqu.edu.cn/"
+    maintainer: "NoobLLiu"
+    description: "肇庆学院教务系统对接，登录进入教务系统后点击开始导入，无需打开课表查询页面，停留在教务系统任意页面即可。校外经WebVPN访问或校内直连均支持。"

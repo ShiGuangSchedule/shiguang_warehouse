@@ -1,0 +1,9 @@
+# resources/ZJBTI/adapters.yaml
+adapters:
+  - adapter_id: "ZJBTI_01"
+    adapter_name: "浙江工商职业技术学院教务管理"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zjbti.js"
+    import_url: "https://webvpn.zjbti.net.cn"
+    maintainer: "LanRhyme"
+    description: "登录WebVPN后进入「教务管理」，在任意教务页面点击执行导入即可"

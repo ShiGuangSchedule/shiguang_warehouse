@@ -1,0 +1,16 @@
+adapters:
+  - adapter_id: "GDCP_01"
+    adapter_name: "广东交通职业技术学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdcp_01.js"
+    import_url: "https://cas.gdcp.edu.cn/"
+    maintainer: "小漫君"
+    description: "登录融合门户并进入新教务系统后导入，选择学期与上课校区，按教学楼应用学校作息，并读取开学日期与总周数。"
+
+  - adapter_id: "GDCP_02"
+    adapter_name: "广东交通职业技术学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdcp_02.js"
+    import_url: "https://jw.gdcp.edu.cn/"
+    maintainer: "Haooz"
+    description: "登录教务系统后，选择学期后直接执行导入，按教学楼自动判定校区"

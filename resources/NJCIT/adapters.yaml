@@ -1,0 +1,9 @@
+# resources/NJCIT/adapters.yaml
+adapters:
+  - adapter_id: "NJCIT"
+    adapter_name: "南京信息职业技术学院"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "njcit.js"
+    import_url: "https://jw.njcit.cn/sso/lyiotlogin"
+    maintainer: "astraumbra"
+    description: "南京信息职业技术学院教务适配，登录后可直接导入"

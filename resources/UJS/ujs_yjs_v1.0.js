@@ -10,8 +10,18 @@
 // 单元格文本自带「第3-18周 单双周:星期二 上3,4 星期五 上1,2」，星期、节次、周次都能直接取到。
 // 作息时间取自课表页下方的作息表（上午/下午/晚上），由服务端按当前令时渲染，脚本原样导入，
 // 因此不再像本科脚本那样询问夏令时/冬令时，也不做楼栋匹配（研究生系统全校一套作息）。（后续看十一再调整）
+
+// 2026.10.07 第二版
+// 作息改为写入「组合作息方案」（comboSchedule）：夏令时 / 冬令时两套作息按日期区间自动切换，
+// 不再从课表页抓取作息表，也不再需要用户手动选择令时。
+// 夏令时 4/7 起、冬令时 10/7 起，与学校历年切令时公告一致，写死在方案规则里。
+// 研究生全校作息统一（都在研究生楼一带），不存在本科那种按楼栋分叉的作息，
+// 因此可以完全依赖组合作息，课程不再逐条写自定义时间：翻到哪一周，应用就用那一周的日期去匹配规则。
+// 作息数据取自教务处公布的江大作息：上午三江楼(B)一套，下午/晚上本部(E)夏令时与冬令时各一套，两季上午相同。
 // 开学日期：研究生系统没有校历接口，改用「我的课表」接口 App_Ajax/GetkcHandler.ashx 逐周回查，
 // 找到某门课第一次出现的日期，再按（起始周-1）*7+（星期-1）反推开学日期；反推不到则跳过配置保存。
+// 组合作息的日期区间按「本学期起止日期 ∩ 各令时日期区间」生成，保证整个学期被规则完整覆盖；
+// 拿不到开学日期时回退为当年固定的 4/7–10/6、10/7–次年 4/6 两个区间。
 
 /**
  * 数组过滤（原生实现）。
@@ -311,44 +321,181 @@ function parseCoursesFromGrid(doc) {
 }
 
 /**
- * 解析课表页下方的作息表，得到按全天连续编号的预设时间段。
- * 上午 dgListSw / 下午 dgListXw / 晚上 dgListWs 三张表，
- * 每行形如「第一节课 8:00-8:45」；编号按上午、下午、晚上依次顺延，
- * 与课表文本里的连续节次编号一致。
+ * 研究生楼作息时间（江苏大学教务处公布的作息，两季对比如下）。
+ *
+ * 上午一年四季不变，与本科三江楼(B)那套一致；
+ * 下午/晚上分夏令时与冬令时两套，与本科本部(E)那套一致：
+ *   夏令时：下午 14:00 开始，晚上 19:00 开始；
+ *   冬令时：下午 13:30 开始，晚上 18:30 开始。
+ *
+ * 节次是全天连续编号（上午 1-4、下午 5-8、晚上 9-11），与课表文本里的「上3,4」「晚9,10,11」一致。
  */
-function parseTimeSlots(doc) {
-    const groups = [
-        { id: "#MainWork_dgListSw", label: "上午" },
-        { id: "#MainWork_dgListXw", label: "下午" },
-        { id: "#MainWork_dgListWs", label: "晚上" }
-    ];
+const MorningTimeSlots = [
+    { number: 1, startTime: "08:00", endTime: "08:45" },
+    { number: 2, startTime: "08:55", endTime: "09:40" },
+    { number: 3, startTime: "10:10", endTime: "10:55" },
+    { number: 4, startTime: "11:05", endTime: "11:50" }
+];
 
-    const slots = [];
-    let number = 1;
+// 夏令时 下午
+const SummerAfternoonTimeSlots = [
+    { number: 5, startTime: "14:00", endTime: "14:45" },
+    { number: 6, startTime: "14:55", endTime: "15:40" },
+    { number: 7, startTime: "16:00", endTime: "16:45" },
+    { number: 8, startTime: "16:55", endTime: "17:40" }
+];
 
-    for (const group of groups) {
-        const table = doc.querySelector(group.id);
-        if (!table) continue;
+// 夏令时 晚上
+const SummerEveningTimeSlots = [
+    { number: 9, startTime: "19:00", endTime: "19:45" },
+    { number: 10, startTime: "19:55", endTime: "20:40" },
+    { number: 11, startTime: "20:50", endTime: "21:35" }
+];
 
-        for (const cell of Array.from(table.querySelectorAll("td"))) {
-            // 作息表是「单元格里再套一层表」的结构，外层单元格的 textContent 也含时间，
-            // 这里只取最内层单元格，避免同一条时间被重复计数。
-            if (cell.querySelector("table")) continue;
+// 冬令时 下午
+const WinterAfternoonTimeSlots = [
+    { number: 5, startTime: "13:30", endTime: "14:15" },
+    { number: 6, startTime: "14:25", endTime: "15:10" },
+    { number: 7, startTime: "15:30", endTime: "16:15" },
+    { number: 8, startTime: "16:25", endTime: "17:10" }
+];
 
-            const match = cell.textContent.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
-            if (!match) continue;
+// 冬令时 晚上
+const WinterEveningTimeSlots = [
+    { number: 9, startTime: "18:30", endTime: "19:15" },
+    { number: 10, startTime: "19:25", endTime: "20:10" },
+    { number: 11, startTime: "20:20", endTime: "21:05" }
+];
 
-            const pad = (value) => String(value).padStart(2, "0");
-            slots.push({
-                number: number,
-                startTime: `${pad(match[1])}:${match[2]}`,
-                endTime: `${pad(match[3])}:${match[4]}`
+// 两季各一套完整作息（上午、下午、晚上依次顺延，共 11 节）
+const SummerTimeSlots = [...MorningTimeSlots, ...SummerAfternoonTimeSlots, ...SummerEveningTimeSlots];
+const WinterTimeSlots = [...MorningTimeSlots, ...WinterAfternoonTimeSlots, ...WinterEveningTimeSlots];
+
+/**
+ * 组合作息方案名称。
+ */
+const COMBO_SCHEDULE_NAME = "江苏大学研究生作息（夏令时 / 冬令时自动切换）";
+
+/**
+ * 判断当前是否处于夏令时作息。
+ * 学校历年都是 4 月 7 日起执行夏令时、10 月 7 日起执行冬令时（十一假期结束后切回）。
+ * 这里只用于决定「基础时间段」写入哪一套，真正生效的时间由组合作息按日期决定。
+ */
+function isSummerTimeNow() {
+    const now = new Date();
+    const summerStart = new Date(now.getFullYear(), 3, 7); // 4月7日
+    const winterStart = new Date(now.getFullYear(), 9, 7); // 10月7日
+    return now >= summerStart && now < winterStart;
+}
+
+/**
+ * 把日期字符串（"YYYY-MM-DD"）加减天数，返回同样格式的字符串。
+ */
+function shiftDate(dateStr, days) {
+    const date = new Date(`${dateStr}T00:00:00`);
+    date.setDate(date.getDate() + days);
+    return formatDate(date);
+}
+
+/**
+ * 构造组合作息方案（comboSchedule）。
+ *
+ * 规则按日期区间匹配：夏令时 4/7–10/6，冬令时 10/7–次年 4/6。
+ * 两者首尾相接，全年任意一天都能命中一条，不存在空档。
+ *
+ * 一个学期可能横跨两套令时区间，也可能跨年：
+ *   秋季学期（9 月开学、次年 1 月结束）：当年夏令时尾巴 + 当年冬令时；
+ *   春季学期（2 月开学、7 月结束）：上一年冬令时尾巴 + 当年夏令时。
+ * 所以这里不假设"学期属于某一年"，而是把学期覆盖到的每一年都生成一对区间，
+ * 再逐个与学期区间求交集，命中的才写进方案——这样任何学期都能被完整覆盖。
+ *
+ * 拿到开学日期时，方案只覆盖本学期，避免与其它学期的作息方案互相干扰；
+ * 拿不到开学日期时退回全年固定的两个区间（以导入当天的"夏令时年份"为基准）。
+ *
+ * @param {string|null} semesterStartDate 本学期开学日期 "YYYY-MM-DD"，取不到传 null
+ * @param {number} totalWeeks 本学期总周数
+ */
+function buildComboSchedule(semesterStartDate, totalWeeks) {
+    // 本学期日期区间（含最后一周的最后一天）
+    const semesterEnd = semesterStartDate
+        ? shiftDate(semesterStartDate, Math.max(1, totalWeeks) * 7 - 1)
+        : null;
+
+    /**
+     * 求「本学期」与「某个令时区间」的交集，无交集返回 null。
+     */
+    const intersect = (seasonStart, seasonEnd) => {
+        if (!semesterStartDate || !semesterEnd) return null;
+        const start = semesterStartDate > seasonStart ? semesterStartDate : seasonStart;
+        const end = semesterEnd < seasonEnd ? semesterEnd : seasonEnd;
+        return start <= end ? { startDate: start, endDate: end } : null;
+    };
+
+    // 学期覆盖到的年份范围：往前多取一年，兜住"1 月结束的秋季学期"和"2 月开学的春季学期"
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const fallbackSummerYear = (month >= 8 || month < 4) ? now.getFullYear() : now.getFullYear() - 1;
+    const firstYear = semesterStartDate
+        ? Number(semesterStartDate.slice(0, 4))
+        : fallbackSummerYear;
+    const lastYear = semesterEnd ? Number(semesterEnd.slice(0, 4)) : firstYear;
+
+    const publicSchedules = [];
+
+    for (let year = firstYear - 1; year <= lastYear; year++) {
+        // 该年度的夏令时：year/4/7 – year/10/6；冬令时：year/10/7 – (year+1)/4/6
+        const summerRange = intersect(`${year}-04-07`, `${year}-10-06`);
+        if (summerRange) {
+            publicSchedules.push({
+                name: "夏令时",
+                startDate: summerRange.startDate,
+                endDate: summerRange.endDate,
+                defaultClassDuration: 45,
+                defaultBreakDuration: 10,
+                timeSlots: SummerTimeSlots
             });
-            number += 1;
+        }
+
+        const winterRange = intersect(`${year}-10-07`, `${year + 1}-04-06`);
+        if (winterRange) {
+            publicSchedules.push({
+                name: "冬令时",
+                startDate: winterRange.startDate,
+                endDate: winterRange.endDate,
+                defaultClassDuration: 45,
+                defaultBreakDuration: 10,
+                timeSlots: WinterTimeSlots
+            });
         }
     }
 
-    return slots;
+    // 拿不到开学日期，或学期与所有令时区间都没有交集（例如纯夏季小学期）时，退回全年固定区间
+    if (publicSchedules.length === 0) {
+        publicSchedules.push({
+            name: "夏令时",
+            startDate: `${fallbackSummerYear}-04-07`,
+            endDate: `${fallbackSummerYear}-10-06`,
+            defaultClassDuration: 45,
+            defaultBreakDuration: 10,
+            timeSlots: SummerTimeSlots
+        });
+        publicSchedules.push({
+            name: "冬令时",
+            startDate: `${fallbackSummerYear}-10-07`,
+            endDate: `${fallbackSummerYear + 1}-04-06`,
+            defaultClassDuration: 45,
+            defaultBreakDuration: 10,
+            timeSlots: WinterTimeSlots
+        });
+    }
+
+    // 按开始日期排序，保证规则顺序与时间顺序一致（应用取第一条命中的规则）
+    publicSchedules.sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+    return {
+        name: COMBO_SCHEDULE_NAME,
+        publicSchedules: publicSchedules
+    };
 }
 
 /**
@@ -721,18 +868,43 @@ async function saveCourseConfigIfPossible(config) {
     }
 }
 
+/**
+ * 提交基础时间段（组合作息的骨架）。
+ * 必须成功，否则后面的 saveComboSchedule 会被应用直接拒绝（顺序强校验）。
+ */
 async function importPresetTimeSlots(timeSlots) {
     if (timeSlots.length === 0) {
         window.shiguangBridge.showToast("警告：时间段为空，未导入时间段信息。");
-        return;
+        return false;
     }
 
     window.shiguangBridge.showToast(`正在导入 ${timeSlots.length} 个预设时间段...`);
     try {
         await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(timeSlots));
+        return true;
     } catch (error) {
         window.shiguangBridge.showToast("导入时间段失败: " + error.message);
         console.error("JS: Save Time Slots Error:", error);
+        return false;
+    }
+}
+
+/**
+ * 提交组合作息方案：夏令时 / 冬令时按日期区间自动切换。
+ * 应用会以 importPresetTimeSlots 提交的基础时间段为骨架做差量合并，
+ * 本方案每个模板都提交完整 1-11 节，所以合并结果与模板本身一致。
+ * 调用后本次导入任务不再允许调用 savePresetTimeSlots，因此顺序必须固定为「先时间段、后方案」。
+ */
+async function importComboSchedule(comboSchedule) {
+    window.shiguangBridge.showToast("正在导入夏令时/冬令时组合作息方案...");
+    try {
+        await window.shiguangBridgePromise.saveComboSchedule(JSON.stringify(comboSchedule));
+        console.log("JS: 组合作息方案已导入:", comboSchedule);
+        return true;
+    } catch (error) {
+        window.shiguangBridge.showToast("导入作息方案失败: " + error.message);
+        console.error("JS: Save Combo Schedule Error:", error);
+        return false;
     }
 }
 
@@ -809,8 +981,7 @@ async function runImportFlow() {
         return;
     }
 
-    const timeSlots = parseTimeSlots(timetableDoc);
-    console.log(`JS: 解析到 ${courses.length} 门课程，${timeSlots.length} 个时间段。`);
+    console.log(`JS: 解析到 ${courses.length} 门课程。`);
 
     // 学号取自课表页隐藏域，用来查「我的课表」接口
     const studentId = (timetableDoc.querySelector("#MainWork_WUCpyjhdy_HFfilename") || {}).value || "";
@@ -827,6 +998,11 @@ async function runImportFlow() {
         }
         : null;
 
+    // 基础时间段（骨架）用导入当下的令时那一套；方案里两个模板都会提交完整 11 节，
+    // 骨架实际只是用来满足「先时间段、后方案」的顺序要求，不会影响最终显示。
+    const baseTimeSlots = isSummerTimeNow() ? SummerTimeSlots : WinterTimeSlots;
+    const comboSchedule = buildComboSchedule(semesterStartDate, totalWeeks);
+
     const saveResult = await saveCourses(courses);
     if (!saveResult) {
         console.log("JS: 课程保存失败，流程终止。");
@@ -834,16 +1010,29 @@ async function runImportFlow() {
     }
 
     await saveCourseConfigIfPossible(config);
-    await importPresetTimeSlots(timeSlots);
+
+    // 顺序不可调换：saveComboSchedule 依赖 savePresetTimeSlots 成功写入的基础时间段。
+    const timeSlotSaved = await importPresetTimeSlots(baseTimeSlots);
+    if (timeSlotSaved) {
+        await importComboSchedule(comboSchedule);
+    } else {
+        window.shiguangBridge.showToast("时间段导入失败，已跳过组合作息方案。");
+        console.log("JS: 基础时间段未写入成功，跳过 saveComboSchedule。");
+    }
+
+    const scheduleBrief = comboSchedule.publicSchedules
+        .map((rule) => `${rule.name} ${rule.startDate} ~ ${rule.endDate}`)
+        .join("\n");
 
     await window.shiguangBridgePromise.showAlert(
         "导入完成",
         `已导入 ${semesterText} 共 ${courses.length} 门课程。\n\n` +
-        `作息时间取自研究生系统课表页当前显示的作息（全天 ${timeSlots.length} 节），` +
-        "学校切换夏令时/冬令时后请重新导入，或在应用内手动修改时间段。\n\n" +
+        `作息已写入组合作息方案（全天 ${baseTimeSlots.length} 节），将于每年 4 月 7 日切换到夏令时、` +
+        "10 月 7 日切换到冬令时，无需重新导入。\n\n" +
+        `本次方案的生效区间：\n${scheduleBrief}\n\n` +
         (semesterStartDate
             ? `开学日期由课表数据反推得到：${semesterStartDate}，请在应用内核对。`
-            : "未能反推开学日期，请在应用内手动设置。"),
+            : "未能反推开学日期（作息方案已退回全年固定区间），请在应用内手动设置开学日期。"),
         "我知道了"
     );
 

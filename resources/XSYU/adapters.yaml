@@ -1,0 +1,9 @@
+# resources/XSYU/adapters.yaml
+adapters:
+  - adapter_id: "XSYU_01"
+    adapter_name: "西安石油大学超星教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xsyu_01.js"
+    import_url: "https://jiaowu.xsyu.edu.cn/admin/login"
+    maintainer: "dr1am1"
+    description: "西安石油大学超星综合教学管理系统（jiaowu.xsyu.edu.cn）课表导入，自动识别当前学期与校区，导入课程、作息时间、开学日期与总周数；支持账密登录与统一认证登录"

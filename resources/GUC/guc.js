@@ -12,14 +12,14 @@
 // 4. 课表视图分裂：全部周次视图表头无日期，仅按周(weekNo=N)视图表头带日期
 // 5. 学生年级/学历等字段经接口加密下发、无干净字段（故无法按学号可靠推算"大几"，只显示真实学年学期）
 // 6. 功能集中在单 Action（CourseAction?setAction=...）按字符串分发，无 REST
+// 7. 课表页"全部周次"下拉纯纯摆设：提交空值(weekNo=)照样只给"当前周"，实测单次只拿到 2 门课——
+//    只好逐周请求十几次再自己合并（详见 fetchAllWeeksTimetable 注释）
 
 
 // ==================== 常量 ====================
 
-// 课表页面地址（selectTableType: ThisTerm=本学期, NextTerm=下学期）
-const COURSE_TABLE_URL = "https://jw.guc.edu.cn/yethan/CourseAction?setAction=userCourseScheduleTable&viewType=studentCourseTableWeek&selectTableType=";
-
-// 课表表单提交地址（"按周次查课表"用 POST 提交，weekNo=1 请求用于解析开学日期，复刻页面表单）
+// 课表接口地址（所有课表请求均走 POST 表单提交，复刻页面表单：
+// setAction=userCourseScheduleTable / viewType=studentCourseTableWeek / selectTableType=<学期> / queryType=student / weekNo=<周次，空=全部>）
 const COURSE_ACTION_URL = "https://jw.guc.edu.cn/yethan/CourseAction";
 
 // 默认导入学期（用户在选择学期弹窗中取消时回退到本学期）
@@ -266,6 +266,29 @@ function parseTimetableToCourses(html) {
 }
 
 /**
+ * 校验作息是否满足官方规则（wiki《一些数据的格式信息》1.2 节）：
+ *   - number 必须从 1 开始连续递增，不允许空洞；
+ *   - startTime / endTime 匹配 "HH:mm" 且 start < end；
+ *   - 相邻节次不重叠（下一节 startTime 不早于上一节 endTime）。
+ * 返回 false 时调用方应回退写死常量，避免 App 侧校验拒绝导致作息丢失。
+ */
+function isValidTimeSlots(slots) {
+    if (!Array.isArray(slots) || slots.length === 0) return false;
+    const toMinutes = t => {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(t || "");
+        return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : NaN;
+    };
+    for (let i = 0; i < slots.length; i++) {
+        if (slots[i].number !== i + 1) return false;            // 必须从 1 连续递增
+        const s = toMinutes(slots[i].startTime);
+        const e = toMinutes(slots[i].endTime);
+        if (isNaN(s) || isNaN(e) || s >= e) return false;        // 格式合法 且 start < end
+        if (i > 0 && s < toMinutes(slots[i - 1].endTime)) return false; // 相邻不重叠
+    }
+    return true;
+}
+
+/**
  * 从课表 HTML 动态提取作息时间（节次 + 上课时间列，如 "08:20-09:05"）。
  * 返回 [{ number, startTime, endTime }]；无有效节次时返回 null（由调用方回退写死常量）。
  * 表头行（节次为"节"字）与 rowspan 跨节的空节次行经 parseInt 后自然跳过。
@@ -287,7 +310,8 @@ function parseTimeSlots(html) {
         }
         if (slots.length === 0) return null;
         slots.sort((a, b) => a.number - b.number);
-        return slots;
+        // 官方校验不通过则返回 null → 调用方回退写死 TIME_SLOTS
+        return isValidTimeSlots(slots) ? slots : null;
     } catch (e) {
         console.error("解析作息时间失败:", e);
         return null;
@@ -311,34 +335,10 @@ async function fetchWithTimeout(url, options) {
 }
 
 /**
- * 拉取本学期课表页面并检测登录状态（一次请求完成）。
- * 返回：
- *   - { loggedIn: true, html }  成功
- *   - { error: "not_logged_in" }   未登录（页面含验证码输入框/登录表单）
- *   - { error: "network" }         网络异常或超时
- *   - { error: "request_failed" }  HTTP 请求失败（非 2xx）
- *   - { error: "no_table" }        已登录但页面无课表
+ * 请求指定周次的课表（POST，复刻页面"查周课表"表单）。
+ * 成功返回响应 HTML；任何失败返回 null。
  */
-async function fetchTimetableOnce(semesterType) {
-    try {
-        const resp = await fetchWithTimeout(COURSE_TABLE_URL + semesterType + "&queryType=student");
-        if (!resp.ok) return { error: "request_failed" };
-        const html = await resp.text();
-        if (html.includes('id="ranstring"') || html.includes("LoginForm")) return { error: "not_logged_in" };
-        if (!html.includes("table_border")) return { error: "no_table" };
-        return { loggedIn: true, html };
-    } catch (e) {
-        console.error("获取课表失败:", e);
-        return { error: "network" };
-    }
-}
-
-/**
- * 请求第 1 周课表（POST，复刻页面"查周课表"表单，weekNo=1）。
- * 第 1 周视图的表头带日期（如 "星期一<br>03月02日"），用于解析开学日期。
- * 成功返回响应 HTML；任何失败返回 null（不阻断主流程，开学日期缺失时 App 端可手动设置）。
- */
-async function fetchWeek1Timetable(semesterType) {
+async function fetchWeekTimetable(semesterType, weekNo) {
     try {
         const resp = await fetchWithTimeout(COURSE_ACTION_URL, {
             method: "POST",
@@ -348,15 +348,60 @@ async function fetchWeek1Timetable(semesterType) {
                 viewType: "studentCourseTableWeek",
                 selectTableType: semesterType,
                 queryType: "student",
-                weekNo: "1"
+                weekNo: String(weekNo)
             }).toString()
         });
         if (!resp.ok) return null;
         return await resp.text();
     } catch (e) {
-        console.error("获取第1周课表失败:", e);
+        console.error(`获取第${weekNo}周课表失败:`, e);
         return null;
     }
+}
+
+/**
+ * 逐周抓取整学期课表并合并（教务没有可用的"全部周次"接口）。
+ *
+ * ⚠️ 实测结论：页面下拉的"全部周次"（weekNo 为空）实际仍返回"当前周"课表，
+ * 教务默认视图也是"当前周"——只请求一次会漏掉大量课程（实测仅得到 2 门）。
+ * 因此必须逐周请求：每周响应中的课程自带完整周次信息，合并去重即可还原整学期。
+ * 策略：先抓第 1 周（同时用于登录检测与解析开学日期），再按第 1 周课程的最大周次
+ * 并发补齐其余周次（并发 4，兼顾速度与教务限流）。
+ *
+ * 返回：
+ *   - { loggedIn: true, courses, week1Html }  成功（week1Html 供解析开学日期）
+ *   - { error: "not_logged_in" | "network" | "no_table" }
+ */
+async function fetchAllWeeksTimetable(semesterType, onProgress) {
+    const firstHtml = await fetchWeekTimetable(semesterType, 1);
+    if (!firstHtml) return { error: "network" };
+    if (firstHtml.includes('id="ranstring"') || firstHtml.includes("LoginForm")) return { error: "not_logged_in" };
+    if (!firstHtml.includes("table_border")) return { error: "no_table" };
+
+    const week1Courses = parseTimetableToCourses(firstHtml);
+    const maxWeek = week1Courses.reduce((m, c) => Math.max(m, Math.max(...c.weeks)), 0) || 19;
+    const all = [...week1Courses];
+
+    const weeks = [];
+    for (let w = 2; w <= Math.min(maxWeek, 25); w++) weeks.push(w);
+
+    const CHUNK = 4;
+    let processed = 1;
+    const total = weeks.length + 1;
+    if (onProgress) onProgress(processed, total);
+    for (let i = 0; i < weeks.length; i += CHUNK) {
+        const batch = weeks.slice(i, i + CHUNK);
+        const htmls = await Promise.all(batch.map(w => fetchWeekTimetable(semesterType, w)));
+        htmls.forEach(h => {
+            if (!h) return;
+            const cs = parseTimetableToCourses(h);
+            if (cs.length) all.push(...cs);
+        });
+        processed += batch.length;
+        if (onProgress) onProgress(Math.min(processed, total), total);
+    }
+
+    return { loggedIn: true, courses: mergeAndDistinctCourses(all), week1Html: firstHtml };
 }
 
 /**
@@ -430,16 +475,41 @@ function parseSemesterLabel(html) {
 }
 
 /**
- * 探测指定学期的真实学期名。请求选课页(userCourseSchedule)拿页头学期标识；
- * 任何失败返回 null（调用方回退用通用名"本学期/下学期"）。
+ * 从选课页 HTML 解析"课程名称 → 学分"映射。
+ * 表格列：序号|学期|选课编号|课程代码|课程名称|班号|开课学院|任课教师|学分|性质|上课时间地点|操作
+ * 表头行、未选课占位行（课程名为空）、学分非正数均自动跳过。解析失败返回空对象。
  */
-async function fetchSemesterLabel(type) {
+function parseCreditMap(html) {
+    const map = {};
+    try {
+        const rows = getTableRows(html);
+        for (const row of rows) {
+            const cells = Array.from(row.querySelectorAll("td"));
+            if (cells.length < 9) continue;
+            const name = (cells[4].textContent || "").trim();      // 课程名称
+            if (!name) continue;
+            const credit = parseFloat((cells[8].textContent || "").trim()); // 学分
+            if (!isNaN(credit) && credit > 0) map[name] = credit;
+        }
+    } catch (e) {
+        console.error("解析学分失败:", e);
+    }
+    return map;
+}
+
+/**
+ * 探测指定学期：请求选课页(userCourseSchedule)一次，同时得到
+ *   ① 页头真实学期名（如 "2025-2026第2学期"）② 课程名称→学分映射。
+ * 任何失败返回 null（调用方回退通用名，且不注入学分）。
+ */
+async function fetchSemesterInfo(type) {
     try {
         const resp = await fetchWithTimeout(COURSE_ACTION_URL + "?setAction=userCourseSchedule&selectTableType=" + type);
         if (!resp.ok) return null;
-        return parseSemesterLabel(await resp.text());
+        const html = await resp.text();
+        return { label: parseSemesterLabel(html), creditMap: parseCreditMap(html) };
     } catch (e) {
-        console.error("探测学期名失败(", type, "):", e);
+        console.error("探测学期信息失败(", type, "):", e);
         return null;
     }
 }
@@ -447,29 +517,45 @@ async function fetchSemesterLabel(type) {
 /**
  * 让用户选择导入学期。用 showSingleSelection 显示两个学期的真实学期名
  * （如 "2025-2026第2学期" / "2026-2027第1学期"，比"本学期/下学期"更明确）；
- * 探测不到真实名时回退显示通用名。取消返回默认本学期(ThisTerm)。
+ * 探测不到真实名时回退显示通用名。取消或探测失败时回退默认本学期(ThisTerm)。
+ * 返回 { semesterType, creditMap }。
  */
 async function selectSemester() {
     const kinds = [
         { value: "ThisTerm", label: "本学期" },
         { value: "NextTerm", label: "下学期" }
     ];
-    const labels = await Promise.all(kinds.map(k => fetchSemesterLabel(k.value)));
-    const names = kinds.map((k, i) => labels[i] || k.label);
+    const infos = await Promise.all(kinds.map(k => fetchSemesterInfo(k.value)));
+    const names = kinds.map((k, i) => (infos[i] && infos[i].label) || k.label);
     const idx = await window.shiguangBridgePromise.showSingleSelection("选择导入学期", JSON.stringify(names), 0);
-    if (idx == null || idx === undefined || idx === -1) return SELECT_TABLE_TYPE;
-    return (kinds[idx] || kinds[0]).value;
+    const chosen = (idx == null || idx === undefined || idx === -1 || !kinds[idx]) ? 0 : idx;
+    return {
+        semesterType: kinds[chosen].value,
+        creditMap: (infos[chosen] && infos[chosen].creditMap) || {}
+    };
+}
+
+/**
+ * 按课程名把学分注入课程记录（选课页学分表 → 课表课程）。
+ * 匹配不到时保持原样（不设置该字段），不影响导入。
+ */
+function applyCredits(courses, creditMap) {
+    if (!creditMap || Object.keys(creditMap).length === 0) return courses;
+    for (const c of courses) {
+        const credit = creditMap[c.name];
+        if (typeof credit === "number") c.credit = credit;
+    }
+    return courses;
 }
 
 /**
  * 构造课表配置：学期总周数（取课程最大周）+ 开学日期（可选）。
- * 开学日期：请求第 1 周课表，取表头"星期一"日期作为第一周第一天（"yyyy-MM-dd"，官方格式）；
- * 请求失败或解析失败时不设置该字段（App 端可手动设置），不影响课程导入。
+ * 开学日期：从已抓取的第 1 周课表表头取"星期一"日期（第一周第一天，"yyyy-MM-dd"，官方格式）；
+ * 解析失败时不设置该字段（App 端可手动设置），不影响课程导入。
  */
-async function fetchCourseConfig(semesterType, courses) {
+function fetchCourseConfig(week1Html, courses) {
     const maxWeek = courses.reduce((max, c) => Math.max(max, Math.max(...c.weeks)), 0);
     const config = { semesterTotalWeeks: Math.max(maxWeek, 1) };
-    const week1Html = await fetchWeek1Timetable(semesterType);
     if (week1Html) {
         const semesterStartDate = parseSemesterStartDate(week1Html);
         if (semesterStartDate) {
@@ -503,10 +589,12 @@ async function runImportFlow() {
         return;
     }
 
-    // 2. 选择导入学期（默认本学期），并拉取该学期课表、检测登录状态
-    const semesterType = await selectSemester();
+    // 2. 选择导入学期（默认本学期），逐周抓取该学期课表并合并
+    const { semesterType, creditMap } = await selectSemester();
     BRIDGE.showToast("正在获取课表数据...");
-    const result = await fetchTimetableOnce(semesterType);
+    const result = await fetchAllWeeksTimetable(semesterType, (done, total) => {
+        BRIDGE.showToast(`正在获取课表数据...（${done}/${total} 周）`);
+    });
     if (result.error === "not_logged_in") {
         await BRIDGE_P.showAlert(
             "未检测到登录状态",
@@ -516,22 +604,22 @@ async function runImportFlow() {
         BRIDGE.showToast("未登录，导入中止");
         return;
     }
-    if (result.error === "network" || result.error === "request_failed") {
+    if (result.error === "network") {
         BRIDGE.showToast("获取课表失败（网络异常或超时），请检查网络后重试");
         return;
     }
-    if (result.error === "no_table" || !result.html) {
+    if (result.error === "no_table") {
         BRIDGE.showToast("未获取到课表数据，请确认登录状态后重试");
         return;
     }
-    const html = result.html;
 
-    // 3. 解析课程（所选学期）
-    const courses = parseTimetableToCourses(html);
+    // 3. 课程已逐周合并去重，这里按课名注入学分（选课页学分表）
+    const courses = result.courses || [];
     if (courses.length === 0) {
         BRIDGE.showToast("未解析到课程数据，请确认所选学期是否有课程");
         return;
     }
+    applyCredits(courses, creditMap);
     console.log("解析到课程记录数:", courses.length, courses);
 
     // 4. 保存课程
@@ -543,18 +631,18 @@ async function runImportFlow() {
         return;
     }
 
-    // 5. 保存作息时间（优先从课表"上课时间"列动态提取，学校调作息后无需改代码；提取失败回退写死常量）
+    // 5. 保存作息时间（从课表"上课时间"列动态提取，学校调作息后无需改代码；提取失败回退写死常量）
     try {
-        const timeSlots = parseTimeSlots(html) || TIME_SLOTS;
+        const timeSlots = parseTimeSlots(result.week1Html) || TIME_SLOTS;
         await BRIDGE_P.savePresetTimeSlots(JSON.stringify(timeSlots));
         BRIDGE.showToast("作息时间保存成功");
     } catch (e) {
         BRIDGE.showToast("作息时间保存失败: " + e.message);
     }
 
-    // 6. 保存课表配置（学期总周数 + 开学日期）
+    // 6. 保存课表配置（学期总周数 + 开学日期，均取自第 1 周响应）
     try {
-        const config = await fetchCourseConfig(semesterType, courses);
+        const config = fetchCourseConfig(result.week1Html, courses);
         await BRIDGE_P.saveCourseConfig(JSON.stringify(config));
     } catch (e) {
         BRIDGE.showToast("课表配置保存失败: " + e.message);

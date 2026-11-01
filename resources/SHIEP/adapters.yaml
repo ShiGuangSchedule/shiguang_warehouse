@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "SHIEP.js"
     import_url: "https://jw.shiep.edu.cn/eams/index.action"
     maintainer: "zt11125"
-    description: "从统一身份认证入口登录后进入教务系统"
+    description: "从统一身份认证入口登录后进入教务系统,在右上角打开电脑模式，进入教务系统可直接导入不用在意页面异常"

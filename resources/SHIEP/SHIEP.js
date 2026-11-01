@@ -1,4 +1,4 @@
-// resources/SUEP/SUEP_03.js
+// resources/SHIEP/SHIEP.js
 // 上海电力大学 本科教务系统（eams / 上海树维）拾光课程表适配脚本 —— 接口探测版
 //
 // 本脚本改自本仓库中天津农学院 (TJAU) 的适配脚本（作者：星河欲转）。
@@ -11,10 +11,7 @@
 // 导入页（adapters.yaml 的 import_url）：https://jw.shiep.edu.cn/eams/index.action
 //
 // 前置条件：**只需登录**，不需要打开课表页。
-//
-// 与 SUEP_01.js / SUEP_02.js 的差别：
-//   SUEP_01 读当前页面内联脚本；SUEP_02 已登录后调接口、但参数取自当前页面；
-//   本脚本连参数都由接口探测，因此对页面状态没有要求。
+
 
 const EAMS_BASE = "https://jw.shiep.edu.cn/eams";
 

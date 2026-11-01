@@ -1,0 +1,9 @@
+# resources/LIDAPOLY/adapters.yaml
+adapters:
+  - adapter_id: "LIDAPOLY"
+    adapter_name: "上海立达学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "lidapoly.js"
+    import_url: "http://jw.lidapoly.edu.cn/shldzyjsxy_jsxsd"
+    maintainer: "Haooz"
+    description: "上海立达学院课表导入，请先登录教务系统，再点击导入！非本校开发者，如有误请提交issues。"

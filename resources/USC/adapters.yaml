@@ -1,0 +1,9 @@
+# resources/USC/adapters.yaml
+adapters:
+  - adapter_id: "USC_01"
+    adapter_name: "南华大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "usc_01.js"
+    import_url: "http://jwzx.usc.edu.cn:8924"
+    maintainer: "UVhyx"
+    description: "南华大学教务在线（湖南强智科技 jsxsd）适配，支持获取开学日期"

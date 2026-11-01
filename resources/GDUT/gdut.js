@@ -158,18 +158,17 @@ async function fetchCourses(semesterId){
         console.log(`正在获取学期 ${semesterId} 的课程数据...`);
 
         // 理论上此处应分页遍历处理，但分页处理将导致教务系统返回错误的数据（课程重复和缺失）。
-        // 此处假设总课程数量总是小于 1000，并设置一页的最大课程数量为 1000。
-        const pageSize = 1000;
+        // API 返回结果包含课程总量，可以先探测一遍获取总量，再使用获取的总量去获取所有课程。
+        let formData = new URLSearchParams({
+            zc: '',
+            xnxqdm: semesterId,
+            page: '1',
+            rows: '1',
+            sort: 'kxh',
+            order: 'asc'
+        })
 
-        const formData = new URLSearchParams();
-        formData.append('zc', '');
-        formData.append('xnxqdm', semesterId);
-        formData.append('page', '1');
-        formData.append('rows', String(pageSize));
-        formData.append('sort', 'kxh');
-        formData.append('order', 'asc');
-
-        const response = await fetch(url_strings.GET_ALL_COURSES_API_URL, {
+        let response = await fetch(url_strings.GET_ALL_COURSES_API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -183,9 +182,10 @@ async function fetchCourses(semesterId){
             throw new Error(`请求失败: ${response.status}`);
         }
 
-        const rawData = await response.json();
+        let rawData = await response.json();
+        const total = rawData.total;
 
-        if (rawData.total === 0 || rawData.rows.length === 0) {
+        if (total === 0 || rawData.rows.length === 0) {
             console.log(`学期 ${semesterId} 没有找到课程数据。`);
             if (await checkSemesterIsOpened(semesterId)) {
                 throw new Error('该学期没有找到课程！请确认选择了正确的学期。');
@@ -193,14 +193,28 @@ async function fetchCourses(semesterId){
             throw new Error('学期未开放课表查询！');
         }
 
+        formData.set('rows', total);
+
+        response = await fetch(url_strings.GET_ALL_COURSES_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': url_strings.BASE_URL
+            },
+            body: formData.toString(),
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error(`请求失败: ${response.status}`);
+        }
+
+        rawData = await response.json();
         const rawCourses = rawData.rows;
-
         console.log(`成功获取学期 ${semesterId} 的课程数据，共 ${rawCourses.length} 条记录。`);
-
         const courses = parseCourses(rawCourses);
 
         return courses;
-
     } catch (error) {
         console.error('添加课程表失败:', error);
         window.shiguangBridge.showToast(`添加课程失败: ${error.message}`);
@@ -242,7 +256,6 @@ function parseCourses(rawCourses){
 
     const courses = [];
     for (const raw of rawCourses) {
-
         const sectionMatch = raw.jcdm.match(/\d{2}/g);
         if (!sectionMatch) {
             console.error(`课程节次解析失败，原始数据：${raw.jcdm}。`);
@@ -297,9 +310,7 @@ async function saveCourses(courses){
     try {
         console.log("正在尝试导入课程...");
         const result = await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(courses));
-        if (result === true) {
-            console.log("课程导入成功！");
-        } else {
+        if (result !== true) {
             console.log("课程导入未成功，结果：" + result);
             window.shiguangBridge.showToast("课程导入失败，请查看日志。");
         }
@@ -333,9 +344,7 @@ async function setPresetTimeSlots() {
     try {
         console.log("正在尝试导入预设时间段...");
         const result = await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(presetTimeSlots));
-        if (result === true) {
-            console.log("预设时间段导入成功！");
-        } else {
+        if (result !== true) {
             console.log("预设时间段导入未成功，结果：" + result);
             window.shiguangBridge.showToast("预设时间段导入失败，请查看日志。");
         }
@@ -353,12 +362,8 @@ async function saveConfig(config) {
     try {
         console.log("正在尝试导入课表配置...");
         const configJsonString = JSON.stringify(config);
-
         const result = await window.shiguangBridgePromise.saveCourseConfig(configJsonString);
-
-        if (result === true) {
-            console.log("课表配置导入成功！");
-        } else {
+        if (result !== true) {
             console.log("课表配置导入未成功，结果：" + result);
             window.shiguangBridge.showToast("课表配置导入失败，请查看日志。");
         }

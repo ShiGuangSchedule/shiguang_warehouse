@@ -1,4 +1,4 @@
-// 文件: guilin_medical.js
+// 文件: school.js
 // 功能：从桂医教务系统获取课程表，通过桥接 API 导入到拾光课程表
 
 // ---------- 全局验证函数 ----------
@@ -12,8 +12,17 @@ function validateYearInput(input) {
 
 // ---------- 工具函数 ----------
 function parseWeeks(weeksStr) {
-    weeksStr = weeksStr.replace('周', '');
-    const parts = weeksStr.split(',');
+    // 🔥 修复核心：兼容数字、数组和字符串
+    if (typeof weeksStr === 'number') {
+        return [weeksStr];
+    }
+    if (Array.isArray(weeksStr)) {
+        return weeksStr.map(Number);
+    }
+
+    // 兼容字符串情况
+    let str = String(weeksStr).replace('周', '');
+    const parts = str.split(',');
     const weeks = [];
     for (const part of parts) {
         if (part.includes('-')) {
@@ -26,6 +35,7 @@ function parseWeeks(weeksStr) {
     return weeks;
 }
 
+// 兼容旧字段 jcdm 的解析（保留作为备用）
 function parseSections(jcdm) {
     const str = String(jcdm);
     const sections = [];
@@ -49,9 +59,28 @@ function parseRawCourses(rawData) {
         const name = course.kcmc;
         const teacher = course.teaxms;
         const position = course.jxcdmc;
-        const weeks = parseWeeks(course.zc);
+        const weeks = parseWeeks(course.zc); // 这里调用已经修复
         const day = parseInt(course.xq);
-        const sections = parseSections(course.jcdm);
+
+        // 使用 ps 和 pe 字段来生成 sections 数组
+        let sections = [];
+        if (course.ps !== undefined && course.pe !== undefined && course.ps !== '' && course.pe !== '') {
+            const start = parseInt(course.ps, 10);
+            const end = parseInt(course.pe, 10);
+            if (!isNaN(start) && !isNaN(end)) {
+                for (let i = start; i <= end; i++) {
+                    sections.push(i);
+                }
+            }
+        } else if (course.jcdm !== undefined) {
+            sections = parseSections(course.jcdm);
+        }
+
+        if (sections.length === 0) {
+            console.warn('跳过无节次信息的课程:', course.kcmc);
+            continue;
+        }
+
         courseInfos.push({ name, teacher, position, weeks, day, sections });
     }
     return courseInfos;
@@ -89,35 +118,72 @@ function getTimeSlots() {
 
 // ---------- 网络请求 ----------
 async function fetchCourseData(xnxqdm) {
-    let page = 1;
-    const rowsPerPage = 100;
-    let allRows = [];
-    let total = 0;
+    const url = "https://ejwc.glmu.edu.cn/new/student/xsgrkb/getCalendarWeekDatas";
 
-    while (true) {
-        const res = await fetch("https://ejwc.glmc.edu.cn/xsgrkbcx!getDataList.action", {
-            headers: {
-                "accept": "application/json, text/javascript, */*; q=0.01",
-                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "x-requested-with": "XMLHttpRequest"
-            },
-            body: `xnxqdm=${xnxqdm}&page=${page}&rows=${rowsPerPage}`,
-            method: "POST",
-            credentials: "include"
-        });
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-        const ret = await res.json();
-        if (!ret.rows || !Array.isArray(ret.rows)) {
-            throw new Error("返回数据格式不正确");
-        }
-        total = ret.total;
-        allRows = allRows.concat(ret.rows);
-        if (allRows.length >= total) break;
-        page++;
-        if (page > 10) break;
+    // 🔥 核心修改：并发请求第 1 周到第 20 周
+    const promises = [];
+    for (let zc = 1; zc <= 20; zc++) {
+        const bodyParams = `xnxqdm=${xnxqdm}&zc=${zc}`;
+        promises.push(
+            fetch(url, {
+                headers: {
+                    "accept": "application/json, text/javascript, */*; q=0.01",
+                    "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "x-requested-with": "XMLHttpRequest"
+                },
+                body: bodyParams,
+                method: "POST",
+                credentials: "include"
+            })
+            .then(res => res.json())
+            .then(ret => {
+                // 深度兼容新版数据结构
+                let courseData = null;
+                if (Array.isArray(ret)) {
+                    courseData = ret;
+                } else if (ret.rows && Array.isArray(ret.rows)) {
+                    courseData = ret.rows;
+                } else if (ret.data) {
+                    if (Array.isArray(ret.data)) {
+                        courseData = ret.data;
+                    } else if (ret.data.rows && Array.isArray(ret.data.rows)) {
+                        courseData = ret.data.rows;
+                    } else if (ret.data.list && Array.isArray(ret.data.list)) {
+                        courseData = ret.data.list;
+                    }
+                } else if (ret.result && Array.isArray(ret.result)) {
+                    courseData = ret.result;
+                } else if (ret.list && Array.isArray(ret.list)) {
+                    courseData = ret.list;
+                }
+
+                if (courseData && courseData.length > 0) {
+                    // 安全补全：如果教务系统返回的数据里没有 zc 字段，补上当前请求的周次
+                    courseData.forEach(course => {
+                        if (!course.zc) {
+                            course.zc = String(zc);
+                        }
+                    });
+                    return courseData;
+                }
+                return [];
+            })
+            .catch(err => {
+                console.error(`请求第 ${zc} 周数据出错:`, err);
+                return []; // 某一周失败不影响整体
+            })
+        );
     }
+
+    // 等待所有 20 个请求并发完成
+    const results = await Promise.all(promises);
+
+    // 合并结果
+    let allRows = [];
+    results.forEach(rows => {
+        allRows = allRows.concat(rows);
+    });
+
     return allRows;
 }
 
@@ -135,7 +201,7 @@ async function getAcademicYear() {
         "学年设置",
         "请输入本学年开始的年份\n（例如 2024，代表 2024-2025 学年）",
         "2024",
-        "validateYearInput"  // 传入验证函数名
+        "validateYearInput"
     );
 }
 
@@ -153,14 +219,12 @@ async function selectSemester() {
 // ---------- 主流程 ----------
 async function run() {
     try {
-        // 1. 公告
         const confirmed = await promptUserToStart();
         if (!confirmed) {
             window.shiguangBridge.showToast("用户取消了导入流程。");
             return;
         }
 
-        // 2. 获取学年
         const yearInput = await getAcademicYear();
         if (yearInput === null) {
             window.shiguangBridge.showToast("导入已取消。");
@@ -172,7 +236,6 @@ async function run() {
             return;
         }
 
-        // 3. 获取学期
         const semesterIndex = await selectSemester();
         if (semesterIndex === null) {
             window.shiguangBridge.showToast("导入已取消。");
@@ -181,7 +244,6 @@ async function run() {
         const termCode = semesterIndex === 0 ? "01" : (semesterIndex === 1 ? "02" : "03");
         const xnxqdm = `${yearNum}${termCode}`;
 
-        // 4. 请求课表
         window.shiguangBridge.showToast("正在获取课表，请稍候...");
         let rawData;
         try {
@@ -200,11 +262,9 @@ async function run() {
             return;
         }
 
-        // 5. 解析并转换
         const middleCourses = parseRawCourses(rawData);
         const targetCourses = convertToTargetCourses(middleCourses);
 
-        // 6. 保存课程
         try {
             await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(targetCourses));
             window.shiguangBridge.showToast(`课程数据已导入（共 ${targetCourses.length} 条）`);
@@ -213,29 +273,24 @@ async function run() {
             return;
         }
 
-        // 7. 保存时间段
         const timeSlots = getTimeSlots();
         try {
             await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(timeSlots));
             window.shiguangBridge.showToast("时间段数据已导入");
         } catch (slotErr) {
-            // 时间段保存失败不终止流程，只提示
             window.shiguangBridge.showToast(`时间段保存失败：${slotErr.message}`);
         }
 
-        // 8. 完成通知
         window.shiguangBridge.showToast("导入完成！");
         window.shiguangBridge.notifyTaskCompletion();
 
     } catch (err) {
-        // 捕获所有未预料的错误
         console.error("run error:", err);
         await window.shiguangBridgePromise.showAlert(
             "导入失败",
             `未知错误：${err.message || err}\n\n请联系开发者。`,
             "确定"
         );
-        // 仍然通知完成，但可能不会生成有效文件
         window.shiguangBridge.notifyTaskCompletion();
     }
 }

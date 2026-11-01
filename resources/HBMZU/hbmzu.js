@@ -1,8 +1,10 @@
 // 湖北民族大学教务系统（jwgl.hbmzu.edu.cn/edu）拾光课表导入适配脚本
-// 课表查询页（/edu/report/mySchedule.mvc）直接渲染课表 DOM：
+// 理论课表：课表查询页（/edu/report/mySchedule.mvc）直接渲染 DOM：
 //   #container 内每行 tr：首 td 为节次（"上午1-2节"…"晚上11-12节"），后续 7 个 td 对应周一~周日
 //   每格 .course-block 含 span：课程名、教室、周次、教师（无教室时仅 3 个）
-// 注意：无开学日期/总周数接口，config 仅保存作息时间
+// 实验课表：/edu/report/myLabSchedule.mvc 页面内声明学号/学年/学期，按周请求：
+//   /edu/report/stuLabCourseTable/{学号}/{学年}/{学期}/{周}.mvc
+// 导入时把理论与实验课表合并；无开学日期接口，不写课表配置
 
 // 预设作息时间（12 节，含午间/晚间）
 const HBMZU_TIME_SLOTS = [
@@ -46,7 +48,7 @@ function collectDocs() {
     return docs;
 }
 
-// 从各 frame 中查找课表表格（#container 内含 .course-block）
+// 从各 frame 中查找理论课表表格（#container 内含 .course-block）
 // 注入时机早于 frame 加载完成，故轮询等待 frame 就绪（最长 6 秒）
 async function findCourseTable() {
     const deadline = Date.now() + 6000;
@@ -85,7 +87,7 @@ function isWeeksText(text) {
     return /^\d+-\d+(单|双)?周$/.test(String(text || "").replace(/\s+/g, ""));
 }
 
-// 解析课表表格
+// 解析理论课表表格
 // 每行首 td 为节次文本（"上午1-2节"→1-2），其后 7 个 td 依次为周一~周日
 function parseCourseTable(container) {
     const courses = [];
@@ -129,8 +131,8 @@ function parseCourseTable(container) {
                 if (weeks.length === 0) continue;
                 courses.push({
                     name,
-                    teacher: teacher || "未知",
-                    position: position || "待定",
+                    teacher: teacher || "",
+                    position: position || "",
                     day: i + 1,
                     startSection,
                     endSection,
@@ -142,7 +144,117 @@ function parseCourseTable(container) {
     return courses;
 }
 
-// 合并同课程同时间同教室的条目（如单双周分教室的保持两条）
+// 应用上下文路径（通常为 /edu），兼容不同的部署目录
+function getContextPath() {
+    const m = window.location.pathname.match(/^(.*?)\/(?:report|mainpage)\//);
+    return m ? m[1] : "/edu";
+}
+
+// 学年兜底：9 月及以后算当年，1~8 月算上一年
+function fallbackAcademicYear() {
+    const now = new Date();
+    return String(now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1);
+}
+
+// 从实验课表页读取学号、学年、学期（页面内声明：const id=…; const openYear=…; const openTerm=…;）
+async function fetchLabBase() {
+    const ctx = getContextPath();
+    const resp = await fetch(ctx + "/report/myLabSchedule.mvc", { credentials: "include" });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    const idMatch = html.match(/(?:const|let|var)\s+id\s*=\s*["']?(\d+)["']?\s*;/);
+    const yearMatch = html.match(/(?:const|let|var)\s+openYear\s*=\s*["']?(\d{4})["']?\s*;/);
+    const termMatch = html.match(/(?:const|let|var)\s+openTerm\s*=\s*["']?(\d+)["']?\s*;/);
+    if (!idMatch || !termMatch) return null;
+    return {
+        ctx,
+        sid: idMatch[1],
+        year: yearMatch ? yearMatch[1] : fallbackAcademicYear(),
+        term: termMatch[1]
+    };
+}
+
+// 解析单周实验课表：sheduleTable 为「大节 × 星期」二维数组，单元格内 lessons 为课程
+function parseLabTable(data, fallbackWeek) {
+    const courses = [];
+    if (!data || data.code !== 0 || !Array.isArray(data.sheduleTable)) return courses;
+    for (const row of data.sheduleTable) {
+        if (!Array.isArray(row)) continue;
+        for (const cell of row) {
+            if (!cell || !Array.isArray(cell.lessons)) continue;
+            for (const lesson of cell.lessons) {
+                if (!lesson || !lesson.courseName) continue;
+                const day = Number(lesson.weekday);
+                const startSection = Number(lesson.startSection);
+                const period = Number(lesson.period) > 0 ? Number(lesson.period) : 1;
+                if (!(day >= 1 && day <= 7) || !(startSection >= 1)) continue;
+                const week = Number(lesson.week);
+                courses.push({
+                    name: String(lesson.courseName).trim(),
+                    teacher: String(lesson.teacherName || "").trim(),
+                    position: String(lesson.roomName || "").trim(),
+                    day,
+                    startSection,
+                    endSection: startSection + period - 1,
+                    weeks: [Number.isFinite(week) && week > 0 ? week : fallbackWeek]
+                });
+            }
+        }
+    }
+    return courses;
+}
+
+async function fetchLabWeek(base, week) {
+    const url = base.ctx + "/report/stuLabCourseTable/" + base.sid + "/" + base.year + "/" + base.term + "/" + week + ".mvc";
+    const resp = await fetch(url, { credentials: "include" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    return resp.json();
+}
+
+// 拉取整学期实验课表：先取第 1 周拿到总周数，再按周补齐
+async function fetchLabCourses() {
+    let base;
+    try {
+        base = await fetchLabBase();
+    } catch (error) {
+        console.error("JS: 读取实验课表入口失败", error);
+        return { courses: [], warning: "实验课表入口读取失败" };
+    }
+    if (!base) return { courses: [], warning: "未找到实验课表入口" };
+
+    let first;
+    try {
+        first = await fetchLabWeek(base, 1);
+    } catch (error) {
+        console.error("JS: 第 1 周实验课表请求失败", error);
+        return { courses: [], warning: "第 1 周实验课表请求失败" };
+    }
+
+    const totalWeeks = Math.max(1, Number(first.totalWeeks) || 20);
+    const courses = parseLabTable(first, 1);
+    const pending = [];
+    for (let w = 2; w <= totalWeeks; w++) pending.push(w);
+
+    // 分批并发，避免一次性打满
+    const batchSize = 5;
+    for (let i = 0; i < pending.length; i += batchSize) {
+        const batch = pending.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(function (w) {
+            return fetchLabWeek(base, w).then(function (data) {
+                return { week: w, data };
+            }).catch(function () {
+                return null;
+            });
+        }));
+        for (const r of results) {
+            if (!r) continue;
+            courses.push(...parseLabTable(r.data, r.week));
+        }
+    }
+    return { courses, warning: "" };
+}
+
+// 合并同课程同时间同教室的条目（跨周合并 weeks；单双周分教室的保持两条）
 function mergeCourses(courses) {
     const merged = new Map();
     for (const c of courses) {
@@ -171,7 +283,7 @@ async function saveTimeSlots(timeSlots) {
 async function runImportFlow() {
     const alertConfirmed = await window.shiguangBridgePromise.showAlert(
         "课表导入",
-        "导入前请确保已登录并打开课表查询页面。",
+        "导入前请确保已登录并打开课表查询页面，将同时导入理论课表与实验课表。",
         "好的，开始导入"
     );
     if (!alertConfirmed) {
@@ -179,21 +291,30 @@ async function runImportFlow() {
         return;
     }
 
-    window.shiguangBridge.showToast("正在获取课表数据...");
+    window.shiguangBridge.showToast("正在获取理论课表...");
     try {
+        let theoryCourses = [];
         const container = await findCourseTable();
-        if (!container) throw new Error("未找到课表，请确认已登录并打开课表查询页面。");
+        if (container) {
+            theoryCourses = parseCourseTable(container);
+        }
 
-        const courses = parseCourseTable(container);
-        if (courses.length === 0) throw new Error("课表中未解析到有效课程，请确认当前学期有课。");
+        window.shiguangBridge.showToast("正在获取实验课表...");
+        const labResult = await fetchLabCourses();
 
-        const merged = mergeCourses(courses);
+        const merged = mergeCourses([...theoryCourses, ...labResult.courses]);
+        if (merged.length === 0) throw new Error("未解析到有效课程，请确认已登录并打开课表查询页面。");
 
-        window.shiguangBridge.showToast(`正在保存 ${merged.length} 门课程...`);
+        window.shiguangBridge.showToast(`正在保存 ${merged.length} 条课程...`);
         await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(merged, null, 2));
         await saveTimeSlots(HBMZU_TIME_SLOTS);
 
-        window.shiguangBridge.showToast(`课程导入成功，共导入 ${merged.length} 门课程！`);
+        window.shiguangBridge.showToast(
+            `课程导入成功，共 ${merged.length} 条（理论 ${theoryCourses.length} 条 · 实验 ${labResult.courses.length} 条）！`
+        );
+        if (labResult.warning) {
+            window.shiguangBridge.showToast("实验课表未导入：" + labResult.warning);
+        }
         window.shiguangBridge.notifyTaskCompletion();
     } catch (error) {
         window.shiguangBridge.showToast(`导入失败：${getErrorMessage(error)}`);

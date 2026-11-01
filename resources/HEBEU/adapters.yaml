@@ -1,0 +1,9 @@
+# resources/HEBEU/adapters.yaml
+adapters:
+  - adapter_id: "HEBEU_01"
+    adapter_name: "河北工程大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "hebeu.js"
+    import_url: "https://jwglxxfwpt.hebeu.edu.cn/xtgl/login_slogin.html"
+    maintainer: "Nanawwa"
+    description: "登录河北工程大学教务系统后即可导入课表，支持选择学年学期，自动获取开学日期、学期总周数与作息时间"

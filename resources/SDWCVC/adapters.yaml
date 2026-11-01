@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "SDWCVC_01"
+    adapter_name: "山东水利职业学院树维教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "sdwcvc_01.js"
+    import_url: "https://sso.sdwcvc.cn/"
+    maintainer: "小漫君"
+    description: "登录统一认证并在门户中打开教务系统后导入，按所选学期读取课程与校历，使用学校公布的统一作息（第1～10节）。"

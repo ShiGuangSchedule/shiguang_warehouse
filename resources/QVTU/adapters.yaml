@@ -1,0 +1,9 @@
+# resources/QVTU/adapters.yaml
+adapters:
+  - adapter_id: "QVTU"
+    adapter_name: "泉州职业技术大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "qvtu.js"
+    import_url: "https://jw.qvtu.edu.cn/jsxsd/"
+    maintainer: "suiren0219"
+    description: "泉州职业技术大学强智教务。登录教务系统后直接导入即可，可选择学期；开学日期与总周数取自教学周历。有问题请通过 GitHub 联系开发者。"

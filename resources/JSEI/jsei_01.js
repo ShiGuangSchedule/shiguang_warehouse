@@ -125,35 +125,40 @@ function mergeAndDistinctCourses(courses) {
 function parseWeeks(weekStr) {
     if (!weekStr) return [];
 
-    const weekSets = weekStr.split(',');
-    let weeks = [];
+    const cleaned = weekStr
+        .replace(/周数[:：]/g, '')
+        .replace(/第/g, '')
+        .replace(/周/g, '')
+        .replace(/共\s*\d+\s*.*$/g, '');
 
-    for (const set of weekSets) {
-        const trimmedSet = set.trim();
+    const segments = cleaned.split(/[,，、;；]/);
 
-        const rangeMatch = trimmedSet.match(/(\d+)-(\d+)周/);
-        const singleMatch = trimmedSet.match(/^(\d+)周/);
+    const weeks = [];
+    const segRegex = /(\d+)(?:\s*[-~]\s*(\d+))?\s*(?:[（(]?\s*([单双])\s*周?\s*[)）]?)?/g;
 
-        let start = 0;
-        let end = 0;
-        let processed = false;
+    for (const seg of segments) {
+        const s = seg.trim();
+        if (!s) continue;
 
-        if (rangeMatch) {
-            start = Number(rangeMatch[1]);
-            end = Number(rangeMatch[2]);
-            processed = true;
-        } else if (singleMatch) {
-            start = end = Number(singleMatch[1]);
-            processed = true;
-        }
-        
-        if (processed) {
-            const isSingle = trimmedSet.includes('(单)');
-            const isDouble = trimmedSet.includes('(双)');
+        segRegex.lastIndex = 0;
+        let m;
+        while ((m = segRegex.exec(s)) !== null) {
+            if (m[0] === '') {
+                segRegex.lastIndex++;
+                continue;
+            }
+
+            const start = parseInt(m[1], 10);
+            const end = m[2] ? parseInt(m[2], 10) : start;
+            const flagStr = m[3] || '';
+
+            let flag = 0;
+            if (flagStr.includes('单')) flag = 1;
+            else if (flagStr.includes('双')) flag = 2;
 
             for (let w = start; w <= end; w++) {
-                if (isSingle && w % 2 === 0) continue;
-                if (isDouble && w % 2 !== 0) continue;
+                if (flag === 1 && w % 2 === 0) continue;
+                if (flag === 2 && w % 2 !== 0) continue;
                 weeks.push(w);
             }
         }
@@ -398,20 +403,40 @@ async function fetchTimeSlots(academicYear, semesterCode) {
         if (!response.ok) return null;
 
         const json = await response.json();
-        if (!Array.isArray(json)) return null;
 
-        // 过滤有效节次并转换格式
-        const timeSlots = json
-            .filter(item => item.jcmc && item.qssj && item.jssj)
-            .map(item => ({
-                number: Number(item.jcmc),
-                startTime: item.qssj.substring(0, 5), // "08:30:00" -> "08:30"
-                endTime: item.jssj.substring(0, 5)
-            }))
-            .sort((a, b) => a.number - b.number);
+        if (!Array.isArray(json) || json.length === 0) {
+            return null;
+        }
 
+        const seen = {};
+        const timeSlots = [];
+
+        for (let i = 0; i < json.length; i++) {
+            const item = json[i];
+            if (!item || !item.jcmc || !item.qssj || !item.jssj) {
+                continue;
+            }
+
+            const num = Number(item.jcmc);
+            if (isNaN(num) || seen[num]) {
+                continue;
+            }
+            seen[num] = true;
+
+            timeSlots.push({
+                number: num,
+                startTime: String(item.qssj).substring(0, 5),
+                endTime: String(item.jssj).substring(0, 5)
+            });
+        }
+
+        Array.prototype.sort.call(timeSlots, (a, b) => a.number - b.number);
+
+        console.log("[作息] 解析到", timeSlots.length, "条:", timeSlots);
         return timeSlots.length > 0 ? timeSlots : null;
+
     } catch (e) {
+        console.error("[作息] 异常:", e);
         return null;
     }
 }

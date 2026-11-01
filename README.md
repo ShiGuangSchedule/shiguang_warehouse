@@ -1,6 +1,10 @@
 # shiguang_warehouse  
 
-本仓库用于管理 [shiguangschedule](https://github.com/XingHeYuZhuan/shiguangschedule) 的适配脚本，供软件拉取和测试。
+本仓库用于管理 [shiguangschedule](https://github.com/XingHeYuZhuan/shiguangschedule) 的适配脚本，供软件拉取和测试。  
+
+## 开发适配需要的工具和文档  
+- **[如何适配教务](https://github.com/XingHeYuZhuan/shiguangschedule/wiki)**  
+- **[浏览器测试插件](https://github.com/XingHeYuZhuan/shiguang_Tester)**  
 
 > [!important]
 > **为避免代码出现问题，`main` 分支已启用分支保护，需要先合并到 `pending` 分支等待分支同步。**
@@ -17,12 +21,9 @@ shiguang_warehouse/
 ├───index/
 │   └───root_index.yaml      # 整个适配器仓库的根索引文件
 ├───resources/               # 资源目录
-│   ├───CUST/                # 学校目录
-│   │   ├───adapters.yaml    # 配置信息
-│   │   └───cust.js          # 适配脚本
-│   ├───GLOBAL_TOOLS/        # 通用工具
-│   │   ├───adapters.yaml
-│   │   ├───school.js        # 组件测试脚本
+│   ├───GLOBAL_TOOLS/        # 通用工具目录(目录名称和index规定的一致)
+│   │   ├───adapters.yaml    # 学校适配器配置信息(可以存放多个适配器)
+│   │   ├───school.js        # 适配代码(javascript文件，与学校适配器配置信息对应)   
 │   │   └───...
 │   └───...
 ├───proto/
@@ -146,9 +147,6 @@ school_index.pb文件存放了适配仓库里面的所有yaml文件的信息，�
 - 请确保 `adapters.yaml` 信息准确完整，符合规范要求。
 - 每次提交适配代码或索引信息后，建议自测通过再提交 PR。
 
-## 更多链接  
-- **[如何适配教务](https://github.com/XingHeYuZhuan/shiguangschedule/wiki)**  
-- **[浏览器测试插件](https://github.com/XingHeYuZhuan/shiguang_Tester)**
 
 ---  
 

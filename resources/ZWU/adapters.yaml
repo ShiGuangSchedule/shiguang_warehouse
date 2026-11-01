@@ -1,0 +1,9 @@
+# resources/ZWU/adapters.yaml
+adapters:
+  - adapter_id: "ZWU_01"
+    adapter_name: "浙江万里学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "zwu_01.js"
+    import_url: "https://ehall.zwu.edu.cn/_layouts/15/ZWUWSBS/BSDT/HomePage.aspx#"
+    maintainer: "星河欲转"
+    description: "浙江万里学院正方教务，校内访问和vpn访问都可以，进入教务系统即可开始导入，支持获取开学日期，已添加令时作息"

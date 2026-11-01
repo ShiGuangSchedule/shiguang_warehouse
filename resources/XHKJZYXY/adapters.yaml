@@ -1,0 +1,9 @@
+# resources/XHKJZYXY/adapters.yaml
+adapters:
+  - adapter_id: "XHKJZYXY_01"
+    adapter_name: "宣化科技职业学院正方适配"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "xhkjzyxy_01.js"
+    import_url: "https://xhkjzyxy.edu.cn:18088/cas/login?service=https%3A%2F%2Fxhkjzyxy.edu.cn%3A8387%2Fsso%2Fjziotlogin"
+    maintainer: "星河欲转"
+    description: "宣化科技职业学院正方适配，支持获取开学日期，非本校开发者适配如果有误建议提交issues"

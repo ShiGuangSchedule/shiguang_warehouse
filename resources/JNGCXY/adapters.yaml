@@ -1,0 +1,9 @@
+# resources/JNGCXY/adapters.yaml
+adapters:
+  - adapter_id: "JNGCXY_01"
+    adapter_name: "济南工程职业技术学院正方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jngcxy.js"
+    import_url: "https://uap.jngcxy.edu.cn/lyuapServer/login"
+    maintainer: "西郊有密林 Github@xianzhaowang0-code"
+    description: "济南工程职业技术学院正方新一代教务(jwglxt)导入：进入教务系统即可开始导入，不需要打开课表页面；导入时按提示选学年和学期，之后自动写入课表、节次作息与开学日期。校内直接登录统一认证即可；校外需先连接学校 aTrust 客户端。"

@@ -4,6 +4,6 @@ adapters:
     adapter_name: "山东药品食品职业学院教务"
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "sddfvc.js"
-    import_url: "http://cas.sddfvc.edu.cn/login?type=usernamepassword&service=http%3A%2F%2Ffazhan.sddfvc.edu.cn%2Fjs%2Ffzzx%2Flogin"
+    import_url: "https://cas.sddfvc.edu.cn/login?type=usernamepassword&service=http%3A%2F%2Ffazhan.sddfvc.edu.cn%2Fjs%2Ffzzx%2Flogin"
     maintainer: "星河欲转"
     description: "山东药品食品职业学院教务适配,非本校开发者适配如果有误建议提交issues \n\n贵校网页经常变化参数我们需要本校的有兴趣的同学来主动维护适配的代码"

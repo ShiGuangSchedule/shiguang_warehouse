@@ -1,0 +1,9 @@
+# resources/FVTI/adapters.yaml
+adapters:
+  - adapter_id: "FVTI_01"
+    adapter_name: "福州职业技术大学"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "fvti_01.js"
+    import_url: "https://jw.webvpn.fvti.cn/Framework/lyssoNew/login.php"
+    maintainer: "Panda君"
+    description: "登录教务系统后直接点导入即可；自动抓取周课表并导入课程、作息时间与开学日期，实测正常使用，如有问题请提issues。"

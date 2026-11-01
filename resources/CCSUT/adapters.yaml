@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "CCSUT_01"
+    adapter_name: "长沙工业学院超星教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "ccsut_01.js"
+    import_url: "https://auth.ccsut.cn/backstage/cas/login?service=https%3A%2F%2Fehall.ccsut.cn%2Fbackstage%2Fcas-proxy%2Fapp%2Fredirect%3FserverName%3Dhttps%253A%252F%252Fehall.ccsut.cn%26wechatBindFlag%3D1"
+    maintainer: "小漫君"
+    description: "登录智慧校园后进入超星教务系统 tls.ccsut.cn 即可导入，无需打开课表页面；通过网络请求获取参数与课程，按系统实际选项选择学期与校区。"

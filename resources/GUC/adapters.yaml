@@ -3,7 +3,7 @@ adapters:
   - adapter_id: "GUC"
     adapter_name: "吉利学院"
     category: "BACHELOR_AND_ASSOCIATE"
-    asset_js_path: "school.js"
+    asset_js_path: "guc.js"
     import_url: "https://jw.guc.edu.cn/yethan/UserAction?setAction=userLogin"
     maintainer: "Selffox"
     description: "吉利学院（Geely University of China）YETHAN以专教务系统，登录含图片验证码，需在页面内手动登录后导入"
