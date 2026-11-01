@@ -14,10 +14,66 @@
 //      notifyTaskCompletion 仅在整条流程成功后调用
 //   6. 2026-09-30 通过 /jsxsd/jxzl/jxzl_query（教学周历）自动获取开学日期，
 //      传入 saveCourseConfig 的 semesterStartDate；失败时静默降级
+//   7. 2026-11-01 WebVPN 资源由 http-jwxt-...-80 迁到 https-jwxt-...-443，
+//      改为多域名探测（同源 → https-443 → 旧 http-80），避免跨域取不到学期列表
 
-var JWXT_BASE = "https://http-jwxt-csuft-edu-cn-80.webvpn.csuft.edu.cn/jsxsd";
-var KB_URL = JWXT_BASE + "/xskb/xskb_list.do";
-var JXZL_URL = JWXT_BASE + "/jxzl/jxzl_query"; // 教学周历（校历），用于推算开学日期
+// WebVPN 把目标站点编码进域名（协议-主机-端口），学校换过一次（jwgl→jwxt），
+// 2026-11 起主用 https-443；旧 http-80 仍在线，但会 302 到新域名。
+// 顺序：当前所在教务页（同源、无跨域）→ 新域名 → 旧域名兜底。
+var JWXT_ORIGINS = (function () {
+    var list = [];
+    try {
+        if (/jwxt/i.test(location.hostname)) list.push(location.origin);
+    } catch (e) { }
+    list.push("https://https-jwxt-csuft-edu-cn-443.webvpn.csuft.edu.cn");
+    list.push("https://http-jwxt-csuft-edu-cn-80.webvpn.csuft.edu.cn");
+    var out = [], seen = {};
+    for (var i = 0; i < list.length; i++) {
+        if (list[i] && !seen[list[i]]) { seen[list[i]] = 1; out.push(list[i]); }
+    }
+    return out;
+})();
+
+// 记住本次会话里可用的域名，后续请求直接优先它，避免反复试探失效域名
+var JWXT_GOOD_ORIGIN = null;
+
+function orderedOrigins() {
+    if (!JWXT_GOOD_ORIGIN) return JWXT_ORIGINS;
+    var out = [JWXT_GOOD_ORIGIN];
+    for (var i = 0; i < JWXT_ORIGINS.length; i++) {
+        if (JWXT_ORIGINS[i] !== JWXT_GOOD_ORIGIN) out.push(JWXT_ORIGINS[i]);
+    }
+    return out;
+}
+
+// 依次尝试各教务域名，返回第一个「响应正常且内容符合预期」的页面文本。
+// 返回 {text, origin} 成功；{error} 全部失败。
+async function fetchJwxt(pathAndQuery, options, check) {
+    var lastError = "";
+    var origins = orderedOrigins();
+    for (var i = 0; i < origins.length; i++) {
+        // 单个域名最多等 15 秒，避免某个已失效的域名把整条导入卡住
+        var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : null;
+        try {
+            var opts = Object.assign({ credentials: "include" }, options || {});
+            if (ctrl) opts.signal = ctrl.signal;
+            var resp = await fetch(origins[i] + "/jsxsd" + pathAndQuery, opts);
+            if (!resp.ok) { lastError = "HTTP " + resp.status; continue; }
+            var text = await resp.text();
+            if (!check || check(text)) {
+                JWXT_GOOD_ORIGIN = origins[i];
+                return { text: text, origin: origins[i] };
+            }
+            lastError = "返回页面异常";
+        } catch (e) {
+            lastError = (e && e.message) ? e.message : String(e);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
+    return { error: lastError || "无法访问教务系统" };
+}
 
 var WEEK_DAY_MAP = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7 };
 
@@ -253,23 +309,74 @@ function parseTermInfo(html, semId) {
 // 按 YSSDUFE 标准姿势获取学期配置：POST 带 xnxq01id 请求所选学期的校历，
 // 失败则退回 GET 带学期参数（ZHKU 姿势）→ GET 不带参数（仅当前学期）。
 async function fetchTermInfo(semesterId) {
-    var postUrl = JXZL_URL;
-    var getUrl = JXZL_URL + (semesterId ? "?xnxq01id=" + encodeURIComponent(semesterId) : "");
     var attempts = [
-        { url: postUrl, options: { method: "POST",
+        { path: "/jxzl/jxzl_query", options: { method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: "xnxq01id=" + encodeURIComponent(semesterId || "") } },
-        { url: getUrl, options: { method: "GET" } }
+        { path: "/jxzl/jxzl_query" + (semesterId ? "?xnxq01id=" + encodeURIComponent(semesterId) : ""),
+          options: { method: "GET" } }
     ];
     for (var i = 0; i < attempts.length; i++) {
-        try {
-            var resp = await fetch(attempts[i].url, Object.assign({ credentials: "include" }, attempts[i].options));
-            if (!resp.ok) continue;
-            var info = parseTermInfo(await resp.text(), semesterId);
-            if (info && info.startDate) return info;
-        } catch (e) { /* 尝试下一种方式 */ }
+        var got = await fetchJwxt(attempts[i].path, attempts[i].options,
+            function (t) { return /第\s*1\s*周/.test(t); });
+        if (!got.text) continue;
+        var info = parseTermInfo(got.text, semesterId);
+        if (info && info.startDate) return info;
     }
     return null;
+}
+
+// 兜底：首页月历（/jsxsd/framework/mainv_zltable.jsp?ny=YYYY-MM）用 isActiveWeek
+// 标出当前教学周，结合今天的日期即可反推第一周周一。
+// 只对「当前学期」有效——月历显示的永远是本学期，历史学期不能用。
+function parseActiveWeek(html) {
+    var m = html.match(/isActiveWeek[^>]*>\s*([^<]*)</);
+    if (!m) return null;
+    var w = String(m[1]).match(/第\s*([0-9一二三四五六七八九十百]+)\s*周/);
+    if (!w) return null;
+    var s = w[1];
+    if (/^\d+$/.test(s)) return parseInt(s, 10);
+    var d = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+    if (d[s]) return d[s];                    // 一 ~ 九
+    if (s === '十') return 10;
+    if (/^十[一二三四五六七八九]$/.test(s)) return 10 + d[s[1]];
+    if (/^[一二三四五六七八九]十$/.test(s)) return d[s[0]] * 10;
+    if (/^[一二三四五六七八九]十[一二三四五六七八九]$/.test(s)) return d[s[0]] * 10 + d[s[2]];
+    return null;
+}
+
+async function fetchTermInfoFromMonthCalendar(semesterId) {
+    var now = new Date();
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var ny = now.getFullYear() + "-" + pad(now.getMonth() + 1);
+
+    var got = await fetchJwxt("/framework/mainv_zltable.jsp?ny=" + encodeURIComponent(ny),
+        { method: "GET" }, function (t) { return /isActiveWeek/.test(t); });
+    if (!got.text) return null;
+
+    var week = parseActiveWeek(got.text);
+    if (!week) return null;
+
+    var dow = (now.getDay() + 6) % 7; // 周一=0 … 周日=6
+    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((week - 1) * 7 + dow));
+
+    // 总周数另取：教学周历接口返回 [{"qszc":1,"jszc":20}]
+    var totalWeeks = null;
+    if (semesterId) {
+        var wz = await fetchJwxt("/xskb/jxzlzc_xnxq_ajax?&xnxq01id=" + encodeURIComponent(semesterId),
+            { method: "GET" }, function (t) { return /jszc/.test(t); });
+        if (wz.text) {
+            try {
+                var arr = JSON.parse(wz.text);
+                if (arr && arr.length && arr[0].jszc) totalWeeks = parseInt(arr[0].jszc, 10) || null;
+            } catch (e) { }
+        }
+    }
+
+    return {
+        startDate: start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate()),
+        totalWeeks: totalWeeks
+    };
 }
 
 function mergeCourses(courses) {
@@ -324,9 +431,19 @@ function baseParams(semId) {
     return p;
 }
 
+// 课表页的判定特征：带学期下拉框或周历表，避免把登录页/错误页当成数据页
+function isKbPage(text) {
+    return /id=["']xnxq01id["']/.test(text) || /qz-weeklyTable/.test(text);
+}
+
 async function fetchPage(params) {
-    var resp = await fetch(KB_URL + "?" + buildQuery(params), { credentials: "include" });
-    return new DOMParser().parseFromString(await resp.text(), "text/html");
+    var got = await fetchJwxt("/xskb/xskb_list.do?" + buildQuery(params), { method: "GET" }, isKbPage);
+    if (!got.text) {
+        throw new Error(got.error === "返回页面异常"
+            ? "页面里没有课表或学期信息（登录可能已失效）"
+            : got.error);
+    }
+    return new DOMParser().parseFromString(got.text, "text/html");
 }
 
 // "时间模式"参数，部分账号不带上就不会渲染课表
@@ -336,8 +453,7 @@ function getKbjcmsid(doc) {
 }
 
 // 从页面表单里读取可选的学年学期列表（如 2025-2026-2），无需手工输入
-async function loadTermList() {
-    var doc = await fetchPage(baseParams(""));
+function readTermList(doc) {
     var sel = doc.querySelector('select#xnxq01id');
     var options = [];
     var selected = 0;
@@ -351,6 +467,29 @@ async function loadTermList() {
         }
     }
     return { options: options, selected: selected, kbjcmsid: getKbjcmsid(doc) };
+}
+
+// 学期列表优先取课表页的下拉框；该页面万一不带下拉框，
+// 退回教学周历页（同样有 select#xnxq01id，YSSDUFE 标准姿势）
+async function loadTermList() {
+    var lastError = "";
+    try {
+        var info = readTermList(await fetchPage(baseParams("")));
+        if (info.options.length) return info;
+        lastError = "课表页未找到学期下拉框";
+    } catch (e) {
+        lastError = (e && e.message) ? e.message : String(e);
+    }
+
+    var got = await fetchJwxt("/jxzl/jxzl_query", { method: "GET" },
+        function (t) { return /id=["']xnxq01id["']/.test(t); });
+    if (got.text) {
+        var alt = readTermList(new DOMParser().parseFromString(got.text, "text/html"));
+        if (alt.options.length) return alt;
+    } else {
+        lastError += "；周历页：" + got.error;
+    }
+    throw new Error(lastError || "未取到学期列表");
 }
 
 async function fetchScheduleDoc(semId, kbjcmsid) {
@@ -378,9 +517,16 @@ async function chooseTerm() {
             const idx = await window.shiguangBridgePromise.showSingleSelection(
                 "选择学年学期", JSON.stringify(info.options), info.selected);
             if (idx === null) return null;
-            return { semId: info.options[idx], kbjcmsid: info.kbjcmsid };
+            return {
+                semId: info.options[idx],
+                kbjcmsid: info.kbjcmsid,
+                // 教务页默认选中的那个就是当前学期，供开学日期兜底判断
+                currentTerm: info.options[info.selected] || info.options[0]
+            };
         }
-    } catch (e) { /* 列表获取失败，走手工输入兜底 */ }
+    } catch (e) {
+        window.shiguangBridge.showToast("自动识别学期失败：" + e.message);
+    }
 
     const year = await window.shiguangBridgePromise.showPrompt(
         "选择学年", "请输入要导入的起始学年（例如 2025-2026 应输入 2025）:", "", "validateYearInput");
@@ -398,7 +544,13 @@ async function chooseTerm() {
 
 async function fetchAndParseCourses(term) {
     window.shiguangBridge.showToast("正在获取课表数据...");
-    const doc = await fetchScheduleDoc(term.semId, term.kbjcmsid);
+    let doc;
+    try {
+        doc = await fetchScheduleDoc(term.semId, term.kbjcmsid);
+    } catch (e) {
+        window.shiguangBridge.showToast("无法访问教务系统（" + e.message + "），请确认已登录后重试。");
+        return null;
+    }
     const courses = parseSchedule(doc);
 
     if (courses.length === 0) {
@@ -441,7 +593,8 @@ async function runImportFlow() {
     const courses = await fetchAndParseCourses(term);
     if (courses === null) return; // 失败原因已在 fetchAndParseCourses 中提示
 
-    const termInfo = await fetchTermInfo(term.semId);
+    const termInfo = await fetchTermInfo(term.semId) ||
+        (term.semId === term.currentTerm ? await fetchTermInfoFromMonthCalendar(term.semId) : null);
     if (!(await saveAll(courses, termInfo))) return;
 
     // 整条流程成功后才发送结束信号
