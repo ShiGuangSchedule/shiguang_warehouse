@@ -5,4 +5,4 @@ adapters:
     asset_js_path: "xjnu.js"
     import_url: "https://jwxt.xjnu.edu.cn/jsxsd/"
     maintainer: "CkYtxwz"
-    description: "登录后即可导入本科个人学期课表，无需打开课表页面。支持2025年春季起的校区、楼宇错峰作息；可选择同步学期设置或保留现有设置，未排课记录会提示。"
+    description: "登录后即可选择学期导入本科个人课表，无需打开课表页面。自动同步开学日期和总周数，可选择一套2025年春季起的校区、楼宇作息；跨楼宇课程请导入后核对时间。"
