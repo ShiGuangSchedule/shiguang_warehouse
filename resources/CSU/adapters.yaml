@@ -1,0 +1,9 @@
+# resources/CSU/adapters.yaml
+adapters:
+  - adapter_id: "CSU_01"
+    adapter_name: "中南大学（强智教务）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "csu.js"
+    import_url: "https://ca.csu.edu.cn/authserver/login?service=http%3A%2F%2Fcsujwc.its.csu.edu.cn%2Fsso.jsp"
+    maintainer: "GaLeKu"
+    description: "中南大学强智 jsxsd 教务，本科。统一身份认证登录后自动进入教务系统，登录后在任意教务页面即可导入，学期在 App 内选择。该校按学号把请求分摊到多台服务器，脚本以当前页面所在主机为准，不写死域名。"

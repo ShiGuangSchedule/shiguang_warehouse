@@ -2,17 +2,24 @@
  * 广东海洋大学教务课表导入适配
  * @date 2026-08-27
  * @author Mccurtain
- * @version 2.0
+ * @version 2.2
+ * 
+ * 特别鸣谢 @mei-iem 提供真机实测
+ * 
  */
 
 (function () {
 
 // ==================== 常量 ====================
 
-// venues 为整栋楼使用特殊作息的楼名（包含匹配，如 "实验楼" 会命中 "实验楼301"、"网球场（实验楼东面）"）；
-// venuePatterns 为楼名简写正则（如海滨 "实"+房间号 = 实验楼简写，实506-1计算机（2）室）；
-// outdoorKeywords 为特殊作息的室外场地关键词。
-
+// 特殊作息（指定楼/室外场地作息）匹配规则：
+// 前提：节次处于特殊时间段（3-4、7-8 节，见 SPECIAL_TIME_BLOCKS）；
+// 上课地点命中以下任意一种情况即打标特殊时间：
+//   1. 楼名包含匹配（venues，如 "实验楼" 命中 "实验楼301"、"网球场（实验楼东面）"），
+//      另支持简写正则（venuePatterns，如海滨 "实"+房间号 = 实验楼简写，实506-1计算机（2）室）；
+//   2. 含方位词（东面/南面/西面/北面，如 "XX（实验楼东面）"）；
+//   3. 含运动场（"场"字，覆盖 网球场/匹克场/足球场/篮球场/田径场 等各类场地）。
+// 均未命中的其他教室（教学楼等）使用 TimeSlots 全校统一作息。
 const CAMPUS_CONFIGS = [
     {
         id: "huguang",
@@ -26,7 +33,9 @@ const CAMPUS_CONFIGS = [
         label: "海滨校区",
         venues: ["实验楼"],
         venuePatterns: [{ name: "实验楼简写", pattern: /^实\d/ }],
-        outdoorKeywords: ["球场", "东面", "南面", "西面", "北面"]
+        // 室外场地关键词："场"通用覆盖 网球场/篮球场/排球场/匹克场/田径场 等各类场地（含简写）；
+        // 方向词覆盖 "XX（实验楼东面）" 这类括号方位写法
+        outdoorKeywords: ["场", "东面", "南面", "西面", "北面"]
     }
 ];
 
@@ -376,7 +385,65 @@ function findSemesterStartDate(value) {
     return null;
 }
 
+// ==================== 接口地址推导 ====================
+
+/**
+ * 推导教务系统接口前缀，兼容两条入口通道：
+ *   GDOU_01 内网直连：pathname 形如 /kbcx/xskbcx_cxXsgrkb.html                    → 前缀为 ""
+ *   反代·拼接态：      pathname 形如 /https://jw.gdou.edu.cn/kbcx/xskbcx_...html   → 前缀为 "/https://jw.gdou.edu.cn"
+ *   反代·哈希态：      pathname 形如 /http/<hash>/kbcx/xskbcx_...html              → 前缀为 "/http/<hash>"
+ * 以 "/kbcx/" 为锚点即可同时覆盖以上三种情况。
+ */
+function getScheduleBase() {
+    const path = (window.location && window.location.pathname) || "";
+
+    const kbIndex = path.indexOf("/kbcx/");
+    if (kbIndex >= 0) return path.slice(0, kbIndex);
+
+    // 兜底：停留在教务系统非课表页（例如首页）时，直接识别反代前缀。
+    const proxyPrefix = path.match(/^\/(?:https?:\/\/[^/]+|(?:http|https|https-443)\/[^/]+)/i);
+    return proxyPrefix ? proxyPrefix[0] : "";
+}
+
+/**
+ * 拼接教务系统接口地址，自动带上直连/反代前缀
+ * @param {string} modulePath 接口文件名，例如 "xskbcx_cxXsgrkb.html"
+ * @param {string} query 可选查询串，例如 "gnmkdm=N2151"
+ */
+function buildScheduleUrl(modulePath, query) {
+    const base = getScheduleBase();
+    const queryString = query ? `?${query}` : "";
+    return `${window.location.origin}${base}/kbcx/${modulePath}${queryString}`;
+}
+
 // ==================== 教务接口 ====================
+
+/**
+ * 从 select 元素解析学年和学期选项。
+ * 默认索引优先使用当前 select.value，确保跟随用户在页面上的实际选择。
+ */
+function parseSelectOptions(selectElement) {
+    if (!selectElement || typeof selectElement.querySelectorAll !== "function") {
+        return { options: [], defaultIndex: 0 };
+    }
+
+    const options = [];
+    let defaultIndex = 0;
+    Array.from(selectElement.querySelectorAll("option")).forEach(option => {
+        const value = String(option.value || "").trim();
+        if (!value) return;
+
+        const text = String(option.textContent || "").trim() || value;
+        if (option.selected) defaultIndex = options.length;
+        options.push({ value, text });
+    });
+
+    const currentValue = String(selectElement.value || "").trim();
+    const currentIndex = options.findIndex(option => option.value === currentValue);
+    if (currentIndex !== -1) defaultIndex = currentIndex;
+
+    return { options, defaultIndex };
+}
 
 /**
  * 读取课表查询页里的学年/学期下拉选项
@@ -384,7 +451,7 @@ function findSemesterStartDate(value) {
  * 读取失败返回 null，由调用方回退到默认值
  */
 async function fetchAcademicOptions() {
-    const url = "https://jw.gdou.edu.cn/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
+    const url = buildScheduleUrl("xskbcx_cxXskbcxIndex.html", "gnmkdm=N2151&layout=default");
 
     try {
         const response = await fetch(url, { method: "GET", credentials: "include" });
@@ -392,21 +459,9 @@ async function fetchAcademicOptions() {
 
         const doc = new DOMParser().parseFromString(await response.text(), "text/html");
 
-        // 解析单个下拉框；默认选中项优先跟随 select 当前值，其次取 selected 属性
-        const readSelect = (select) => {
-            if (!select) return null;
-            const options = Array.from(select.querySelectorAll("option"))
-                .map(opt => ({ value: opt.value, text: opt.textContent.trim() || opt.value }))
-                .filter(opt => opt.value !== "");
-            if (options.length === 0) return null;
-            const valueIndex = options.findIndex(opt => opt.value === select.value);
-            const selectedIndex = options.findIndex(opt => opt.selected);
-            return { options, defaultIndex: valueIndex !== -1 ? valueIndex : Math.max(0, selectedIndex) };
-        };
-
-        const yearData = readSelect(doc.querySelector("#xnm"));
-        const semesterData = readSelect(doc.querySelector("#xqm"));
-        if (!yearData || !semesterData) return null;
+        const yearData = parseSelectOptions(doc.querySelector("#xnm"));
+        const semesterData = parseSelectOptions(doc.querySelector("#xqm"));
+        if (yearData.options.length === 0 || semesterData.options.length === 0) return null;
 
         return {
             yearOptions: yearData.options,
@@ -424,7 +479,7 @@ async function fetchAcademicOptions() {
  * 接口失败时返回 null，不影响主流程
  */
 async function fetchSemesterInfo(academicYear, semesterCode) {
-    const url = "https://jw.gdou.edu.cn/kbcx/xskbcxZccx_cxZcByXnxq.html?gnmkdm=N2154";
+    const url = buildScheduleUrl("xskbcxZccx_cxZcByXnxq.html", "gnmkdm=N2154");
     const body = `xnm=${encodeURIComponent(academicYear)}&xqm=${encodeURIComponent(semesterCode)}`;
 
     try {
@@ -459,21 +514,21 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
  */
 async function fetchAndParseCourses(academicYear, semesterCode, campusConfig) {
     const body = `xnm=${encodeURIComponent(academicYear)}&xqm=${encodeURIComponent(semesterCode)}&kzlx=ck&xsdm=&kclbdm=`;
-    const courseUrl = "https://jw.gdou.edu.cn/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151";
-
-    const [courseResponse, semesterInfo] = await Promise.all([
-        fetch(courseUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-            body,
-            credentials: "include"
-        }),
-        fetchSemesterInfo(academicYear, semesterCode)
-    ]);
+    const courseUrl = buildScheduleUrl("xskbcx_cxXsgrkb.html", "gnmkdm=N2151");
 
     try {
+        const [courseResponse, semesterInfo] = await Promise.all([
+            fetch(courseUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+                body,
+                credentials: "include"
+            }),
+            fetchSemesterInfo(academicYear, semesterCode)
+        ]);
+
         if (!courseResponse.ok) {
-            window.shiguangBridge.showToast(`课表请求失败：HTTP ${courseResponse.status}`);
+            window.shiguangBridge.showToast(`课表请求失败：HTTP ${courseResponse.status}。如当前不在校园网内，请返回选择“广东海洋大学教务（校外通道）”重试。`);
             return null;
         }
 
@@ -495,7 +550,7 @@ async function fetchAndParseCourses(academicYear, semesterCode, campusConfig) {
             }
         };
     } catch (e) {
-        window.shiguangBridge.showToast("获取课表失败，请确认已登录且网络可访问 jw.gdou.edu.cn。");
+        window.shiguangBridge.showToast("获取课表失败，请确认已登录且网络可访问 jw.gdou.edu.cn；如当前不在校园网内，请返回选择“广东海洋大学教务（校外通道）”重试。");
         return null;
     }
 }
