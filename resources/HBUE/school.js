@@ -6,9 +6,10 @@
 
 /**
  * 基础域名配置
- * 湖北经济学院教务系统（新版正方 v9）
+ * 湖北经济学院教务系统（新版正方 v9，部署在域名根路径，无 /jwglxt 前缀）
+ * 依据：登录表单 action="/xtgl/login_slogin.html"
  */
-const BASE_URL = "https://jwxt.hbue.edu.cn/jwglxt";
+const BASE_URL = "https://jwxt.hbue.edu.cn";
 
 function getBaseUrl() {
     return BASE_URL;
@@ -211,8 +212,60 @@ async function promptUserToStart() {
 }
 
 /**
- * 从教务系统获取学年学期选项
- * 学年：以选中项为中心，取前2年+后2年，共5个选项
+ * 从 DOM 中提取学年学期选项
+ */
+function extractAcademicOptions(doc) {
+    const allYearOptions = Array.from(doc.querySelectorAll("#xnm option"))
+        .filter(opt => opt.value !== "")
+        .map(opt => ({
+            value: opt.value,
+            text: opt.textContent.trim(),
+            selected: opt.selected
+        }));
+
+    const semesterOptions = Array.from(doc.querySelectorAll("#xqm option"))
+        .filter(opt => opt.value !== "")
+        .map(opt => ({
+            value: opt.value,
+            text: opt.textContent.trim(),
+            selected: opt.selected
+        }));
+
+    if (allYearOptions.length === 0 || semesterOptions.length === 0) {
+        return null;
+    }
+
+    const selectedIndex = allYearOptions.findIndex(opt => opt.selected);
+
+    if (selectedIndex === -1) {
+        return {
+            yearOptions: allYearOptions.slice(0, 5),
+            semesterOptions,
+            defaultYearIndex: 0,
+            defaultSemesterIndex: semesterOptions.findIndex(opt => opt.selected) !== -1
+                ? semesterOptions.findIndex(opt => opt.selected)
+                : 0
+        };
+    }
+
+    const start = Math.max(0, selectedIndex - 2);
+    const end = Math.min(allYearOptions.length, selectedIndex + 3);
+    const yearOptions = allYearOptions.slice(start, end);
+    const newDefaultIndex = selectedIndex - start;
+    const defaultSemesterIndex = semesterOptions.findIndex(opt => opt.selected);
+
+    return {
+        yearOptions,
+        semesterOptions,
+        defaultYearIndex: newDefaultIndex,
+        defaultSemesterIndex: defaultSemesterIndex !== -1 ? defaultSemesterIndex : 0
+    };
+}
+
+/**
+ * 获取学年学期选项
+ * 通过接口请求课表查询页解析，不依赖用户当前所在的页面，
+ * 代码可在教务系统任意页面执行
  */
 async function fetchAcademicOptions() {
     const url = `${getBaseUrl()}/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default`;
@@ -226,54 +279,14 @@ async function fetchAcademicOptions() {
         if (!response.ok) return null;
 
         const htmlText = await response.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, "text/html");
 
-        const allYearOptions = Array.from(doc.querySelectorAll("#xnm option"))
-            .filter(opt => opt.value !== "")
-            .map(opt => ({
-                value: opt.value,
-                text: opt.textContent.trim(),
-                selected: opt.selected
-            }));
-
-        const semesterOptions = Array.from(doc.querySelectorAll("#xqm option"))
-            .filter(opt => opt.value !== "")
-            .map(opt => ({
-                value: opt.value,
-                text: opt.textContent.trim(),
-                selected: opt.selected
-            }));
-
-        if (allYearOptions.length === 0 || semesterOptions.length === 0) {
+        // 登录态失效时服务器会种定向到登录页，页面里没有学年学期下拉框
+        if (/login_slogin|用户登录|统一身份认证/i.test(htmlText) && !htmlText.includes("xnm")) {
+            window.shiguangBridge.showToast("登录已失效，请先重新登录教务系统再导入。");
             return null;
         }
 
-        const selectedIndex = allYearOptions.findIndex(opt => opt.selected);
-
-        if (selectedIndex === -1) {
-            return {
-                yearOptions: allYearOptions.slice(0, 5),
-                semesterOptions,
-                defaultYearIndex: 0,
-                defaultSemesterIndex: semesterOptions.findIndex(opt => opt.selected) !== -1
-                    ? semesterOptions.findIndex(opt => opt.selected)
-                    : 0
-            };
-        }
-
-        const start = Math.max(0, selectedIndex - 2);
-        const end = Math.min(allYearOptions.length, selectedIndex + 3);
-        const yearOptions = allYearOptions.slice(start, end);
-        const newDefaultIndex = selectedIndex - start;
-        const defaultSemesterIndex = semesterOptions.findIndex(opt => opt.selected);
-
-        return {
-            yearOptions,
-            semesterOptions,
-            defaultYearIndex: newDefaultIndex,
-            defaultSemesterIndex: defaultSemesterIndex !== -1 ? defaultSemesterIndex : 0
-        };
+        return extractAcademicOptions(new DOMParser().parseFromString(htmlText, "text/html"));
 
     } catch (e) {
         return null;
