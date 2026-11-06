@@ -6,9 +6,10 @@
 
 /**
  * 基础域名配置
- * 湖北经济学院教务系统（新版正方 v9）
+ * 湖北经济学院教务系统（新版正方 v9，部署在域名根路径，无 /jwglxt 前缀）
+ * 依据：登录表单 action="/xtgl/login_slogin.html"
  */
-const BASE_URL = "https://jwxt.hbue.edu.cn/jwglxt";
+const BASE_URL = "https://jwxt.hbue.edu.cn";
 
 function getBaseUrl() {
     return BASE_URL;
@@ -226,6 +227,13 @@ async function fetchAcademicOptions() {
         if (!response.ok) return null;
 
         const htmlText = await response.text();
+
+        // 登录态失效时服务器会种定向到登录页，页面里没有学年学期下拉框
+        if (/login_slogin|用户登录|统一身份认证/i.test(htmlText) && !htmlText.includes("xnm")) {
+            window.shiguangBridge.showToast("登录已失效，请先重新登录教务系统再导入。");
+            return null;
+        }
+
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, "text/html");
 
