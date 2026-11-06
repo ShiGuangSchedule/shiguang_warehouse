@@ -206,16 +206,73 @@ function parseJsonData(jsonData) {
 async function promptUserToStart() {
     return await window.shiguangBridgePromise.showAlert(
         "教务系统课表导入",
-        "导入前请确保您已在浏览器中成功登录教务系统",
+        "导入前请确保您已在浏览器中成功登录教务系统。\n停留在「学生个人课表查询」页面导入效果最佳。",
         "好的，开始导入"
     );
 }
 
 /**
- * 从教务系统获取学年学期选项
- * 学年：以选中项为中心，取前2年+后2年，共5个选项
+ * 从 DOM 中提取学年学期选项
+ */
+function extractAcademicOptions(doc) {
+    const allYearOptions = Array.from(doc.querySelectorAll("#xnm option"))
+        .filter(opt => opt.value !== "")
+        .map(opt => ({
+            value: opt.value,
+            text: opt.textContent.trim(),
+            selected: opt.selected
+        }));
+
+    const semesterOptions = Array.from(doc.querySelectorAll("#xqm option"))
+        .filter(opt => opt.value !== "")
+        .map(opt => ({
+            value: opt.value,
+            text: opt.textContent.trim(),
+            selected: opt.selected
+        }));
+
+    if (allYearOptions.length === 0 || semesterOptions.length === 0) {
+        return null;
+    }
+
+    const selectedIndex = allYearOptions.findIndex(opt => opt.selected);
+
+    if (selectedIndex === -1) {
+        return {
+            yearOptions: allYearOptions.slice(0, 5),
+            semesterOptions,
+            defaultYearIndex: 0,
+            defaultSemesterIndex: semesterOptions.findIndex(opt => opt.selected) !== -1
+                ? semesterOptions.findIndex(opt => opt.selected)
+                : 0
+        };
+    }
+
+    const start = Math.max(0, selectedIndex - 2);
+    const end = Math.min(allYearOptions.length, selectedIndex + 3);
+    const yearOptions = allYearOptions.slice(start, end);
+    const newDefaultIndex = selectedIndex - start;
+    const defaultSemesterIndex = semesterOptions.findIndex(opt => opt.selected);
+
+    return {
+        yearOptions,
+        semesterOptions,
+        defaultYearIndex: newDefaultIndex,
+        defaultSemesterIndex: defaultSemesterIndex !== -1 ? defaultSemesterIndex : 0
+    };
+}
+
+/**
+ * 获取学年学期选项
+ * 优先读取当前页面 DOM（用户停留在课表查询页时最可靠，无需额外请求），
+ * 当前页没有下拉框时再请求课表查询页 HTML 兜底
  */
 async function fetchAcademicOptions() {
+    const fromDom = extractAcademicOptions(document);
+    if (fromDom) {
+        return fromDom;
+    }
+
     const url = `${getBaseUrl()}/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default`;
 
     try {
@@ -234,54 +291,7 @@ async function fetchAcademicOptions() {
             return null;
         }
 
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, "text/html");
-
-        const allYearOptions = Array.from(doc.querySelectorAll("#xnm option"))
-            .filter(opt => opt.value !== "")
-            .map(opt => ({
-                value: opt.value,
-                text: opt.textContent.trim(),
-                selected: opt.selected
-            }));
-
-        const semesterOptions = Array.from(doc.querySelectorAll("#xqm option"))
-            .filter(opt => opt.value !== "")
-            .map(opt => ({
-                value: opt.value,
-                text: opt.textContent.trim(),
-                selected: opt.selected
-            }));
-
-        if (allYearOptions.length === 0 || semesterOptions.length === 0) {
-            return null;
-        }
-
-        const selectedIndex = allYearOptions.findIndex(opt => opt.selected);
-
-        if (selectedIndex === -1) {
-            return {
-                yearOptions: allYearOptions.slice(0, 5),
-                semesterOptions,
-                defaultYearIndex: 0,
-                defaultSemesterIndex: semesterOptions.findIndex(opt => opt.selected) !== -1
-                    ? semesterOptions.findIndex(opt => opt.selected)
-                    : 0
-            };
-        }
-
-        const start = Math.max(0, selectedIndex - 2);
-        const end = Math.min(allYearOptions.length, selectedIndex + 3);
-        const yearOptions = allYearOptions.slice(start, end);
-        const newDefaultIndex = selectedIndex - start;
-        const defaultSemesterIndex = semesterOptions.findIndex(opt => opt.selected);
-
-        return {
-            yearOptions,
-            semesterOptions,
-            defaultYearIndex: newDefaultIndex,
-            defaultSemesterIndex: defaultSemesterIndex !== -1 ? defaultSemesterIndex : 0
-        };
+        return extractAcademicOptions(new DOMParser().parseFromString(htmlText, "text/html"));
 
     } catch (e) {
         return null;
