@@ -206,7 +206,7 @@ function parseJsonData(jsonData) {
 async function promptUserToStart() {
     return await window.shiguangBridgePromise.showAlert(
         "教务系统课表导入",
-        "导入前请确保您已在浏览器中成功登录教务系统。\n停留在「学生个人课表查询」页面导入效果最佳。",
+        "导入前请确保您已在浏览器中成功登录教务系统",
         "好的，开始导入"
     );
 }
@@ -264,15 +264,10 @@ function extractAcademicOptions(doc) {
 
 /**
  * 获取学年学期选项
- * 优先读取当前页面 DOM（用户停留在课表查询页时最可靠，无需额外请求），
- * 当前页没有下拉框时再请求课表查询页 HTML 兜底
+ * 通过接口请求课表查询页解析，不依赖用户当前所在的页面，
+ * 代码可在教务系统任意页面执行
  */
 async function fetchAcademicOptions() {
-    const fromDom = extractAcademicOptions(document);
-    if (fromDom) {
-        return fromDom;
-    }
-
     const url = `${getBaseUrl()}/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default`;
 
     try {
