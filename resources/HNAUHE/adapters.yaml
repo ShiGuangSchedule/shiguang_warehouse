@@ -1,0 +1,9 @@
+# resources/HNAUHE/adapters.yaml
+adapters:
+  - adapter_id: "HNAUHE_01"
+    adapter_name: "河南牧业经济学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "school.js"
+    import_url: "https://hnuahe.jw.chaoxing.com/admin/login?logout=1"
+    maintainer: "yunluoyu730"
+    description: "河南牧业经济学院超星教务系统适配"

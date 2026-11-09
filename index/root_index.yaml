@@ -1367,3 +1367,8 @@ schools:
     name: "武汉工程大学"
     initial: "W"
     resource_folder: "WIT"
+
+  - id: "HNAUHE"
+    name: "河南牧业经济学院"
+    initial: "H"
+    resource_folder: "HNAUHE"
