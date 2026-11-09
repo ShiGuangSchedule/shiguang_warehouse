@@ -537,9 +537,18 @@
 
     // ======================= 5. 时间 / 开学日期 =======================
 
-    /** 节次时间必须从 1 开始连续，否则宿主会拒绝，这里做一次规范化。 */
-    function sanitizeTimeSlots(rows) {
-        if (!Array.isArray(rows)) return [];
+    /**
+     * 解析节次时间。宿主要求 number 从 1 连续递增，这里【不做重排加工】：
+     * 缺号意味着接口数据不完整，硬压缩编号会让所有节次时间整体错位，
+     * 宁可本轮不导入作息，交由调用方提示，也不产生错误时间。
+     *
+     * @returns {{slots: Array, reason: (string|null)}} reason 为 null 表示正常
+     */
+    function parseTimeSlots(rows) {
+        if (!Array.isArray(rows) || rows.length === 0) {
+            return { slots: [], reason: 'empty' };
+        }
+
         var map = {};
         rows.forEach(function (item) {
             var number = Number(pick(item, ['jc', 'jcmc', 'number', 'section']));
@@ -550,15 +559,20 @@
             map[number] = { number: number, startTime: start, endTime: end };
         });
 
-        var sorted = Object.keys(map).map(Number).sort(function (a, b) { return a - b; }).map(function (number) { return map[number]; });
-        if (sorted.length === 0) return [];
+        var sorted = Object.keys(map).map(Number).sort(function (a, b) { return a - b; })
+            .map(function (number) { return map[number]; });
 
-        var consecutive = sorted.every(function (slot, index) { return slot.number === index + 1; });
-        if (!consecutive) {
-            log('节次编号不连续（' + sorted.map(function (slot) { return slot.number; }).join(',') + '），按顺序重排为 1..' + sorted.length);
-            sorted = sorted.map(function (slot, index) { return { number: index + 1, startTime: slot.startTime, endTime: slot.endTime }; });
+        if (sorted.length === 0) return { slots: [], reason: 'empty' };
+
+        for (var i = 0; i < sorted.length; i++) {
+            if (sorted[i].number !== i + 1) {
+                return {
+                    slots: [],
+                    reason: '编号不连续（' + sorted.map(function (slot) { return slot.number; }).join(',') + '）'
+                };
+            }
         }
-        return sorted;
+        return { slots: sorted, reason: null };
     }
 
     /** 对比接口作息与内置 12 节作息表，返回差异描述（供 probe 联调使用）。 */
@@ -594,23 +608,36 @@
         });
 
         if (!result) {
-            log('作息接口不可用，改用内置 12 节作息表（开学日期仍需接口，本次为空）');
+            log('作息接口不可用，改用内置 12 节作息表（开学日期与总周数仍需接口，本次为空）');
             toast('作息接口未取到，已使用内置作息表');
-            return { timeSlots: cloneDefaultTimeSlots(), semesterStartDate: null, fromApi: false };
+            return { timeSlots: cloneDefaultTimeSlots(), semesterStartDate: null, totalWeeks: 0, fromApi: false };
         }
 
         var payload = result.data.data || result.data;
-        var timeSlots = sanitizeTimeSlots(payload.jcsjszList || payload.jcsjsjList || payload.jcsjList || []);
-        var semesterStartDate = semesterStartFrom(payload.zclist || payload.zclistList || []);
+        var zclist = payload.zclist || payload.zclistList || [];
+        var parsed = parseTimeSlots(payload.jcsjszList || payload.jcsjsjList || payload.jcsjList || []);
+        var semesterStartDate = semesterStartFrom(zclist);
+        var totalWeeks = Array.isArray(zclist) ? zclist.length : 0;
 
-        var fromApi = timeSlots.length > 0;
-        if (!fromApi) {
+        var timeSlots = parsed.slots;
+        var fromApi = true;
+
+        if (parsed.reason === 'empty') {
+            // 接口没给节次时间 → 用学校公布的内置作息表兜底
             log('接口未返回节次时间，改用内置 12 节作息表');
             timeSlots = cloneDefaultTimeSlots();
+            fromApi = false;
+        } else if (parsed.reason) {
+            // 给了但数据不完整 → 不重排、不导入，避免全表时间错位
+            log('节次时间数据异常：' + parsed.reason + '，本次跳过作息导入（课程照常）');
+            toast('作息数据异常（' + parsed.reason + '），已跳过作息导入');
+            timeSlots = [];
+            fromApi = false;
         }
 
-        log('作息时间 ' + timeSlots.length + ' 节（' + (fromApi ? '接口' : '内置') + '），开学日期 ' + (semesterStartDate || '未取到'));
-        return { timeSlots: timeSlots, semesterStartDate: semesterStartDate, fromApi: fromApi };
+        log('作息时间 ' + timeSlots.length + ' 节（' + (fromApi ? '接口' : '兜底/跳过') + '），开学日期 ' +
+            (semesterStartDate || '未取到') + '，总周数 ' + (totalWeeks || '未取到'));
+        return { timeSlots: timeSlots, semesterStartDate: semesterStartDate, totalWeeks: totalWeeks, fromApi: fromApi };
     }
 
     // ======================= 6. 课程解析 =======================
@@ -710,7 +737,14 @@
         }
 
         log('课程原始行数：' + result.rows.length + '（校区 ' + xqdm + '）');
-        if (result.rows.length > 0) log('原始字段样例：', result.rows[0]);
+        if (result.rows.length > 0) {
+            // 只打关键四个字段：整行有 40+ 字段，全量打印会刷屏并带出内部哈希
+            var sample = result.rows[0];
+            log('字段样例：kcmc=' + extractText(sample.kcmc) +
+                ' / xingqi=' + sample.xingqi +
+                ' / djc=' + sample.djc +
+                ' / zcstr=' + String(sample.zcstr || '').slice(0, 40));
+        }
         return parseCourseRows(result.rows);
     }
 
@@ -737,10 +771,18 @@
         }
     }
 
-    async function saveConfig(semesterStartDate) {
-        if (!semesterStartDate) return false;
+    /**
+     * 保存课表配置。总周数取接口 zclist 的条数（本校 20 周），
+     * 不传的话宿主会用默认值兜底，学期变短时课表尾部会多出空白周。
+     */
+    async function saveConfig(semesterStartDate, totalWeeks) {
+        var config = {};
+        if (semesterStartDate) config.semesterStartDate = semesterStartDate;
+        if (isFinite(totalWeeks) && totalWeeks > 0) config.semesterTotalWeeks = totalWeeks;
+        if (Object.keys(config).length === 0) return false;
+
         try {
-            await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify({ semesterStartDate: semesterStartDate }));
+            await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
             return true;
         } catch (error) {
             toast('课表配置保存失败：' + (error && error.message ? error.message : error));
@@ -815,11 +857,16 @@
 
         // 宿主要求：包含组合作息方案的导入必须先提交基础时间段
         await saveTimeSlots(config.timeSlots);
-        await saveConfig(config.semesterStartDate);
+        await saveConfig(config.semesterStartDate, config.totalWeeks);
 
         toast('导入成功：' + courses.length + ' 条课程' + (config.timeSlots.length ? '、' + config.timeSlots.length + ' 节作息' : ''));
         window.shiguangBridge.notifyTaskCompletion();
-        log('导入流程结束', { courses: courses.length, timeSlots: config.timeSlots.length, semesterStartDate: config.semesterStartDate });
+        log('导入流程结束', {
+            courses: courses.length,
+            timeSlots: config.timeSlots.length,
+            semesterStartDate: config.semesterStartDate,
+            totalWeeks: config.totalWeeks
+        });
     }
 
     // ======================= 9. 调试入口（联调用，App 内不影响） =======================
@@ -858,13 +905,16 @@
                 return null;
             });
             var payload = (week && week.data && week.data.data) || {};
-            var apiSlots = sanitizeTimeSlots(payload.jcsjszList || payload.jcsjsjList || payload.jcsjList || []);
+            var parsedSlots = parseTimeSlots(payload.jcsjszList || payload.jcsjsjList || payload.jcsjList || []);
+            var apiSlots = parsedSlots.slots;
             report.schedule = week ? {
                 url: week.url,
                 keys: Object.keys(payload),
                 slotsFromApi: apiSlots,
-                slotsDiffWithBuiltin: apiSlots.length ? diffWithDefault(apiSlots) : '接口未返回节次时间，导入时会用内置 12 节表',
-                semesterStartDate: semesterStartFrom(payload.zclist || [])
+                slotsIssue: parsedSlots.reason,
+                slotsDiffWithBuiltin: apiSlots.length ? diffWithDefault(apiSlots) : '接口未返回可用节次时间，导入时按内置表兜底或跳过',
+                semesterStartDate: semesterStartFrom(payload.zclist || []),
+                totalWeeks: Array.isArray(payload.zclist) ? payload.zclist.length : 0
             } : '未命中';
 
             if (report.params.xhid) {
