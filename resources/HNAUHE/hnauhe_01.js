@@ -22,8 +22,7 @@
 
     var ADAPTER = {
         id: 'HNAUHE_01',
-        name: '河南牧业经济学院教务系统',
-        loginUrl: 'https://hnuahe.jw.chaoxing.com/admin/login?logout=1',
+        name: '河南牧业经济学院',
         timetablePath: '/admin/pkgl/xskb/queryKbForXsd'
     };
 
