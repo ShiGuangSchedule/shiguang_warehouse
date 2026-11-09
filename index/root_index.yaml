@@ -1038,6 +1038,11 @@ schools:
     initial: "N"
     resource_folder: "NYNU"
 
+  - id: "NYIST"
+    name: "南阳理工学院"
+    initial: "N"
+    resource_folder: "NYIST"
+
   - id: "NCHU"
     name: "南昌航空大学"
     initial: "N"
