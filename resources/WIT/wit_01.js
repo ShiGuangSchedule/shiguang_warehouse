@@ -7,6 +7,33 @@
     const bridge = window.shiguangBridgePromise;
     const toast = message => window.shiguangBridge.showToast(message);
     const endpoint = '/jsxsd/xskb/xskb_list.do';
+    async function semesterInfo(semester) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20000);
+        try {
+            const response = await fetch('/jsxsd/jxzl/jxzl_query', {
+                method: 'POST', credentials: 'same-origin', signal: controller.signal,
+                body: new URLSearchParams({ xnxq01id: semester })
+            });
+            if (!response.ok) throw new Error('教学周历请求失败');
+            const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const selected = doc.querySelector('#xnxq01id');
+            if (selected && selected.value !== semester) throw new Error('教学周历学期不匹配');
+            const rows = [...doc.querySelectorAll('#kbtable tr')].filter(row => row.querySelector('td'));
+            const match = rows[0]?.querySelector('td[title]')?.getAttribute('title')?.match(/^(\d{4})年(\d{2})月(\d{2})日?$/);
+            const weeks = rows.map(row => parseInt(row.querySelector('td').textContent.trim(), 10)).filter(n => n > 0 && n <= 100);
+            if (!match || !weeks.length) throw new Error('无法解析教学周历');
+            const date = `${match[1]}-${match[2]}-${match[3]}`;
+            const parsed = new Date(`${date}T00:00:00Z`);
+            if (isNaN(parsed) || parsed.toISOString().slice(0, 10) !== date) throw new Error('教学周历日期无效');
+            return { semesterStartDate: date, semesterTotalWeeks: Math.max(...weeks), firstDayOfWeek: 1 };
+        } finally { clearTimeout(timer); }
+    }
+    const timeSlots = [
+        ['08:00','08:45'], ['08:50','09:35'], ['09:55','10:40'], ['10:45','11:30'],
+        ['11:35','12:20'], ['14:00','14:45'], ['14:50','15:35'], ['15:55','16:40'],
+        ['16:45','17:30'], ['19:00','19:45'], ['19:50','20:35'], ['20:40','21:25']
+    ].map(([startTime, endTime], i) => ({ number: i + 1, startTime, endTime }));
     async function request(options) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 20000);
@@ -94,7 +121,11 @@
             return;
         }
         const remarks = [...table.rows].find(r => r.cells[0]?.textContent.includes('备注'))?.cells[1]?.textContent.trim();
-        if (!await bridge.showAlert('导入前确认', `将导入 ${courses.size} 条课程安排。请在 App 内核对开学日期、总周数与节次作息。${remarks ? '\n课表含备注，请回教务核对其中未排定时间的课程并手动添加。' : ''}`, '确认导入')) return;
+        let config = null;
+        try { config = await semesterInfo(semester); } catch (_) { /* 保留现有学期设置，提示用户核对。 */ }
+        if (!await bridge.showAlert('导入前确认', `将导入 ${courses.size} 条课程安排，并写入学校作息。${config ? `教学周历：${config.semesterStartDate} 开始，共 ${config.semesterTotalWeeks} 周。` : '未能获取教学周历，请在 App 内手动核对开学日期和总周数。'}请核对节次作息。${remarks ? '\n课表含备注，请回教务核对其中未排定时间的课程并手动添加。' : ''}`, '确认导入')) return;
+        if (config) await bridge.saveCourseConfig(JSON.stringify(config));
+        await bridge.savePresetTimeSlots(JSON.stringify(timeSlots));
         await bridge.saveImportedCourses(JSON.stringify([...courses.values()]));
         toast(`成功导入 ${courses.size} 条课程安排`);
         window.shiguangBridge.notifyTaskCompletion();
