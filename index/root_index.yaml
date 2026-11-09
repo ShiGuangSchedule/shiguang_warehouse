@@ -1362,3 +1362,8 @@ schools:
     name: "电子科技大学中山学院"
     initial: "Z"
     resource_folder: "ZSC"
+
+  - id: "GXSTNU"
+    name: "广西科技师范学院"
+    initial: "G"
+    resource_folder: "GXSTNU"

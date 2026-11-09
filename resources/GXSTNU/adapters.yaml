@@ -1,0 +1,9 @@
+# resources/GXSTNU/adapters.yaml
+adapters:
+  - adapter_id: "GXSTNU_01"
+    adapter_name: "广西科技师范学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gxstnu_01.js"
+    import_url: "https://jw.gxstnu.edu.cn/jsxsd/"
+    maintainer: "CikeSeven"
+    description: "广西科技师范学院强智教务（新版界面）课表导入，登录教务系统后直接点击导入，可选择学期，同步开学日期、总周数与作息时间"
