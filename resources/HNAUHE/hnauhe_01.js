@@ -1,10 +1,13 @@
-// resources/HNAUHE/school.js
+// resources/HNAUHE/hnauhe_01.js
 // 河南牧业经济学院 · 超星教务（jw.chaoxing.com）课程表适配脚本
+// 本校在校生维护（河南牧业经济学院），接口与校区情况直接在本校教务实测
 // ---------------------------------------------------------------------------
 // 适用系统：超星教务管理系统学生端（/admin/pkgl/xskb/queryKbForXsd 课表页）
 // 使用方式：登录教务 → 进入「我的课表」页面 → 在拾光中点击「执行导入」
 // 数据来源：全部取自已登录会话的站内接口，脚本内不含账号、密码或固定 Token
 // 参考实现：resources/chaoxing_jiaowu/chaoxing.js（通用超星适配）
+//           resources/SXGCXY/sxgcxy_01.js（wiki「超星教务」参考案例）
+// 本校在校生维护：学校若升级超星版本导致接口变动，会第一时间跟进；其他同学发现问题也欢迎提 Issue 或 PR
 //
 // 实测记录（2026-11-09，英才校区 / 2026-2027-1）：
 //   GET  /admin/api/jcsj/xqsj/getXqList?xnxq=             → {ret:0,data:[{id,xqmc}...]}，5 个校区
