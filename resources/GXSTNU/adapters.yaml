@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "gxstnu_01.js"
     import_url: "https://jw.gxstnu.edu.cn/jsxsd/"
     maintainer: "CikeSeven"
-    description: "广西科技师范学院强智教务（新版界面）课表导入，登录教务系统后直接点击导入，可选择学期，同步开学日期、总周数与作息时间"
+    description: "广西科技师范学院强智教务（强智2020后版本）课表导入，登录教务系统后直接点击导入，可选择学期，支持获取开学日期与总周数"
