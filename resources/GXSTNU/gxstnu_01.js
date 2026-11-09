@@ -224,23 +224,15 @@
         return dayByCol;
     }
 
-    // 读取一条课程：优先 li.courselists-item 的「老师:…;时间:…;地点:…」，缺字段时用同序号的悬浮提示补齐
-    function readCourseItem(li, tooltip) {
+    // 读取一条课程：悬浮提示里的课程名与「老师：… / 时间：… / 地点：…」
+    function readCourseItem(tip) {
         const info = {};
-        text(li.querySelector(".qz-hasCourse-abbrinfo"))
-            .split(/[;；](?=\s*(?:老师|时间|地点)\s*[:：])/)
-            .forEach(part => {
-                const m = part.match(/^\s*(老师|时间|地点)\s*[:：]\s*(.*)$/);
-                if (m) info[m[1]] = m[2].trim();
-            });
-        if (tooltip && (!info["老师"] || !info["时间"] || !info["地点"])) {
-            tooltip.querySelectorAll(".qz-tooltipContent-detailitem").forEach(item => {
-                const m = text(item).match(/^(老师|时间|地点)\s*[:：]\s*(.*)$/);
-                if (m && !info[m[1]]) info[m[1]] = m[2].trim();
-            });
-        }
+        tip.querySelectorAll(".qz-tooltipContent-detailitem").forEach(item => {
+            const m = text(item).match(/^(老师|时间|地点)\s*[:：]\s*(.*)$/);
+            if (m) info[m[1]] = m[2].trim();
+        });
         return {
-            name: text(li.querySelector(".qz-hasCourse-title")),
+            name: text(tip.querySelector(".qz-tooltipContent-title")),
             teacher: cleanTeacher(info["老师"]),
             position: cleanPosition(info["地点"]),
             time: info["时间"] || ""
@@ -260,9 +252,8 @@
             const day = dayByCol[item.col];
             if (!day) return;
 
-            const tooltips = Array.from(item.cell.querySelectorAll(".qz-tooltip li.qz-toolitiplists"));
-            item.cell.querySelectorAll("li.courselists-item").forEach((li, index) => {
-                const course = readCourseItem(li, tooltips[index]);
+            item.cell.querySelectorAll(".qz-tooltip li.qz-toolitiplists").forEach(tip => {
+                const course = readCourseItem(tip);
                 if (!course.name) return;
                 parseTimeText(course.time).forEach(seg => {
                     results.push({
@@ -369,12 +360,7 @@
     }
 
     async function fetchCourses(semesterId) {
-        const doc = await requestCoursePage(semesterId);
-        const selected = doc.querySelector("#xnxq01id option[selected]");
-        if (selected && selected.getAttribute("value") !== semesterId) {
-            throw new Error(`教务系统没有返回 ${semesterId} 学期的课表`);
-        }
-        return parseTimetableToModel(doc);
+        return parseTimetableToModel(await requestCoursePage(semesterId));
     }
 
     // 配置保存
