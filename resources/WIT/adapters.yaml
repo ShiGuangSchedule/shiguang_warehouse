@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "WIT_01"
+    adapter_name: "武汉工程大学强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "wit_01.js"
+    import_url: "http://jwxt.wit.edu.cn/jsxsd/"
+    maintainer: "imzihuailin"
+    description: "登录教务后选择学期导入本科课表，自动设置教学周历和学校作息，请在 App 内核对；无具体时间的备注课程需手动添加。"
