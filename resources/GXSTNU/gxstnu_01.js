@@ -318,15 +318,17 @@
     }
 
     /**
-     * 从教学周历解析开学日期 + 最大周次
+     * 从教学周历解析开学日期 + 最大周次 + 每周第一天
      * 该校周历只有周末格子带月份（工作日为「07」，周末为「09月12日」），
-     * 因此取第1周行内第一个「MM月DD日」，按所在星期倒推到周一
+     * 因此取第1周行内第一个「MM月DD日」，按列倒推到该行第一天；
+     * 周历第一列有的学期是星期一，有的是星期日（如 2024-2025-2），每周第一天以第一列为准
      */
     function parseSemesterInfo(doc, semesterId) {
         const table = doc.getElementById("dataTable");
-        if (!table) return { startDate: null, totalWeeks: null };
+        if (!table) return { startDate: null, totalWeeks: null, firstDayOfWeek: null };
 
         const dayByCol = parseHeaderDays(table);
+        const firstCol = Math.min(...Object.keys(dayByCol).map(Number));
         const rows = Array.from(table.tBodies).flatMap(tbody => Array.from(tbody.rows));
         const layout = layoutRows(rows);
 
@@ -341,22 +343,22 @@
             if (n === 1) week1Row = item.row;
         });
 
+        // 学期 ID 形如「2024-2025-1」：第1学期在第一个年份开学，第2学期在第二个年份开学
+        const [firstYear, secondYear, term] = semesterId.split("-").map(Number);
+        const year = term === 1 ? firstYear : secondYear;
+
         let startDate = null;
         for (const item of layout) {
             if (item.row !== week1Row || !dayByCol[item.col]) continue;
             const m = text(item.cell).match(/(\d{1,2})月(\d{1,2})日/);
             if (!m) continue;
-            const month = Number(m[1]);
-            const yearMatch = semesterId.match(/^(\d{4})/);
-            let year = yearMatch ? Number(yearMatch[1]) : new Date().getFullYear();
-            if (month < 8) year += 1;
-            const date = new Date(Date.UTC(year, month - 1, Number(m[2])));
-            date.setUTCDate(date.getUTCDate() - (dayByCol[item.col] - 1));
+            const date = new Date(Date.UTC(year, Number(m[1]) - 1, Number(m[2])));
+            date.setUTCDate(date.getUTCDate() - (item.col - firstCol));
             startDate = `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
             break;
         }
 
-        return { startDate, totalWeeks };
+        return { startDate, totalWeeks, firstDayOfWeek: dayByCol[firstCol] || null };
     }
 
     async function fetchCourses(semesterId) {
@@ -365,10 +367,10 @@
 
     // 配置保存
 
-    async function saveAppConfig(semesterStartDate, totalWeeks) {
+    async function saveAppConfig(semesterStartDate, totalWeeks, firstDayOfWeek) {
         const config = {
             "semesterTotalWeeks": totalWeeks || 20,
-            "firstDayOfWeek": 1
+            "firstDayOfWeek": firstDayOfWeek || 1
         };
         if (semesterStartDate) config.semesterStartDate = semesterStartDate;
         return await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
@@ -401,7 +403,7 @@
             const semesterId = semesters[selectedIndex].value;
 
             window.shiguangBridge.showToast("正在获取学期信息...");
-            const { startDate, totalWeeks } = parseSemesterInfo(await requestSemesterPage(semesterId), semesterId);
+            const { startDate, totalWeeks, firstDayOfWeek } = parseSemesterInfo(await requestSemesterPage(semesterId), semesterId);
 
             window.shiguangBridge.showToast("正在请求课程数据...");
             const finalCourses = await fetchCourses(semesterId);
@@ -410,7 +412,7 @@
                 return;
             }
 
-            await saveAppConfig(startDate, totalWeeks);
+            await saveAppConfig(startDate, totalWeeks, firstDayOfWeek);
             await saveAppTimeSlots();
             await window.shiguangBridgePromise.saveImportedCourses(JSON.stringify(finalCourses));
 
