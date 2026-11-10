@@ -1367,3 +1367,8 @@ schools:
     name: "武汉工程大学"
     initial: "W"
     resource_folder: "WIT"
+
+  - id: "GXSTNU"
+    name: "广西科技师范学院"
+    initial: "G"
+    resource_folder: "GXSTNU"
