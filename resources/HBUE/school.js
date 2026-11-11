@@ -8,7 +8,7 @@
  * 基础域名配置
  * 湖北经济学院教务系统（新版正方 v9）
  */
-const BASE_URL = "https://jwxt.hbue.edu.cn/jwglxt";
+const BASE_URL = "https://jwxt.hbue.edu.cn";
 
 function getBaseUrl() {
     return BASE_URL;

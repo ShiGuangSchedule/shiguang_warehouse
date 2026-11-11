@@ -1,10 +1,9 @@
 # resources/HBUE/adapters.yaml
-adapters: []
-  # 由https://github.com/ShiGuangSchedule/shiguang_warehouse/pull/918得知，该适配无法使用因此注释，对应开发者未在一定时间内提交修复代码，因此该适配器失去维护
-  # - adapter_id: "HBUE_01"
-  #   adapter_name: "湖北经济学院教务系统"
-  #   category: "BACHELOR_AND_ASSOCIATE"
-  #   asset_js_path: "school.js"
-  #   import_url: "https://jwxt.hbue.edu.cn/xtgl/login_slogin.html"
-  #   maintainer: "xjy1mzh"
-  #   description: "湖北经济学院正方教务（接口式适配），登录后点击开始导入，支持选择学年学期、自动获取开学日期与作息时间，无需进入课表页面"
+adapters:
+  - adapter_id: "HBUE_01"
+    adapter_name: "湖北经济学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "school.js"
+    import_url: "https://jwxt.hbue.edu.cn/xtgl/login_slogin.html"
+    maintainer: "xjy1mzh"
+    description: "湖北经济学院正方教务（接口式适配），登录后点击开始导入，支持选择学年学期、自动获取开学日期与作息时间，无需进入课表页面"
