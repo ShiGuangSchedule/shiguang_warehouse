@@ -489,30 +489,26 @@
     /**
      * 把学期切成若干连续日期段，每段绑定夏季或冬季作息，生成"组合作息方案"。
      * 段与段之间连续、不重叠，完整覆盖 [第1周周一, 第N周周日]。
-     * opts.uniform = true 时不切换，整学期用开学日期所在季节的那套。
      */
-    function buildComboSchedule(startDate, totalWeeks, switchCfg, opts) {
+    function buildComboSchedule(startDate, totalWeeks, switchCfg) {
         const sw = switchCfg || DEFAULT_SEASON_SWITCH;
-        const uniform = !!(opts && opts.uniform);
         const startMs = parseYmd(startDate);
         if (startMs === null) throw new Error('开学日期格式不正确：' + startDate);
 
         const weeks = Math.max(1, parseInt(totalWeeks, 10) || COURSE_CONFIG.semesterTotalWeeks);
         const endMs = startMs + (weeks * 7 - 1) * DAY_MS;
 
-        // 学期内的所有切换点（每年 5/1 与 10/1，按配置）；整学期统一时不切分
+        // 学期内的所有切换点（每年 5/6 与 10/1）
         const edges = [];
-        if (!uniform) {
-            const yearFrom = new Date(startMs).getUTCFullYear();
-            const yearTo = new Date(endMs).getUTCFullYear();
-            for (let y = yearFrom - 1; y <= yearTo + 1; y++) {
-                [sw.summerStart, sw.winterStart].forEach((md) => {
-                    const ms = parseYmd(y + '-' + md);
-                    if (ms !== null && ms > startMs && ms <= endMs) edges.push(ms);
-                });
-            }
-            edges.sort((a, b) => a - b);
+        const yearFrom = new Date(startMs).getUTCFullYear();
+        const yearTo = new Date(endMs).getUTCFullYear();
+        for (let y = yearFrom - 1; y <= yearTo + 1; y++) {
+            [sw.summerStart, sw.winterStart].forEach((md) => {
+                const ms = parseYmd(y + '-' + md);
+                if (ms !== null && ms > startMs && ms <= endMs) edges.push(ms);
+            });
         }
+        edges.sort((a, b) => a - b);
 
         const rules = [];
         let cursor = startMs;
@@ -541,28 +537,9 @@
         };
     }
 
-    // 作息切换规则（用单选列表，不占用输入框）：
-    // 整个导入流程只允许出现一个输入框（开学日期）——App 的 PromptHost 用无 key 的
+    // 作息切换规则是学校制度性的（5 月 6 日转夏、10 月 1 日转冬），不让用户选。
+    // 整个导入流程只保留一个输入框（开学日期）——App 的 PromptHost 用无 key 的
     // rememberSaveable 保存输入内容，连续弹两个输入框会把上一个的内容带进来。
-    const SEASON_RULE_OPTIONS = [
-        { label: '默认：5 月 6 日转夏季、10 月 1 日转冬季', uniform: false },
-        { label: '整学期用同一套作息（按开学日期所在季节）', uniform: true }
-    ];
-
-    /** 让用户选择作息切换规则；取消返回 null */
-    async function selectSeasonRule() {
-        if (!inBridge()) return { switchCfg: DEFAULT_SEASON_SWITCH, uniform: false };
-
-        const picked = await window.shiguangBridgePromise.showSingleSelection(
-            '选择作息切换规则',
-            JSON.stringify(SEASON_RULE_OPTIONS.map((o) => o.label)),
-            0
-        );
-        if (picked === null || picked < 0) return null;
-
-        const rule = SEASON_RULE_OPTIONS[picked] || SEASON_RULE_OPTIONS[0];
-        return { switchCfg: DEFAULT_SEASON_SWITCH, uniform: rule.uniform };
-    }
 
     /** 当前 App 是否支持组合作息（v2.1.0 起才提供） */
     const supportsComboSchedule = () =>
@@ -654,17 +631,11 @@
 
             // 全流程唯一的输入框：开学日期（默认值按所选学期推算，可改）
             const cfg = await askConfig(courses, term.termname);
-            // 作息切换规则用单选列表，避免出现第二个输入框
-            const rule = await selectSeasonRule();
-            if (rule === null) {
-                toast('已取消导入。');
-                return;
-            }
 
-            // 组合作息：按 5/1、10/1 切成连续日期段（或整学期统一）
+            // 组合作息：按 5/6、10/1 切成连续日期段（规则固定，不让用户选）
             const useCombo = supportsComboSchedule() && !!cfg.startDate;
             const combo = useCombo
-                ? buildComboSchedule(cfg.startDate, cfg.totalWeeks, rule.switchCfg, { uniform: rule.uniform })
+                ? buildComboSchedule(cfg.startDate, cfg.totalWeeks, DEFAULT_SEASON_SWITCH)
                 : null;
 
             // 基础时间段（骨架）固定用冬季 10 节，模板按差量覆盖
@@ -681,18 +652,16 @@
             if (inBridge()) {
                 let msg = '成功导入 ' + courses.length + ' 条课程！';
                 if (useCombo) {
-                    msg += rule.uniform
-                        ? '作息整学期统一（1 段）。'
-                        : '作息已按日期切换（' + combo.publicSchedules.length + ' 段）。';
+                    msg += '作息已按日期切换（' + combo.publicSchedules.length + ' 段）。';
                 } else if (!supportsComboSchedule()) {
                     msg += '当前 App 版本不支持按日期切换作息，已按开学日期使用单一作息。';
                 } else {
                     msg += '未填写开学日期，已跳过作息切换。';
                 }
                 if (lastSectionWarnings.dropped.length || lastSectionWarnings.clipped.length) {
-                    msg += ' 另有 ' + lastSectionWarnings.dropped.length + ' 条超出 10 节被丢弃、' +
-                        lastSectionWarnings.clipped.length + ' 条被截断。';
-                    console.warn('[HNUST_PG] 超出 10 节的课程：', lastSectionWarnings);
+                    msg += ' 另有 ' + lastSectionWarnings.dropped.length + ' 条超出 ' + MAX_SECTION +
+                        ' 节被丢弃、' + lastSectionWarnings.clipped.length + ' 条被截断。';
+                    console.warn('[HNUST_PG] 超出 ' + MAX_SECTION + ' 节的课程：', lastSectionWarnings);
                 }
                 toast(msg);
                 window.shiguangBridge.notifyTaskCompletion();
