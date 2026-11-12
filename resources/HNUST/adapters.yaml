@@ -14,4 +14,4 @@ adapters:
     asset_js_path: "hnust_yjs.js"
     import_url: "https://yjsjw.hnust.edu.cn/gmis/home/stulogin"
     maintainer: "sol-long"
-    description: "研究生管理信息系统，校内网系统，仅限校园网访问。请使用学生版登录页登录，登录后直接点击执行导入；导入时可选择学期与冬季/夏季作息。"
+    description: "研究生管理信息系统，校内网系统，仅限校园网访问。请使用学生版登录页登录，登录后直接点击执行导入；导入时可选学期，作息按 5 月 6 日/10 月 1 日自动切换。"

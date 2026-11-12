@@ -40,10 +40,14 @@
     };
 
     // 研究生作息时间：分冬季/夏季两套，上午相同，下午与晚上夏季整体后移 30 分钟。
-    // 节次：上午 1-4、下午 5-8、晚上 9-10，**共 10 节**。
-    // 依据学校官方作息表：只有 10 节课，20:50 之后是自习，不是第 11 节。
-    //   冬季：《湖南科技大学 2017 年秋（冬）季作息时间表》（10 月 1 日起执行）
-    //   夏季：学校「五一后实行夏季作息时间」——下午 14:30 起、第八节 18:10 下课、晚间 19:30—21:10
+    // 节次：上午 1-4、下午 5-8、晚上 9-11，**共 11 节**（教务系统课表网格就是 11 行，实际有课排在第 11 节）。
+    // 依据学校官方作息表：
+    //   冬季：《湖南科技大学 2026 年秋（冬）季教学作息时间表》（10 月 1 日起执行）
+    //         第五节课 14:00—14:45、第八节 16:55—17:40、第九/十节 19:00/19:55，自习 19:00—22:00
+    //   夏季：《湖南科技大学 2026 年夏季作息时间表》（5 月 6 日起执行）
+    //         第五节课 14:30—15:15、第八节 17:25—18:10、第九/十节 19:30/20:25，自习 19:30—22:30
+    // 官方表只编号到第十节；第 11 节官方写作「自习」，这里按与其他节次相同的
+    // 「45 分钟上课 + 10 分钟课间」规则推出，保证 9-11 连堂的下课时间有明确值。
     const WINTER_TIME_SLOTS = [
         { number: 1, startTime: '08:00', endTime: '08:45' },
         { number: 2, startTime: '08:55', endTime: '09:40' },
@@ -54,7 +58,8 @@
         { number: 7, startTime: '16:00', endTime: '16:45' },
         { number: 8, startTime: '16:55', endTime: '17:40' },
         { number: 9, startTime: '19:00', endTime: '19:45' },
-        { number: 10, startTime: '19:55', endTime: '20:40' }
+        { number: 10, startTime: '19:55', endTime: '20:40' },
+        { number: 11, startTime: '20:50', endTime: '21:35' }
     ];
 
     const SUMMER_TIME_SLOTS = [
@@ -67,14 +72,14 @@
         { number: 7, startTime: '16:30', endTime: '17:15' },
         { number: 8, startTime: '17:25', endTime: '18:10' },
         { number: 9, startTime: '19:30', endTime: '20:15' },
-        { number: 10, startTime: '20:25', endTime: '21:10' }
+        { number: 10, startTime: '20:25', endTime: '21:10' },
+        { number: 11, startTime: '21:20', endTime: '22:05' }
     ];
 
-    // 学校按日历切换冬/夏作息：5 月 1 日转夏季、10 月 1 日转冬季。
-    // 学校若临时调整，用户可以在导入面板里改这两个日期（格式 MM-DD）。
-    const DEFAULT_SEASON_SWITCH = { summerStart: '05-01', winterStart: '10-01' };
+    // 学校按日历切换冬/夏作息：5 月 6 日转夏季（2026 年官方表约定）、10 月 1 日转冬季。
+    const DEFAULT_SEASON_SWITCH = { summerStart: '05-06', winterStart: '10-01' };
 
-    // 官方只有 10 节。课表里若出现「晚上11」的数据会被丢弃或截断，并计入告警。
+    // 官方编号到第十节；第 11 节是教务系统网格里的最后一节，按实际数据保留。
     const MAX_SECTION = WINTER_TIME_SLOTS.length;
 
     const COURSE_CONFIG = {
@@ -300,13 +305,13 @@
         return clipToMaxSection(mergeAdjacentCourses(courses));
     }
 
-    // 上一次解析中因超出 10 节而被丢弃 / 截断的课程，供导入流程告警用
+    // 上一次解析中因超出节次上限（第 11 节）而被丢弃 / 截断的课程，供导入流程告警用
     let lastSectionWarnings = { dropped: [], clipped: [] };
 
     /**
-     * 官方作息表只有 10 节，课表里偶发出现的「晚上11」按以下方式处理：
-     *  - 整条都落在 10 节之外 → 丢弃（记入 dropped）
-     *  - 从 ≤10 节跨到 >10 节 → 截断到第 10 节（记入 clipped）
+     * 防呆：若课表出现超出第 11 节的数据（说明作息表需要更新），按以下方式处理：
+     *  - 整条都落在上限之外 → 丢弃（记入 dropped）
+     *  - 从上限内跨到上限外 → 截断到上限（记入 clipped）
      * 两种情况都会在导入结束时提示用户，避免静默丢课。
      */
     function clipToMaxSection(courses) {
@@ -540,7 +545,7 @@
     // 整个导入流程只允许出现一个输入框（开学日期）——App 的 PromptHost 用无 key 的
     // rememberSaveable 保存输入内容，连续弹两个输入框会把上一个的内容带进来。
     const SEASON_RULE_OPTIONS = [
-        { label: '默认：5 月 1 日转夏季、10 月 1 日转冬季', uniform: false },
+        { label: '默认：5 月 6 日转夏季、10 月 1 日转冬季', uniform: false },
         { label: '整学期用同一套作息（按开学日期所在季节）', uniform: true }
     ];
 
