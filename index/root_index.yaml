@@ -1372,3 +1372,8 @@ schools:
     name: "广西科技师范学院"
     initial: "G"
     resource_folder: "GXSTNU"
+
+  - id: "HUWAI"
+    name: "湖南外国语职业学院"
+    initial: "H"
+    resource_folder: "HUWAI"
