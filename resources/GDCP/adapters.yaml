@@ -14,3 +14,11 @@ adapters:
     import_url: "https://jw.gdcp.edu.cn/"
     maintainer: "Haooz"
     description: "登录教务系统后，选择学期后直接执行导入，按教学楼自动判定校区"
+
+  - adapter_id: "GDCP_03"
+    adapter_name: "广东交通职业技术学院强智教务（容错版）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdcp_03.js"
+    import_url: "https://jw.gdcp.edu.cn/"
+    maintainer: "3362885642"
+    description: "面向教学管理信息服务平台（jw.gdcp.edu.cn）的容错版适配。课表结构自适应，校区、作息、教学周历任一取不到时自动降级并提示，不会整单失败；解析失败时在控制台输出可诊断信息。"
