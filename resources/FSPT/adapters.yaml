@@ -1,0 +1,9 @@
+# resources/FSPT/adapters.yaml
+adapters:
+  - adapter_id: "FSPT_01"
+    adapter_name: "佛山职业技术学院综合教务（强智）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "fspt_01.js"
+    import_url: "https://jwgl.fspt.edu.cn/"
+    maintainer: "SomeoneChen"
+    description: "适配佛山职业技术学院强智教务系统，登录后点击导入，选择学期即可导入学期理论课表（不含作息时间，请在App内自行设置）"
