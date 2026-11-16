@@ -58,29 +58,6 @@
         return normalizeText(node ? node.textContent : "");
     }
 
-    function extractCourseName(courseDiv) {
-        const clone = courseDiv.cloneNode(true);
-
-        Array.from(clone.querySelectorAll("font[title], span[title], div[title]")).forEach(function (node) {
-            node.remove();
-        });
-        Array.from(clone.querySelectorAll("span")).forEach(function (node) {
-            const text = normalizeText(node.textContent);
-            if (/^[A-Z]$/.test(text) || /^[●★○]+$/.test(text)) node.remove();
-        });
-
-        const holder = document.createElement("div");
-        holder.innerHTML = clone.innerHTML.replace(/<br\s*\/?>/gi, "\n");
-        const lines = holder.textContent
-            .split(/\n+/)
-            .map(normalizeText)
-            .filter(function (line) {
-                return line && line !== "-" && !/^\(\d+\)$/.test(line);
-            });
-
-        return normalizeText((lines[0] || "").replace(/[●★○]/g, ""));
-    }
-
     function parseDay(courseDiv, fallbackDay) {
         const id = courseDiv.getAttribute("id") || "";
         const match = id.match(/-(\d)-\d$/);
@@ -140,17 +117,24 @@
         return sections;
     }
 
-    function parseCourseDiv(courseDiv, fallbackDay) {
-        const rawText = normalizeText(courseDiv.textContent);
-        if (!rawText || rawText === "&nbsp;" || rawText.length < 2) return null;
+    function parseBlock(block, day) {
+        const teacher = getTitleText(block, "老师") || getTitleText(block, "教师");
+        const weekText = getTitleText(block, "周次(节次)");
+        const roomText = getTitleText(block, "教室");
 
-        const name = extractCourseName(courseDiv);
-        const teacher = getTitleText(courseDiv, "老师") || getTitleText(courseDiv, "教师");
-        const weekText = getTitleText(courseDiv, "周次(节次)");
-        const position = getTitleText(courseDiv, "教室") || "未知地点";
+        // 强智此校的节次写在教室后面，如“教学楼A-205[01-02]节”
+        const sections = parseSections(roomText + " " + weekText);
         const weeks = parseWeeks(weekText);
-        const sections = parseSections(weekText);
-        const day = parseDay(courseDiv, fallbackDay);
+        const position = normalizeText(roomText.replace(/\[[^\]]*\]\s*节?/g, "")) || "未知地点";
+
+        // 课程名取第一行文本（第二行重复，且 title 元素已移除）
+        const clone = block.cloneNode(true);
+        Array.from(clone.querySelectorAll("font[title], span[title], div[title]")).forEach(function (n) { n.remove(); });
+        const lines = clone.innerHTML.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")
+            .split(/\n+/)
+            .map(function (line) { return line.replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim(); })
+            .filter(function (line) { return line && !/^-+$/.test(line); });
+        const name = (lines[0] || "").replace(/[●★○]/g, "").trim();
 
         if (!name || !day || weeks.length === 0 || sections.length === 0) return null;
 
@@ -165,6 +149,21 @@
         };
     }
 
+    // 一个格子里可能有多门课，课与课之间用 18 个以上的“-”分隔（课内的分隔线只有 16 个）
+    function parseCourseDiv(courseDiv, fallbackDay) {
+        if (normalizeText(courseDiv.textContent).length < 2) return [];
+        const day = parseDay(courseDiv, fallbackDay);
+        const parts = courseDiv.innerHTML.split(/-{18,}\s*(?:<br\s*\/?>)?/i);
+        const result = [];
+        parts.forEach(function (html) {
+            const holder = document.createElement("div");
+            holder.innerHTML = html;
+            const course = parseBlock(holder, day);
+            if (course) result.push(course);
+        });
+        return result;
+    }
+
     function parseCourses(doc) {
         const table = doc.querySelector("#kbtable");
         if (!table) return [];
@@ -176,8 +175,7 @@
                 const fallbackDay = index + 1;
                 Array.from(cell.querySelectorAll("div.kbcontent")).forEach(function (courseDiv) {
                     if (courseDiv.classList.contains("sykb2")) return;
-                    const course = parseCourseDiv(courseDiv, fallbackDay);
-                    if (course) courses.push(course);
+                    parseCourseDiv(courseDiv, fallbackDay).forEach(function (c) { courses.push(c); });
                 });
             });
         });
