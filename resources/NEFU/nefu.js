@@ -8,7 +8,7 @@
   else void api.runImportFlow(window);
 })(function () {
   'use strict';
-  const ORIGIN = 'https://jwxt.nefu.edu.cn';
+  const ORIGIN = 'https://jwxt-443.webvpn.nefu.edu.cn';
   const PATH = '/jsxsd/xskb/xskb_list.do';
   function fail(code, message) {
     const error = new Error(message); error.code = code; throw error;
