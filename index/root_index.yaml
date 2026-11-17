@@ -1382,3 +1382,8 @@ schools:
     name: "佛山职业技术学院"
     initial: "F"
     resource_folder: "FSPT"
+
+  - id: "JLUCT"
+    name: "吉林化工大学"
+    initial: "J"
+    resource_folder: "JLUCT"
