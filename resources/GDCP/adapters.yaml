@@ -14,3 +14,16 @@ adapters:
     import_url: "https://jw.gdcp.edu.cn/"
     maintainer: "Haooz"
     description: "登录教务系统后，选择学期后直接执行导入，按教学楼自动判定校区"
+
+  - adapter_id: "GDCP_03"
+    adapter_name: "广东交通职业技术学院强智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "gdcp_03.js"
+    import_url: "https://jw.gdcp.edu.cn/"
+    maintainer: "星河欲转"
+    description: | 
+      登录教务系统后，即可开始导入
+      存在错峰作息支持，通过测试校区：
+      清远校区
+      -------
+      其他校区不保证正则匹配正确需要测试，欢迎对该适配器提出pr或者issue    
