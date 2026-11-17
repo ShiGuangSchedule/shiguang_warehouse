@@ -1377,3 +1377,8 @@ schools:
     name: "湖南外国语职业学院"
     initial: "H"
     resource_folder: "HUWAI"
+
+  - id: "FSPT"
+    name: "佛山职业技术学院"
+    initial: "F"
+    resource_folder: "FSPT"
