@@ -6,4 +6,4 @@ adapters:
     asset_js_path: "fspt_01.js"
     import_url: "https://jwgl.fspt.edu.cn/"
     maintainer: "SomeoneChen"
-    description: "适配佛山职业技术学院强智教务系统，登录后点击导入，选择学期即可导入学期理论课表（不含作息时间，请在App内自行设置）"
+    description: "适配佛山职业技术学院强智教务系统，登录教务系统后直接点击导入，选择学期即可导入课表，支持获取开学日期，已内置作息时间（如学校调整请提交issues或PR）"
