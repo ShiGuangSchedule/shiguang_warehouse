@@ -1,0 +1,13 @@
+adapters:
+  - adapter_id: "JLUCT_01"
+    adapter_name: "吉林化工大学乘方教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "jluct_01.js"
+    import_url: "https://jwxt.jluct.edu.cn/"
+    maintainer: "星河欲转"
+    description: |
+      金山sso门户，点击专属账户，输入“吉林化工大学” 点击跳转统一登录门户
+      登录后进入教务系统选择统一门户联合登录可以避免二次输入账密
+      进入教务系统后点击开始导入，支持自动获取开学日期
+      ------
+      注：统一门户和乘方教务系统是两个账户
