@@ -1389,6 +1389,6 @@ schools:
     resource_folder: "JLUCT"
 
   - id: "TJUT"
-    name: "天津工业大学"
+    name: "天津理工大学"
     initial: "T"
     resource_folder: "TJUT"    
