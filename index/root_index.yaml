@@ -1387,3 +1387,8 @@ schools:
     name: "吉林化工大学"
     initial: "J"
     resource_folder: "JLUCT"
+
+  - id: "TJUT"
+    name: "天津工业大学"
+    initial: "T"
+    resource_folder: "TJUT"    

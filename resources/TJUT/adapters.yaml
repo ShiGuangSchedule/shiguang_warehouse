@@ -1,0 +1,10 @@
+adapters:
+  - adapter_id: "TJUT_01"
+    adapter_name: "天津工业大学金智教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "tjut_01.js"
+    import_url: "https://authserver.tjut.edu.cn/authserver/login?service=https%3A%2F%2Fjwxt.tjut.edu.cn%2Fjwapp%2Fsys%2Fhomeapp%2Fhome%2Findex.html"
+    maintainer: "星河欲转"
+    description: |
+      天津工业大学金智教务，进入教务系统可直接点击导入无需切到课表页面
+      非本校开发者适配如果有误建议提交issues
