@@ -1,4 +1,5 @@
 // 西安建筑科技大学（XAUAT）拾光课程表适配脚本 · 树维教务平台 · 本科
+// SleepDown 本地修订：周次、开学日、周起始日和作息全部取自教务接口，不再由上课日期反推。
 "use strict";
 (function () {
   // bizTypeId=2：本科课表（接口约定，勿改）
@@ -6,9 +7,9 @@
   // datum 接口要求 studentId 传字符串 "null"（接口约定，勿改）
   const DATUM_STUDENT_ID = "null";
 
-  const LIMITS = { timeout: 15000, minWeeks: 16, maxWeeks: 25, fallbackWeeks: 20 };
+  // minWeeks 仅作总周数下限；maxWeeks 是拾光配置允许的上限
+  const LIMITS = { timeout: 15000, minWeeks: 16, maxWeeks: 60 };
   const MS_PER_DAY = 86400000;
-  const DAYS_PER_WEEK = 7;
   const ENABLE_LOG = false; // release：关闭普通日志，仅保留 error
 
   const API = {
@@ -16,6 +17,7 @@
     lessonIds: (s) => "/student/for-std/course-table/get-data?bizTypeId=" + BIZ_TYPE_ID + "&semesterId=" + encodeURIComponent(s) + "&dataId=",
     datum: "/student/ws/schedule-table/datum",
     semester: (s) => "/student/ws/semester/get/" + encodeURIComponent(s),
+    layout: "/student/ws/schedule-table/timetable-layout",
   };
 
   const log = {
@@ -30,6 +32,7 @@
     alert: (t, m, b) => window.shiguangBridgePromise.showAlert(t, m, b),
     select: (t, items, d) => window.shiguangBridgePromise.showSingleSelection(t, JSON.stringify(items), d),
     saveConfig: (j) => window.shiguangBridgePromise.saveCourseConfig(j),
+    saveTimeSlots: (j) => window.shiguangBridgePromise.savePresetTimeSlots(j),
     saveCourses: (j) => window.shiguangBridgePromise.saveImportedCourses(j),
     done: () => window.shiguangBridge.notifyTaskCompletion(),
   };
@@ -52,7 +55,7 @@
       if (e.name === "AbortError") throw new Error("请求超时，请检查网络后重试");
       throw e;
     } finally {
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
     }
   }
 
@@ -60,76 +63,26 @@
 
   const pad2 = (n) => String(n).padStart(2, "0");
   const formatTime = (hhmm) => pad2(Math.floor(hhmm / 100)) + ":" + pad2(hhmm % 100);
-  const toDateString = (d) => d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
-  const weekdayOf = (dateStr) => { const d = new Date(dateStr).getDay(); return d === 0 ? 7 : d; };
-  const clampWeeks = (w) => Math.min(Math.max(w, LIMITS.minWeeks), LIMITS.maxWeeks);
+  const isHhmm = (v) => Number.isInteger(v) && v >= 0 && v <= 2359 && v % 100 < 60;
 
-  // 周次去重升序：值域有界，用桶排序
-  function uniqueSortedWeeks(weeks) {
-    const seen = new Array(LIMITS.maxWeeks + 1).fill(false);
-    for (const w of weeks) if (w >= 1 && w <= LIMITS.maxWeeks) seen[w] = true;
-    const out = [];
-    for (let w = 1; w <= LIMITS.maxWeeks; w++) if (seen[w]) out.push(w);
-    return out;
-  }
+  // 日期一律按 UTC 当天 0 点计算，避免本地时区与夏令时影响星期和天数差
+  const parseDate = (s) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof s === "string" ? s : "");
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null;
+  };
+  const toDateString = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const isoWeekdayOf = (ms) => { const d = new Date(ms).getUTCDay(); return d === 0 ? 7 : d; };
+  // 星期（1=周一…7=周日）在所属周内是第几天（从 0 开始）；周日起算时周日为 0
+  const offsetInWeek = (weekday, sundayFirst) => (sundayFirst ? weekday % 7 : weekday - 1);
+  const weekStartOf = (ms, sundayFirst) => ms - offsetInWeek(isoWeekdayOf(ms), sundayFirst) * MS_PER_DAY;
 
-  function calculateTotalWeeks(start, end) {
-    if (!start || !end) return LIMITS.fallbackWeeks;
-    return Math.ceil(Math.ceil((new Date(end) - new Date(start)) / MS_PER_DAY) / DAYS_PER_WEEK);
-  }
+  const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0); // 不用 localeCompare，避免各 WebView 排序不一致
+  const uniqueSorted = (arr) => Array.from(new Set(arr)).sort(byText);
 
-  // 由最早上课日期反推开学日（所在周周一）。局限：假设最早上课日在第一周。
-  function deriveSemesterStartDate(scheduleList) {
-    let minDate = null;
-    for (const it of scheduleList) if (it.date && (minDate === null || it.date < minDate)) minDate = it.date;
-    if (!minDate) return null;
-    const d = new Date(minDate);
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    return toDateString(d);
-  }
-
-  function getMaxCourseWeek(courses) {
-    let max = 0;
-    for (const c of courses) for (const w of c.weeks || []) if (w > max) max = w;
-    return max;
-  }
-
-  function readPosition(room) {
-    if (!room) return "未知地点";
-    return (typeof room === "object" ? room.nameZh : room) || "未知地点";
-  }
-
-  function convertCourses(lessonList, scheduleList, semesterStartDate) {
-    const names = new Map(lessonList.map((l) => [l.id, l.courseName]));
-    const startMs = new Date(semesterStartDate).getTime(); // 预计算，避免循环内重复解析
-    const groups = new Map();
-    for (const it of scheduleList) {
-      if (!it.date || typeof it.startTime !== "number" || typeof it.endTime !== "number") continue;
-      const diffDays = Math.floor((new Date(it.date).getTime() - startMs) / MS_PER_DAY);
-      if (diffDays < 0) continue;
-      const week = Math.floor(diffDays / DAYS_PER_WEEK) + 1;
-      const day = weekdayOf(it.date);
-      const key = it.lessonId + "|" + day + "|" + it.startTime + "|" + it.endTime;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          name: names.get(it.lessonId) || "未知课程",
-          teacher: it.personName || "未知教师",
-          position: readPosition(it.room),
-          day, startTime: it.startTime, endTime: it.endTime, weeks: [],
-        });
-      }
-      groups.get(key).weeks.push(week);
-    }
-    const courses = [];
-    for (const g of groups.values()) {
-      courses.push({
-        name: g.name, teacher: g.teacher, position: g.position, day: g.day,
-        weeks: uniqueSortedWeeks(g.weeks), isCustomTime: true,
-        customStartTime: formatTime(g.startTime), customEndTime: formatTime(g.endTime),
-      });
-    }
-    log.info("转换完成，共 " + courses.length + " 条课程");
-    return courses;
+  function readPosition(it) {
+    const room = it.room;
+    const name = room && typeof room === "object" ? room.nameZh : room;
+    return String(name || it.customPlace || "").trim();
   }
 
   async function getSemesters() {
@@ -138,19 +91,23 @@
       .querySelector("#allSemesters, #semesters");
     if (!select) throw new Error("未找到学期选择框，请确认已登录教务系统");
     const semesters = [];
+    let current = -1;
     for (const opt of select.querySelectorAll("option")) {
       const id = opt.getAttribute("value");
       const name = opt.textContent.trim();
-      if (id && id !== "all" && name) semesters.push({ id, name });
+      if (id && id !== "all" && name) {
+        if (opt.hasAttribute("selected") && current < 0) current = semesters.length;
+        semesters.push({ id, name });
+      }
     }
     if (!semesters.length) throw new Error("学期列表为空");
-    return semesters;
+    return { semesters, current: Math.max(current, 0) };
   }
 
-  async function fetchLessonIds(semesterId) {
+  async function fetchCourseTable(semesterId) {
     const json = await requestJson(API.lessonIds(semesterId));
     if (!json || !Array.isArray(json.lessonIds)) throw new Error("课程数据异常，请稍后重试");
-    return json.lessonIds;
+    return { lessonIds: json.lessonIds, layoutId: json.timeTableLayoutId };
   }
 
   async function fetchScheduleDatum(lessonIds) {
@@ -164,21 +121,135 @@
     return { lessonList: json.result.lessonList || [], scheduleList: json.result.scheduleList || [] };
   }
 
-  // 学期日期仅作辅助，失败降级为空，不中断主流程
-  async function fetchSemesterInfo(semesterId) {
-    try {
-      const json = await requestJson(API.semester(semesterId));
-      return { startDate: json.startDate || null, endDate: json.endDate || null };
-    } catch (e) {
-      log.warn("学期信息获取失败: " + e.message);
-      return { startDate: null, endDate: null };
+  // 学期开始日与周起始日是周次换算的依据，取不到就中止，不用猜测值导入错误数据
+  async function fetchSemester(semesterId) {
+    const json = await requestJson(API.semester(semesterId));
+    if (!json || parseDate(json.startDate) === null) throw new Error("无法获取学期开始日期，请稍后重试");
+    return { startDate: json.startDate.slice(0, 10), sundayFirst: json.weekStartOnSunday === true };
+  }
+
+  async function fetchLayout(layoutId) {
+    const json = await requestJson(API.layout, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timeTableLayoutId: layoutId }),
+    });
+    const units = json && json.result && json.result.courseUnitList;
+    if (!Array.isArray(units) || !units.length) throw new Error("无法获取作息时间，请稍后重试");
+    return units;
+  }
+
+  // 教务作息 -> 拾光节次。节次必须互不重叠，否则拒绝，由课程自带时间兜底
+  function buildTimeSlots(units) {
+    const slots = [];
+    for (const u of units) {
+      if (!Number.isInteger(u.indexNo) || u.indexNo <= 0 || !isHhmm(u.startTime) || !isHhmm(u.endTime) || u.startTime >= u.endTime) continue;
+      slots.push({ number: u.indexNo, startTime: formatTime(u.startTime), endTime: formatTime(u.endTime) });
     }
+    slots.sort((a, b) => a.number - b.number);
+    const seen = new Set();
+    for (let i = 0; i < slots.length; i++) {
+      if (seen.has(slots[i].number)) throw new Error("作息数据异常：节次重复");
+      seen.add(slots[i].number);
+      if (i > 0 && slots[i].startTime < slots[i - 1].endTime) throw new Error("作息数据异常：节次时间重叠");
+    }
+    return slots;
+  }
+
+  /**
+   * 把教务排课记录转换为拾光课程。
+   * 周次直接采用记录自带的 weekIndex；缺失时才按学期开始日换算。
+   * 同一课程、星期、时间的记录先按周合并（同周多个教室/老师），再把教室与老师完全相同的周归为一门课。
+   */
+  function convertCourses(lessonList, scheduleList, semester, slots) {
+    const startWeek = weekStartOf(parseDate(semester.startDate), semester.sundayFirst);
+    const lessons = new Map(lessonList.map((l) => [l.id, l]));
+    const unitByStart = new Map(slots.map((s) => [s.startTime, s.number]));
+    const unitByEnd = new Map(slots.map((s) => [s.endTime, s.number]));
+    const cells = new Map();
+    let skipped = 0;
+
+    for (const it of scheduleList) {
+      const dateMs = parseDate(it.date);
+      if (dateMs === null || !isHhmm(it.startTime) || !isHhmm(it.endTime) || it.startTime >= it.endTime) { skipped++; continue; }
+      const day = isoWeekdayOf(dateMs);
+      if (it.weekday !== undefined && it.weekday !== null && it.weekday !== day) {
+        throw new Error("教务数据的星期与日期不一致（" + it.date + "），已中止导入");
+      }
+      const calculated = Math.floor((dateMs - startWeek) / MS_PER_DAY / 7) + 1;
+      let week = calculated;
+      if (Number.isInteger(it.weekIndex) && it.weekIndex > 0) {
+        week = it.weekIndex;
+        // 教务自己的周次必须与学期开始日、周起始日吻合；不吻合说明换算依据有误，宁可中止
+        if (week !== calculated) {
+          throw new Error("教务周次与学期开始日不一致（" + it.date + " 为第 " + week + " 周，按开学日算为第 " + calculated + " 周），已中止导入");
+        }
+      } else if (calculated < 1) { skipped++; continue; }
+
+      const key = [it.lessonId, day, it.startTime, it.endTime, week].join("|");
+      let cell = cells.get(key);
+      if (!cell) cells.set(key, (cell = { it, day, week, rooms: [], teachers: [] }));
+      const room = readPosition(it);
+      if (room) cell.rooms.push(room);
+      if (it.personName) cell.teachers.push(String(it.personName));
+    }
+
+    const groups = new Map();
+    const parallel = new Set(); // 同一周同一时间有多个教室的课程名
+    for (const cell of cells.values()) {
+      const it = cell.it;
+      const lesson = lessons.get(it.lessonId) || {};
+      const name = lesson.courseName || lesson.name || "未知课程";
+      const rooms = uniqueSorted(cell.rooms);
+      if (rooms.length > 1) parallel.add(name);
+      let teachers = uniqueSorted(cell.teachers);
+      if (!teachers.length && Array.isArray(lesson.teacherAssignmentList)) {
+        teachers = uniqueSorted(lesson.teacherAssignmentList.map((t) => t && t.name).filter(Boolean));
+      }
+      const position = rooms.join("/");
+      const teacher = teachers.join(",");
+      const key = [it.lessonId, cell.day, it.startTime, it.endTime, position, teacher].join("|");
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = { name, teacher, position, day: cell.day, startTime: it.startTime, endTime: it.endTime, weeks: [] }));
+      g.weeks.push(cell.week);
+    }
+
+    const courses = [];
+    for (const g of groups.values()) {
+      const weeks = Array.from(new Set(g.weeks)).sort((a, b) => a - b);
+      const startSection = unitByStart.get(formatTime(g.startTime));
+      const endSection = unitByEnd.get(formatTime(g.endTime));
+      const course = { name: g.name, teacher: g.teacher, position: g.position, day: g.day, weeks };
+      if (startSection !== undefined && endSection !== undefined && startSection <= endSection) {
+        course.isCustomTime = false;
+        course.startSection = startSection;
+        course.endSection = endSection;
+      } else { // 不在教务节次网格内（如补课、考试周），保留真实起止时间
+        course.isCustomTime = true;
+        course.customStartTime = formatTime(g.startTime);
+        course.customEndTime = formatTime(g.endTime);
+      }
+      courses.push(course);
+    }
+    courses.sort((a, b) => a.day - b.day || a.startTime - b.startTime || byText(a.name, b.name));
+    log.info("转换完成，共 " + courses.length + " 条课程，跳过 " + skipped + " 条无效记录");
+    return { courses, parallel: Array.from(parallel).sort(byText), skipped };
+  }
+
+  function getMaxCourseWeek(courses) {
+    let max = 0;
+    for (const c of courses) for (const w of c.weeks) if (w > max) max = w;
+    return max;
   }
 
   async function saveConfig(config) {
     try { await ui.saveConfig(JSON.stringify(config)); }
     catch (e) { throw new Error("保存配置失败，请重试"); }
-    ui.toast("课表配置导入成功");
+  }
+
+  async function saveTimeSlots(slots) {
+    try { await ui.saveTimeSlots(JSON.stringify(slots)); }
+    catch (e) { throw new Error("保存作息失败，请重试"); }
   }
 
   async function saveCourses(courses) {
@@ -187,51 +258,67 @@
     ui.toast("成功导入 " + courses.length + " 条课程");
   }
 
-  async function chooseSemester(semesters) {
+  async function chooseSemester(semesters, defaultIndex) {
     const names = semesters.map((s) => s.name);
+    let preset = defaultIndex;
     for (;;) {
-      const index = await ui.select("选择学期", names, 0);
+      const index = await ui.select("选择学期", names, preset);
       if (index === null || index < 0 || index >= semesters.length) return null;
+      preset = index;
       const semester = semesters[index];
-      let lessonIds = [];
-      try { lessonIds = await fetchLessonIds(semester.id); }
+      let table = null;
+      try { table = await fetchCourseTable(semester.id); }
       catch (e) { log.warn("获取 " + semester.name + " 课程失败: " + e.message); }
-      if (lessonIds.length) return { semester, lessonIds };
+      if (table && table.lessonIds.length) return { semester, table };
       if (!(await ui.alert("无课程数据", "「" + semester.name + "」没有课程数据，请选择其他学期。", "重新选择"))) return null;
     }
   }
 
   async function runImportFlow() {
     try {
-      if (!(await ui.alert("西安建筑科技大学课表导入", "请确保已登录教务系统（swjw.xauat.edu.cn）。\n本适配将自动获取学期与课程数据。", "开始导入"))) {
+      if (!(await ui.alert("西安建筑科技大学课表导入", "请确保已登录教务系统（swjw.xauat.edu.cn）。\n本适配将自动获取学期、周次与作息数据。", "开始导入"))) {
         ui.toast("导入已取消"); return;
       }
       ui.toast("正在获取学期列表...");
-      const chosen = await chooseSemester(await getSemesters());
+      const listed = await getSemesters();
+      const chosen = await chooseSemester(listed.semesters, listed.current);
       if (!chosen) { ui.toast("导入已取消"); return; }
 
-      // 课程详情与学期信息无依赖，并行请求
       ui.toast("正在获取课程数据...");
-      const [datum, semesterInfo] = await Promise.all([
-        fetchScheduleDatum(chosen.lessonIds),
-        fetchSemesterInfo(chosen.semester.id),
+      const layoutId = chosen.table.layoutId;
+      const hasLayout = layoutId !== undefined && layoutId !== null;
+      // 三个请求互不依赖，并行获取；作息缺失（学期没有作息配置）时课程退回自带的真实时间
+      const [datum, semester, units] = await Promise.all([
+        fetchScheduleDatum(chosen.table.lessonIds),
+        fetchSemester(chosen.semester.id),
+        hasLayout ? fetchLayout(layoutId) : Promise.resolve([]),
       ]);
+      const slots = buildTimeSlots(units);
 
-      const startDate = deriveSemesterStartDate(datum.scheduleList) || semesterInfo.startDate;
-      if (!startDate) throw new Error("无法确定开学日期，请重试");
-      log.info("推算开学日期: " + startDate);
-
-      const courses = convertCourses(datum.lessonList, datum.scheduleList, startDate);
+      const converted = convertCourses(datum.lessonList, datum.scheduleList, semester, slots);
+      const courses = converted.courses;
       if (!courses.length) {
         await ui.alert("无课程数据", "未能转换出有效课程。", "确定");
         return;
       }
 
-      // 优先用课程实际最大周次，回退到日期差计算
-      const totalWeeks = clampWeeks(getMaxCourseWeek(courses) || calculateTotalWeeks(startDate, semesterInfo.endDate));
-
-      await saveConfig({ semesterStartDate: startDate, semesterTotalWeeks: totalWeeks });
+      const totalWeeks = Math.min(Math.max(getMaxCourseWeek(courses), LIMITS.minWeeks), LIMITS.maxWeeks);
+      await saveConfig({
+        semesterStartDate: semester.startDate,
+        semesterTotalWeeks: totalWeeks,
+        firstDayOfWeek: semester.sundayFirst ? 7 : 1,
+      });
+      if (slots.length) await saveTimeSlots(slots);
       await saveCourses(courses);
+
+      if (converted.parallel.length) {
+        await ui.alert(
+          "部分课程有多个教室",
+          "以下课程在同一周的同一时间被安排在多个教室，教务系统未标明你所在的教室，已把教室合并显示，请按实际情况在课程中修改：\n" +
+            converted.parallel.join("、"),
+          "知道了"
+        );
+      }
       ui.toast("课表导入完成！");
       ui.done();
     } catch (e) {
