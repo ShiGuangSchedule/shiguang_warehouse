@@ -413,6 +413,11 @@ schools:
     initial: "T"
     resource_folder: "TUST"
 
+  - id: "TUT"
+    name: "天津理工大学"
+    initial: "T"
+    resource_folder: "TUT"
+
   - id: "SCUT"
     name: "华南理工大学"
     initial: "H"
