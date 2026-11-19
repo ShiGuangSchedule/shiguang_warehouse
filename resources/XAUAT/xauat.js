@@ -37,6 +37,24 @@
     done: () => window.shiguangBridge.notifyTaskCompletion(),
   };
 
+  const LOGIN_EXPIRED = "LOGIN_EXPIRED";
+
+  // fetch 跟随重定向后的最终 URL 落在登录页，说明 swjw 会话已失效
+  function isLoginResponse(res) {
+    try {
+      const path = new URL(res.url, location.href).pathname;
+      return path.startsWith("/student/login") || path.startsWith("/student/sso/login");
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function loginExpiredError() {
+    const err = new Error("登录状态已失效，请重新登录教务系统后重试");
+    err.code = LOGIN_EXPIRED;
+    return err;
+  }
+
   async function requestText(url, options) {
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), LIMITS.timeout) : null;
@@ -46,20 +64,32 @@
         options,
         controller ? { signal: controller.signal } : {}
       ));
+      // 先判断是否被重定向到登录页（登录壳是 200 HTML，不能交给 JSON.parse）
+      if (isLoginResponse(res)) throw loginExpiredError();
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403) throw new Error("登录状态已失效，请重新登录教务系统后重试");
+        if (res.status === 401 || res.status === 403) throw loginExpiredError();
         throw new Error("网络请求失败，请稍后重试");
       }
       return await res.text();
     } catch (e) {
       if (e.name === "AbortError") throw new Error("请求超时，请检查网络后重试");
+      // fetch 自身失败（断网/CORS 等），避免直接暴露 Failed to fetch
+      if (e instanceof TypeError) throw new Error("网络连接失败或登录状态异常，请检查网络并重新登录后重试");
       throw e;
     } finally {
       clearTimeout(timer);
     }
   }
 
-  const requestJson = async (url, options) => JSON.parse(await requestText(url, options));
+  const requestJson = async (url, options) => {
+    const text = await requestText(url, options);
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      log.error("接口返回非 JSON，可能登录已失效: " + text.slice(0, 200));
+      throw new Error("接口返回异常（可能登录已失效），请重新登录后重试");
+    }
+  };
 
   const pad2 = (n) => String(n).padStart(2, "0");
   const formatTime = (hhmm) => pad2(Math.floor(hhmm / 100)) + ":" + pad2(hhmm % 100);
@@ -268,7 +298,10 @@
       const semester = semesters[index];
       let table = null;
       try { table = await fetchCourseTable(semester.id); }
-      catch (e) { log.warn("获取 " + semester.name + " 课程失败: " + e.message); }
+      catch (e) {
+        if (e.code === LOGIN_EXPIRED) throw e;
+        log.warn("获取 " + semester.name + " 课程失败: " + e.message);
+      }
       if (table && table.lessonIds.length) return { semester, table };
       if (!(await ui.alert("无课程数据", "「" + semester.name + "」没有课程数据，请选择其他学期。", "重新选择"))) return null;
     }
@@ -287,13 +320,26 @@
       ui.toast("正在获取课程数据...");
       const layoutId = chosen.table.layoutId;
       const hasLayout = layoutId !== undefined && layoutId !== null;
-      // 三个请求互不依赖，并行获取；作息缺失（学期没有作息配置）时课程退回自带的真实时间
+      // 作息缺失或获取失败时课程退回自带的真实时间；登录失效仍要冒泡提示重新登录
+      const layoutPromise = hasLayout
+        ? fetchLayout(layoutId).catch((e) => {
+            if (e.code === LOGIN_EXPIRED) throw e;
+            log.warn("作息获取失败，回退课程自带时间: " + e.message);
+            return [];
+          })
+        : Promise.resolve([]);
       const [datum, semester, units] = await Promise.all([
         fetchScheduleDatum(chosen.table.lessonIds),
         fetchSemester(chosen.semester.id),
-        hasLayout ? fetchLayout(layoutId) : Promise.resolve([]),
+        layoutPromise,
       ]);
-      const slots = buildTimeSlots(units);
+      let slots = [];
+      try {
+        slots = buildTimeSlots(units);
+      } catch (e) {
+        log.warn("作息数据无效，回退课程自带时间: " + e.message);
+        slots = [];
+      }
 
       const converted = convertCourses(datum.lessonList, datum.scheduleList, semester, slots);
       const courses = converted.courses;
@@ -323,6 +369,10 @@
       ui.done();
     } catch (e) {
       log.error("导入异常: " + (e.stack || e.message));
+      if (e.code === LOGIN_EXPIRED) {
+        await ui.alert("登录已失效", e.message, "确定");
+        return;
+      }
       await ui.alert("导入失败", e.message || "未知错误，请重试", "确定");
     }
   }
