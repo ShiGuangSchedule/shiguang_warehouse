@@ -340,7 +340,10 @@
         return custom == null ? "" : String(custom).trim();
     }
 
-    // 教师：优先用排课记录里的 personName，其次课程上的教师任务列表
+    // 教师：优先用排课记录里的 personName，其次课程上的教师任务列表。
+    // 本校实测 teacherAssignmentList 的元素形如
+    //   {role:"MAJOR", code:"280150", teacherId:2302, personId:30389, name:"陈益", titleName:"助教"}
+    // 教师名直接在 name 上，没有 person.nameZh，所以这里要优先取 t.name。
     function readTeacher(schedule, lesson) {
         if (schedule.personName && String(schedule.personName).trim()) {
             return String(schedule.personName).trim();
@@ -348,19 +351,27 @@
         const list = lesson && lesson.teacherAssignmentList;
         if (Array.isArray(list)) {
             const names = list
-                .map((t) => t && t.person && t.person.nameZh)
-                .map((n) => (n == null ? "" : String(n).trim()))
+                .map((t) => {
+                    if (!t) return "";
+                    if (t.name) return String(t.name).trim();
+                    if (t.person && t.person.nameZh) return String(t.person.nameZh).trim();
+                    return "";
+                })
                 .filter(Boolean);
             return Array.from(new Set(names)).join(",");
         }
         return "";
     }
 
-    // 课程名：页面显示 lesson.course.nameZh；兼容其他树维版本字段
+    // 课程名：本校实测 lessonList 的元素没有 course 子对象，
+    // 课程名在 lesson.courseName 上；lesson.name 是教学班名（如「商2024级8班;商2024级9班」），
+    // 绝不能当课程名使用，否则课表上会出现一长串班级名。
     function readCourseName(lesson) {
         if (!lesson) return "";
+        if (lesson.courseName && String(lesson.courseName).trim()) {
+            return String(lesson.courseName).trim();
+        }
         if (lesson.course && lesson.course.nameZh) return String(lesson.course.nameZh).trim();
-        if (lesson.courseName) return String(lesson.courseName).trim();
         if (lesson.nameZh) return String(lesson.nameZh).trim();
         return "";
     }
