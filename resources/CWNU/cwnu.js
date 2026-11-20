@@ -118,14 +118,20 @@
     }
 
     async function requestText(url, options) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+        // AbortController 用于超时中断，但部分较老的 Android WebView 不提供该 API。
+        // 这里做能力检测：缺失时退化为「不设超时」，而不是让整个导入直接崩掉。
+        const supportsAbort = typeof AbortController === "function";
+        const controller = supportsAbort ? new AbortController() : null;
+        const timer = supportsAbort
+            ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+            : null;
         try {
-            const res = await fetch(url, Object.assign(
+            const init = Object.assign(
                 { credentials: "include" },
-                options || {},
-                { signal: controller.signal }
-            ));
+                options || {}
+            );
+            if (controller) init.signal = controller.signal;
+            const res = await fetch(url, init);
             // 登录壳是 200 的 HTML，不能交给 JSON.parse，必须先判断
             if (isLoginResponse(res)) throw loginExpiredError();
             if (!res.ok) {
@@ -140,7 +146,7 @@
             }
             throw e;
         } finally {
-            clearTimeout(timer);
+            if (timer !== null) clearTimeout(timer);
         }
     }
 
