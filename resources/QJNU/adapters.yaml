@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "QJNU_01"
+    adapter_name: "曲靖师范学院教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "qjnu.js"
+    import_url: "https://jw.qjnu.edu.cn/jwapp/sys/emaphome/portal/index.do"
+    maintainer: "ZGxudQ"
+    description: "登录后打开「我的课表」，选择学期导入课程、节次作息及可获取的校历。"

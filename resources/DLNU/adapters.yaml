@@ -1,0 +1,8 @@
+adapters:
+  - adapter_id: "DLNU_01"
+    adapter_name: "大连民族大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "dlnu.js"
+    import_url: "http://jwyd.dlnu.edu.cn/sjd/#/login"
+    maintainer: "ZGxudQ"
+    description: "登录后可选择学期和校区，导入整学期课程、实际课程钟点及可获取的开学日期。"

@@ -518,6 +518,11 @@ schools:
     initial: "D"
     resource_folder: "DLU"
 
+  - id: "DLNU"
+    name: "大连民族大学"
+    initial: "D"
+    resource_folder: "DLNU"
+
   - id: "HBMU"
     name: "湖北医药学院"
     initial: "H"
@@ -1137,6 +1142,11 @@ schools:
     name: "曲阜师范大学"
     initial: "Q"
     resource_folder: "QFNU"
+
+  - id: "QJNU"
+    name: "曲靖师范学院"
+    initial: "Q"
+    resource_folder: "QJNU"
 
   - id: "SCEMI"
     name: "四川机电职业技术学院"
