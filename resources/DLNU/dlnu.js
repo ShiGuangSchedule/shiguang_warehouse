@@ -3,6 +3,24 @@
     const native = window.shiguangBridge;
     const maxWeeks = 60;
     const defaultWeeks = 20;
+    const fallbackTimesByCampus = {
+        "开发区": [
+            ["08:00", "08:45"], ["08:55", "09:40"],
+            ["10:00", "10:45"], ["10:55", "11:40"],
+            ["13:30", "14:15"], ["14:25", "15:10"],
+            ["15:20", "16:05"], ["16:15", "17:00"],
+            ["18:00", "18:45"], ["18:55", "19:40"],
+            ["20:00", "20:45"], ["20:55", "21:40"]
+        ],
+        "金石滩": [
+            ["08:30", "09:10"], ["09:20", "10:00"],
+            ["10:20", "11:00"], ["11:10", "11:50"],
+            ["13:30", "14:10"], ["14:20", "15:00"],
+            ["15:20", "16:00"], ["16:10", "16:50"],
+            ["18:30", "19:10"], ["19:20", "20:00"],
+            ["20:10", "20:50"], ["21:00", "21:40"]
+        ]
+    };
     const asText = value => String(value ?? "").trim();
 
     if (window.__dlnuImportRunning) return;
@@ -209,15 +227,23 @@
         const semesterStartDate = startOfSemester(firstWeek);
         const config = { semesterStartDate, semesterTotalWeeks: totalWeeks, firstDayOfWeek: 1 };
         const imported = exportCourses(courses);
+        const fallbackTimes = courses.some(course => !course.time)
+            ? Object.entries(fallbackTimesByCampus).find(([name]) => campus.name.includes(name))?.[1]
+            : undefined;
+        const fallbackSlots = fallbackTimes?.map(([startTime, endTime], index) => ({
+            number: index + 1, startTime, endTime
+        }));
         const weeksSummary = teachingWeeks ? `学期共 ${totalWeeks} 周。` : `教学周数待确认，本次按 ${totalWeeks} 周导入。`;
         const summary = [
             `${term.name} · ${campus.name}`,
             `共 ${imported.length} 条排课记录。${weeksSummary}`,
             semesterStartDate ? `第一周周一为 ${semesterStartDate}。` : "导入后请在课表设置中确认开学日期。"
         ];
+        if (fallbackSlots) summary.push("缺少明确钟点的课程按所选校区的默认作息显示。");
         if (!await bridge.showAlert("确认导入课表", summary.join("\n"), "导入")) return;
 
         saving = true;
+        if (fallbackSlots) await save("savePresetTimeSlots", fallbackSlots, "校区作息");
         await save("saveCourseConfig", config, "学期配置");
         await save("saveImportedCourses", imported, "课程");
         native.showToast(`已导入 ${imported.length} 条排课记录。`);
