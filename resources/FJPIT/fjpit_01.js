@@ -2,6 +2,7 @@
 // 前端 jw.fjpit.com · 接口 jw-api.fjpit.com/api · 鉴权头 ba-token + server: 1
 // 取数直接请求接口，不解析页面 HTML；教师/教室按原文原样保留（空即空）
 
+(function () {
 const FJPIT_API = 'https://jw-api.fjpit.com/api';
 const FJPIT_HOST_KEY = 'fjpit.com';
 const FJPIT_LOGIN_WAIT_MS = 5 * 60 * 1000;
@@ -95,7 +96,7 @@ async function fjpitApiRequest(method, path, body, token) {
             const init = {
                 method: method,
                 headers: fjpitApiHeaders(token),
-                credentials: 'omit',
+                credentials: 'include',   // 接口按会话 Cookie 鉴权（2026-11 起），不能 omit
                 mode: 'cors'
             };
             if (body !== undefined) init.body = JSON.stringify(body);
@@ -440,3 +441,4 @@ runImportFlow().catch(function (e) {
     console.error('JS: 导入流程异常', e);
     try { window.shiguangBridge.showToast('导入失败: ' + (e && e.message)); } catch (x) { }
 });
+})();
