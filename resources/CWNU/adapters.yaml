@@ -5,5 +5,5 @@ adapters:
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "cwnu.js"
     import_url: "https://jwxt.cwnu.edu.cn/student/sso/login?service=https%3A%2F%2Fjwxt.cwnu.edu.cn%2Fstudent%2Ffor-std%2Fcourse-table"
-    maintainer: "Smoggy Ting(SmoggyTing)"
-    description: "西华师范大学树维教务系统。教务系统与信息门户密码不同，且不能直接登录，需经统一身份认证进入；本适配已内置 SSO 入口，登录门户后会自动跳转到课表页面，随后点击执行导入即可。自动读取学期、周次与学校作息。"
+    maintainer: "SmoggyTing"
+    description: "登录统一身份认证后会自动跳转到课表页面，确认能看到课表后点击执行导入即可。此处需用信息门户账号，不是教务系统密码。"
