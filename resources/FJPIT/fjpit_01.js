@@ -96,7 +96,7 @@ async function fjpitApiRequest(method, path, body, token) {
             const init = {
                 method: method,
                 headers: fjpitApiHeaders(token),
-                credentials: 'omit',
+                credentials: 'include',   // 接口按会话 Cookie 鉴权（2026-11 起），不能 omit
                 mode: 'cors'
             };
             if (body !== undefined) init.body = JSON.stringify(body);
