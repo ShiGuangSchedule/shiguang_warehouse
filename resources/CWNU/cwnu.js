@@ -20,7 +20,14 @@
 //        → result.lessonList（课程）/ result.scheduleList（逐周排课）
 //   4. POST /student/ws/schedule-table/timetable-layout
 //        body: {timeTableLayoutId}
-//        → result.courseUnitList（学校实际作息节次）
+//        → result.courseUnitList（请求时刻所在令时的作息，仅用于印证节次数）
+//
+// 【作息：用 saveComboSchedule 给「冬令 / 夏令」两段方案，不直接上传接口结果】
+//   学校在 5 月 1 日切夏令、10 月 1 日切冬令，两套作息只有下午与晚上不同：
+//     冬令 第六节 14:30 起 / 夏令 第六节 15:00 起（其余整体后移）。
+//   timetable-layout 只返回「当前时刻所在令时」的一套数据，
+//   若把它当固定作息上传，课表跨过切换点后时间就会全错，用户需要重新导入。
+//   所以：savePresetTimeSlots 写冬令作骨架，再 saveComboSchedule 写按日期生效的两段方案。
 //
 // 【刻意不使用 print-data】
 //   该接口是其他树维学校的路径，西华师大课表页代码里并不存在，调用会 404。
@@ -47,10 +54,13 @@
         layout: "/student/ws/schedule-table/timetable-layout",
     };
 
-    // 西华师范大学作息表（冬季作息，10 月 1 日—次年 4 月 30 日执行）
-    // 上午 1-5 节、下午 6-9 节、晚上 10-12 节，每节 40 分钟。
-    // 仅在教务作息接口取不到时兜底；正常以接口返回的 courseUnitList 为准。
-    const FALLBACK_TIME_SLOTS = [
+    // 西华师范大学实行「冬令 / 夏令」两套作息，学校在 5 月 1 日、10 月 1 日切换：
+    //   夏令 05-01 ~ 09-30，冬令 10-01 ~ 次年 04-30（闭区间）。
+    // 上午 1-5 节两套完全相同；下午与晚上整体后移（冬令第六节 14:30，夏令第六节 15:00）。
+    // 数据来源：学校研究生院公布的《西华师范大学夏季作息时间表》《冬季作息时间表》。
+    // 教务 timetable-layout 接口只返回「请求时刻所在令时」的一套作息，
+    // 若直接把它当固定作息上传，跨过切换点后课表时间就会错，故改用 saveComboSchedule 按日期给两段方案。
+    const SLOTS_WINTER = [
         { number: 1, startTime: "08:00", endTime: "08:40" },
         { number: 2, startTime: "08:50", endTime: "09:30" },
         { number: 3, startTime: "09:45", endTime: "10:25" },
@@ -65,6 +75,21 @@
         { number: 12, startTime: "20:40", endTime: "21:20" },
     ];
 
+    const SLOTS_SUMMER = [
+        { number: 1, startTime: "08:00", endTime: "08:40" },
+        { number: 2, startTime: "08:50", endTime: "09:30" },
+        { number: 3, startTime: "09:45", endTime: "10:25" },
+        { number: 4, startTime: "10:35", endTime: "11:15" },
+        { number: 5, startTime: "11:25", endTime: "12:05" },
+        { number: 6, startTime: "15:00", endTime: "15:40" },
+        { number: 7, startTime: "15:50", endTime: "16:30" },
+        { number: 8, startTime: "16:40", endTime: "17:20" },
+        { number: 9, startTime: "17:30", endTime: "18:10" },
+        { number: 10, startTime: "19:30", endTime: "20:10" },
+        { number: 11, startTime: "20:20", endTime: "21:00" },
+        { number: 12, startTime: "21:10", endTime: "21:50" },
+    ];
+
     // ============================================================
     // 桥接封装：其余代码不直接访问 window.shiguangBridge
     // ============================================================
@@ -75,6 +100,7 @@
             window.shiguangBridgePromise.showSingleSelection(t, JSON.stringify(items), d),
         saveConfig: (j) => window.shiguangBridgePromise.saveCourseConfig(j),
         saveTimeSlots: (j) => window.shiguangBridgePromise.savePresetTimeSlots(j),
+        saveComboSchedule: (j) => window.shiguangBridgePromise.saveComboSchedule(j),
         saveCourses: (j) => window.shiguangBridgePromise.saveImportedCourses(j),
         done: () => window.shiguangBridge.notifyTaskCompletion(),
     };
@@ -160,10 +186,21 @@
         }
     }
 
-    // 日期统一按 UTC 当天 0 点计算，避免本地时区影响星期与天数差
+    // 解析 "YYYY-MM-DD" 为当天 0 点的时间戳。
+    // 全部计算只涉及「同一台设备」上的日期差与星期，两端用同一套时区即可，
+    // 因此直接以设备本地时区构造，不做 UTC 换算。
     function parseDate(s) {
         const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof s === "string" ? s : "");
-        return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null;
+        if (!m) return null;
+        const d = new Date(+m[1], +m[2] - 1, +m[3]);
+        d.setHours(0, 0, 0, 0);
+        return isNaN(d.getTime()) ? null : d.getTime();
+    }
+
+    // 时间戳 → "YYYY-MM-DD"（本地时区）
+    function formatDate(ms) {
+        const d = new Date(ms);
+        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
     }
 
     // ============================================================
@@ -300,10 +337,12 @@
         return slots.length ? slots : null;
     }
 
-    // 作息是非关键数据：取不到就回退内置作息；但登录失效仍然要抛出
-    async function fetchTimeSlots(layoutId) {
+    // 向教务确认作息接口的节次数，仅用于和内置作息互相印证；
+    // 真正的作息以「冬令 / 夏令」两套内置方案为准（见 buildComboSchedule）。
+    // 该接口返回的是「请求时刻所在令时」的一套作息，不能当作全年固定作息使用。
+    async function verifyLayout(layoutId) {
         const id = Number(layoutId);
-        if (!Number.isInteger(id) || id <= 0) return FALLBACK_TIME_SLOTS;
+        if (!Number.isInteger(id) || id <= 0) return null;
         try {
             const json = await requestJson(API.layout, {
                 method: "POST",
@@ -311,23 +350,60 @@
                 body: JSON.stringify({ timeTableLayoutId: id }),
             });
             const units = json && json.result && json.result.courseUnitList;
-            if (!Array.isArray(units) || !units.length) return FALLBACK_TIME_SLOTS;
+            if (!Array.isArray(units) || !units.length) return null;
             const slots = normalizeSlots(units);
             if (!slots) {
-                logError("教务作息节次编号不连续，改用内置作息表");
-                return FALLBACK_TIME_SLOTS;
+                logError("教务作息节次编号不连续，忽略接口作息");
+                return null;
             }
             return slots;
         } catch (e) {
             if (e.code === LOGIN_EXPIRED) throw e;
-            logError("获取教务作息失败，改用内置作息表: " + e.message);
-            return FALLBACK_TIME_SLOTS;
+            logError("获取教务作息失败（不影响导入）: " + e.message);
+            return null;
         }
     }
 
     // ============================================================
-    // 5. 解析课程
+    // 4b. 作息：冬令 / 夏令 组合方案
     // ============================================================
+    /**
+     * 生成作息方案。学校 05-01 切夏令、10-01 切冬令，两段都是闭区间。
+     * 只输出「当前所在时段」与「下一时段」两条规则，避免同一天命中多条。
+     * @param {number} nowMs 参照时刻（本地时区）
+     */
+    function buildComboSchedule(nowMs) {
+        const d = new Date(nowMs);
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+
+        let rules;
+        if (month >= 5 && month <= 9) {
+            // 当前是夏令：先报当年夏令，再报跨年的冬令
+            rules = [
+                { name: "夏令作息", startDate: formatDateParts(year, 5, 1), endDate: formatDateParts(year, 9, 30), timeSlots: SLOTS_SUMMER },
+                { name: "冬令作息", startDate: formatDateParts(year, 10, 1), endDate: formatDateParts(year + 1, 4, 30), timeSlots: SLOTS_WINTER },
+            ];
+        } else if (month >= 10) {
+            // 已进入冬令（10-12 月），下一年 5 月转夏令
+            rules = [
+                { name: "冬令作息", startDate: formatDateParts(year, 10, 1), endDate: formatDateParts(year + 1, 4, 30), timeSlots: SLOTS_WINTER },
+                { name: "夏令作息", startDate: formatDateParts(year + 1, 5, 1), endDate: formatDateParts(year + 1, 9, 30), timeSlots: SLOTS_SUMMER },
+            ];
+        } else {
+            // 1-4 月仍在上一年 10-01 起的冬令期内
+            rules = [
+                { name: "冬令作息", startDate: formatDateParts(year - 1, 10, 1), endDate: formatDateParts(year, 4, 30), timeSlots: SLOTS_WINTER },
+                { name: "夏令作息", startDate: formatDateParts(year, 5, 1), endDate: formatDateParts(year, 9, 30), timeSlots: SLOTS_SUMMER },
+            ];
+        }
+
+        return { name: "西华师范大学作息（冬令/夏令）", publicSchedules: rules };
+    }
+
+    function formatDateParts(y, m, d) {
+        return String(y) + "-" + pad2(m) + "-" + pad2(d);
+    }
     // 教室：页面弹窗里显示为「校区 教室名」，这里保持一致
     function readPosition(schedule) {
         const room = schedule.room;
@@ -398,12 +474,19 @@
             return flag === "publish";
         };
 
-        // 节次精确匹配表
+        // 节次精确匹配表。
+        // 学校冬令/夏令两套作息只有下午和晚上不同，排课记录里的时间可能落在任一季，
+        // 因此两套都建索引；同一起止时间在两套里对应同一节次，不冲突。
         const byStart = {}, byEnd = {};
-        for (let i = 0; i < slots.length; i++) {
-            byStart[slots[i].startTime] = slots[i].number;
-            byEnd[slots[i].endTime] = slots[i].number;
-        }
+        const indexSlots = (list) => {
+            for (let i = 0; i < list.length; i++) {
+                byStart[list[i].startTime] = list[i].number;
+                byEnd[list[i].endTime] = list[i].number;
+            }
+        };
+        indexSlots(SLOTS_WINTER);
+        indexSlots(SLOTS_SUMMER);
+        if (Array.isArray(slots) && slots.length) indexSlots(slots);
 
         const groups = new Map();
         let skipped = 0;
@@ -444,27 +527,62 @@
 
         if (skipped) logError("已跳过 " + skipped + " 条无效/未发布的排课记录");
 
-        const courses = [];
+        // 先按记录里原始的起止时间分组，再按「解析出的节次」二次归并。
+        // 原因：同一次课在冬令与夏令两套作息下 startTime/endTime 不同（如 14:30 与 15:00），
+        // 若只按原始时间分组，同一门课会被拆成两条，在课表上表现为重叠的两个格子。
+        const merged = new Map();
+
         groups.forEach((g) => {
+            let startSection = byStart[g.startTime];
+            let endSection = byEnd[g.endTime];
+            const isCustom = !(startSection && endSection && startSection <= endSection);
+            if (isCustom) { startSection = null; endSection = null; }
+
+            const key = isCustom
+                ? [g.name, g.teacher, g.position, g.day, "custom", g.startTime, g.endTime].join("|")
+                : [g.name, g.teacher, g.position, g.day, "section", startSection, endSection].join("|");
+
+            const hit = merged.get(key);
+            if (hit) {
+                g.weeks.forEach((w) => hit.weeks.add(w));
+                return;
+            }
             const course = {
                 name: g.name,
                 teacher: g.teacher,
                 position: g.position,
                 day: g.day,
-                weeks: Array.from(g.weeks).sort((a, b) => a - b),
+                weeks: new Set(g.weeks),
             };
-
-            const startSection = byStart[g.startTime];
-            const endSection = byEnd[g.endTime];
-            if (startSection && endSection && startSection <= endSection) {
-                course.startSection = startSection;
-                course.endSection = endSection;
-                course.isCustomTime = false;
-            } else {
+            if (isCustom) {
                 // 不在教务节次网格内（补课、临时调整等），保留真实起止时间
                 course.isCustomTime = true;
                 course.customStartTime = g.startTime;
                 course.customEndTime = g.endTime;
+            } else {
+                course.startSection = startSection;
+                course.endSection = endSection;
+                course.isCustomTime = false;
+            }
+            merged.set(key, course);
+        });
+
+        const courses = [];
+        merged.forEach((c) => {
+            const course = {
+                name: c.name,
+                teacher: c.teacher,
+                position: c.position,
+                day: c.day,
+                weeks: Array.from(c.weeks).sort((a, b) => a - b),
+                isCustomTime: c.isCustomTime,
+            };
+            if (c.isCustomTime) {
+                course.customStartTime = c.customStartTime;
+                course.customEndTime = c.customEndTime;
+            } else {
+                course.startSection = c.startSection;
+                course.endSection = c.endSection;
             }
             courses.push(course);
         });
@@ -569,10 +687,14 @@
             const datum = await fetchDatum(getData.lessonIds, stdPersonId);
 
             ui.toast("正在获取作息时间...");
-            const timeSlots = await fetchTimeSlots(getData.timeTableLayoutId);
+            // 接口只用来印证节次数，实际作息由内置的冬令/夏令两套方案提供
+            const layoutSlots = await verifyLayout(getData.timeTableLayoutId);
+            if (layoutSlots && layoutSlots.length !== SLOTS_WINTER.length) {
+                logError("教务作息节次数(" + layoutSlots.length + ")与内置(" + SLOTS_WINTER.length + ")不一致，仍以内置为准");
+            }
 
             const courses = convertCourses(
-                datum.lessonList, datum.scheduleList, getData.lessonId2Flag, timeSlots
+                datum.lessonList, datum.scheduleList, getData.lessonId2Flag, layoutSlots
             );
             if (!courses.length) {
                 await ui.alert("解析失败", "课表数据中未能解析出有效课程，请确认该学期是否有排课。", "确定");
@@ -589,8 +711,16 @@
                 firstDayOfWeek: dates && dates.sundayFirst ? 7 : 1,
             };
 
+            // 作息：先写基础作息（冬令）作为骨架，再写冬令/夏令组合方案。
+            // 官方要求 savePresetTimeSlots 先成功，否则 saveComboSchedule 会被拒绝。
             await save(ui.saveConfig, config, "保存课表配置失败，请重试");
-            await save(ui.saveTimeSlots, timeSlots, "保存作息时间失败，请重试");
+            await save(ui.saveTimeSlots, SLOTS_WINTER, "保存作息时间失败，请重试");
+            try {
+                await ui.saveComboSchedule(JSON.stringify(buildComboSchedule(Date.now())));
+            } catch (e) {
+                // 组合作息失败不影响课程导入，基础作息已可用
+                logError("保存冬令/夏令组合作息失败（不影响课程）: " + (e && e.message));
+            }
             await save(ui.saveCourses, courses, "保存课程数据失败，请重试");
 
             ui.toast("成功导入 " + courses.length + " 条课程！");
