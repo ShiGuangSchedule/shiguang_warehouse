@@ -518,6 +518,11 @@ schools:
     initial: "D"
     resource_folder: "DLU"
 
+  - id: "DLNU"
+    name: "大连民族大学"
+    initial: "D"
+    resource_folder: "DLNU"
+
   - id: "HBMU"
     name: "湖北医药学院"
     initial: "H"
