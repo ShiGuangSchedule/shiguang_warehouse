@@ -1,48 +1,29 @@
-// 西华师范大学（cwnu.edu.cn）拾光课程表适配脚本
-// 适配系统：树维新一代智慧教务系统（jwxt.cwnu.edu.cn/student）
+// 西华师范大学 拾光课程表适配脚本
+// 教务系统：树维 EAMS（jwxt.cwnu.edu.cn/student）
 //
-// 【为什么不需要账号密码】
-//   本校教务系统不直接登录，走学校统一身份认证（Apereo CAS）：
-//   信息门户 authserver.cwnu.edu.cn（账号=学号）→ 门户内点「教务系统」→ 免密进入 jwxt。
-//   教务系统 Cookie 只能由门户跳转下发，本脚本不处理账密。
-//   adapters.yaml 的 import_url 已内置 SSO 深链，登录后会直接落到课表页。
+// 登录：教务系统不可用账密直接登录，须经学校统一身份认证（CAS）：
+//   信息门户 authserver.cwnu.edu.cn → 门户内「教务系统」→ 免密进入 jwxt。
+//   adapters.yaml 的 import_url 已内置 SSO 深链。本脚本不处理账密。
 //
-// 【接口链路：与课表页 course-table 的真实 JS 完全一致】
-//   1. GET  /student/for-std/course-table
-//        a) 解析 #allSemesters 学期下拉框（value=学期 id）
-//        b) 解析页面内嵌 var semesters = JSON.parse('...') 取 startDate / endDate
-//        c) 解析 data['stdPersonId'] = 148740 取学生 id（服务端按登录用户渲染）
-//   2. GET  /student/for-std/course-table/get-data?bizTypeId=2&semesterId={id}
-//        → timeTableLayoutId / lessonIds / weeks / lessonId2Flag
-//        （timeTableLayoutId 只在这里出现，页面里是 var timeTableLayoutId = null）
-//   3. POST /student/ws/schedule-table/datum
-//        body: {lessonIds, studentId:null, stdPersonId, weekIndex:null}
-//        → result.lessonList（课程）/ result.scheduleList（逐周排课）
-//   4. POST /student/ws/schedule-table/timetable-layout
-//        body: {timeTableLayoutId}
-//        → result.courseUnitList（请求时刻所在令时的作息，仅用于印证节次数）
+// 接口：
+//   GET  /student/for-std/course-table                          学期列表、开学日期、stdPersonId
+//   GET  /student/for-std/course-table/get-data?semesterId={id}  timeTableLayoutId、lessonIds、weekIndices
+//   POST /student/ws/schedule-table/datum                        lessonList、scheduleList
+//   POST /student/ws/schedule-table/timetable-layout             作息节次（仅用于印证）
 //
-// 【作息：用 saveComboSchedule 给「冬令 / 夏令」两段方案，不直接上传接口结果】
-//   学校在 5 月 1 日切夏令、10 月 1 日切冬令，两套作息只有下午与晚上不同：
-//     冬令 第六节 14:30 起 / 夏令 第六节 15:00 起（其余整体后移）。
-//   timetable-layout 只返回「当前时刻所在令时」的一套数据，
-//   若把它当固定作息上传，课表跨过切换点后时间就会全错，用户需要重新导入。
-//   所以：savePresetTimeSlots 写冬令作骨架，再 saveComboSchedule 写按日期生效的两段方案。
-//
-// 【刻意不使用 print-data】
-//   该接口是其他树维学校的路径，西华师大课表页代码里并不存在，调用会 404。
-//   本脚本严格按本校页面实际请求走 get-data + datum。
+// 作息：学校 05-01 切夏令、10-01 切冬令，两套只有下午与晚上不同。
+//   timetable-layout 只返回当前令时的一套数据，不能当固定作息上传，
+//   否则跨过切换点后时间全错。故用 saveComboSchedule 按日期给两段方案。
 
 "use strict";
 
 (function () {
-    // ============================================================
     // 常量
-    // ============================================================
     const BIZ_TYPE_ID = 2;            // 本科课表（页面中 bizTypeId = 2，勿改）
     const REQUEST_TIMEOUT = 20000;    // 单次请求超时 20s
     const MIN_TOTAL_WEEKS = 16;       // 总周数下限，避免课表过短
     const MAX_TOTAL_WEEKS = 60;       // 总周数上限，超出视为数据异常
+    const DEFAULT_TOTAL_WEEKS = 20;   // weekIndices 与课程都无周次时的兜底
     const LOGIN_EXPIRED = "LOGIN_EXPIRED";
 
     const API = {
@@ -54,12 +35,8 @@
         layout: "/student/ws/schedule-table/timetable-layout",
     };
 
-    // 西华师范大学实行「冬令 / 夏令」两套作息，学校在 5 月 1 日、10 月 1 日切换：
-    //   夏令 05-01 ~ 09-30，冬令 10-01 ~ 次年 04-30（闭区间）。
-    // 上午 1-5 节两套完全相同；下午与晚上整体后移（冬令第六节 14:30，夏令第六节 15:00）。
-    // 数据来源：学校研究生院公布的《西华师范大学夏季作息时间表》《冬季作息时间表》。
-    // 教务 timetable-layout 接口只返回「请求时刻所在令时」的一套作息，
-    // 若直接把它当固定作息上传，跨过切换点后课表时间就会错，故改用 saveComboSchedule 按日期给两段方案。
+    // 作息：夏令 05-01~09-30，冬令 10-01~次年 04-30。
+    // 上午 1-5 节相同，下午与晚上整体后移（冬令第六节 14:30，夏令 15:00）。
     const SLOTS_WINTER = [
         { number: 1, startTime: "08:00", endTime: "08:40" },
         { number: 2, startTime: "08:50", endTime: "09:30" },
@@ -89,10 +66,7 @@
         { number: 11, startTime: "20:20", endTime: "21:00" },
         { number: 12, startTime: "21:10", endTime: "21:50" },
     ];
-
-    // ============================================================
     // 桥接封装：其余代码不直接访问 window.shiguangBridge
-    // ============================================================
     const ui = {
         toast: (m) => window.shiguangBridge.showToast(m),
         alert: (t, m, b) => window.shiguangBridgePromise.showAlert(t, m, b),
@@ -106,10 +80,7 @@
     };
 
     const logError = (m) => console.error("[CWNU] " + m);
-
-    // ============================================================
     // 通用工具
-    // ============================================================
     const pad2 = (n) => String(n).padStart(2, "0");
 
     // 教务时间有两种形态：字符串 "08:00"，或整数 800 / 1340
@@ -185,27 +156,7 @@
             throw new Error("接口返回异常（可能登录已失效），请重新登录教务系统后重试");
         }
     }
-
-    // 解析 "YYYY-MM-DD" 为当天 0 点的时间戳。
-    // 全部计算只涉及「同一台设备」上的日期差与星期，两端用同一套时区即可，
-    // 因此直接以设备本地时区构造，不做 UTC 换算。
-    function parseDate(s) {
-        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof s === "string" ? s : "");
-        if (!m) return null;
-        const d = new Date(+m[1], +m[2] - 1, +m[3]);
-        d.setHours(0, 0, 0, 0);
-        return isNaN(d.getTime()) ? null : d.getTime();
-    }
-
-    // 时间戳 → "YYYY-MM-DD"（本地时区）
-    function formatDate(ms) {
-        const d = new Date(ms);
-        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
-    }
-
-    // ============================================================
     // 1. 课表页：学期列表 / 学期日期 / stdPersonId
-    // ============================================================
     async function fetchCourseTablePage() {
         return await requestText(API.courseTablePage);
     }
@@ -233,8 +184,7 @@
         return { semesters: semesters, current: Math.max(current, 0) };
     }
 
-    // 从页面内嵌的 var semesters = JSON.parse('...') 里取各学期起止日期。
-    // 这段 JSON 在页面中每个学期对象都是扁平的，含 id / startDate / endDate。
+    // 页面内嵌 var semesters = JSON.parse('...')，取各学期的 startDate / endDate
     function parseSemesterDateMap(html) {
         const map = {};
         const start = html.indexOf("var semesters");
@@ -274,10 +224,7 @@
         }
         return null;
     }
-
-    // ============================================================
     // 2. get-data：lessonIds / timeTableLayoutId / weeks
-    // ============================================================
     async function fetchGetData(semesterId) {
         const json = await requestJson(API.getData(semesterId));
         if (!json) throw new Error("课表数据为空，请稍后重试");
@@ -288,10 +235,7 @@
             lessonId2Flag: json.lessonId2Flag || null,
         };
     }
-
-    // ============================================================
     // 3. datum：逐周排课明细
-    // ============================================================
     async function fetchDatum(lessonIds, stdPersonId) {
         if (!lessonIds.length) return { lessonList: [], scheduleList: [] };
         const body = {
@@ -312,10 +256,7 @@
             scheduleList: Array.isArray(result.scheduleList) ? result.scheduleList : [],
         };
     }
-
-    // ============================================================
     // 4. timetable-layout：学校实际作息
-    // ============================================================
     function normalizeSlots(units) {
         const slots = [];
         for (let i = 0; i < units.length; i++) {
@@ -337,9 +278,7 @@
         return slots.length ? slots : null;
     }
 
-    // 向教务确认作息接口的节次数，仅用于和内置作息互相印证；
-    // 真正的作息以「冬令 / 夏令」两套内置方案为准（见 buildComboSchedule）。
-    // 该接口返回的是「请求时刻所在令时」的一套作息，不能当作全年固定作息使用。
+    // 读取教务作息节次，仅用于印证节次数；实际作息用内置的冬令/夏令方案
     async function verifyLayout(layoutId) {
         const id = Number(layoutId);
         if (!Number.isInteger(id) || id <= 0) return null;
@@ -363,45 +302,38 @@
             return null;
         }
     }
-
-    // ============================================================
     // 4b. 作息：冬令 / 夏令 组合方案
-    // ============================================================
     /**
-     * 生成作息方案。学校 05-01 切夏令、10-01 切冬令，两段都是闭区间。
-     * 只输出「当前所在时段」与「下一时段」两条规则，避免同一天命中多条。
-     * @param {number} nowMs 参照时刻（本地时区）
+     * 学校 05-01 切夏令、10-01 切冬令，两段均为闭区间。
+     * 只输出「当前时段 + 下一时段」两条规则，避免同一天命中多条。
      */
-    function buildComboSchedule(nowMs) {
-        const d = new Date(nowMs);
-        const year = d.getFullYear();
-        const month = d.getMonth() + 1;
+    function buildComboSchedule() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
 
         let rules;
         if (month >= 5 && month <= 9) {
-            // 当前是夏令：先报当年夏令，再报跨年的冬令
             rules = [
-                { name: "夏令作息", startDate: formatDateParts(year, 5, 1), endDate: formatDateParts(year, 9, 30), timeSlots: SLOTS_SUMMER },
-                { name: "冬令作息", startDate: formatDateParts(year, 10, 1), endDate: formatDateParts(year + 1, 4, 30), timeSlots: SLOTS_WINTER },
+                { name: "夏令作息", startDate: day(year, 5, 1), endDate: day(year, 9, 30), timeSlots: SLOTS_SUMMER },
+                { name: "冬令作息", startDate: day(year, 10, 1), endDate: day(year + 1, 4, 30), timeSlots: SLOTS_WINTER },
             ];
         } else if (month >= 10) {
-            // 已进入冬令（10-12 月），下一年 5 月转夏令
             rules = [
-                { name: "冬令作息", startDate: formatDateParts(year, 10, 1), endDate: formatDateParts(year + 1, 4, 30), timeSlots: SLOTS_WINTER },
-                { name: "夏令作息", startDate: formatDateParts(year + 1, 5, 1), endDate: formatDateParts(year + 1, 9, 30), timeSlots: SLOTS_SUMMER },
+                { name: "冬令作息", startDate: day(year, 10, 1), endDate: day(year + 1, 4, 30), timeSlots: SLOTS_WINTER },
+                { name: "夏令作息", startDate: day(year + 1, 5, 1), endDate: day(year + 1, 9, 30), timeSlots: SLOTS_SUMMER },
             ];
         } else {
-            // 1-4 月仍在上一年 10-01 起的冬令期内
             rules = [
-                { name: "冬令作息", startDate: formatDateParts(year - 1, 10, 1), endDate: formatDateParts(year, 4, 30), timeSlots: SLOTS_WINTER },
-                { name: "夏令作息", startDate: formatDateParts(year, 5, 1), endDate: formatDateParts(year, 9, 30), timeSlots: SLOTS_SUMMER },
+                { name: "冬令作息", startDate: day(year - 1, 10, 1), endDate: day(year, 4, 30), timeSlots: SLOTS_WINTER },
+                { name: "夏令作息", startDate: day(year, 5, 1), endDate: day(year, 9, 30), timeSlots: SLOTS_SUMMER },
             ];
         }
 
         return { name: "西华师范大学作息（冬令/夏令）", publicSchedules: rules };
     }
 
-    function formatDateParts(y, m, d) {
+    function day(y, m, d) {
         return String(y) + "-" + pad2(m) + "-" + pad2(d);
     }
     // 教室：页面弹窗里显示为「校区 教室名」，这里保持一致
@@ -422,10 +354,7 @@
         return custom == null ? "" : String(custom).trim();
     }
 
-    // 教师：优先用排课记录里的 personName，其次课程上的教师任务列表。
-    // 本校实测 teacherAssignmentList 的元素形如
-    //   {role:"MAJOR", code:"280150", teacherId:2302, personId:30389, name:"陈益", titleName:"助教"}
-    // 教师名直接在 name 上，没有 person.nameZh，所以这里要优先取 t.name。
+    // 教师：优先 schedule.personName，回退 lesson.teacherAssignmentList[].name
     function readTeacher(schedule, lesson) {
         if (schedule.personName && String(schedule.personName).trim()) {
             return String(schedule.personName).trim();
@@ -445,9 +374,7 @@
         return "";
     }
 
-    // 课程名：本校实测 lessonList 的元素没有 course 子对象，
-    // 课程名在 lesson.courseName 上；lesson.name 是教学班名（如「商2024级8班;商2024级9班」），
-    // 绝不能当课程名使用，否则课表上会出现一长串班级名。
+    // 课程名取 courseName；lesson.name 是教学班名，不能当课程名
     function readCourseName(lesson) {
         if (!lesson) return "";
         if (lesson.courseName && String(lesson.courseName).trim()) {
@@ -527,9 +454,8 @@
 
         if (skipped) logError("已跳过 " + skipped + " 条无效/未发布的排课记录");
 
-        // 先按记录里原始的起止时间分组，再按「解析出的节次」二次归并。
-        // 原因：同一次课在冬令与夏令两套作息下 startTime/endTime 不同（如 14:30 与 15:00），
-        // 若只按原始时间分组，同一门课会被拆成两条，在课表上表现为重叠的两个格子。
+        // 同一次课在冬夏令下 startTime 不同（14:30 / 15:00），按解析出的节次二次归并，
+        // 避免同一门课被拆成两条重叠记录
         const merged = new Map();
 
         groups.forEach((g) => {
@@ -594,10 +520,7 @@
         );
         return courses;
     }
-
-    // ============================================================
     // 6. 保存
-    // ============================================================
     async function save(fn, data, msg) {
         try {
             await fn(JSON.stringify(data));
@@ -606,45 +529,32 @@
         }
     }
 
-    function calcTotalWeeks(semesterDates, weekIndices, courses) {
-        let fromDates = 0;
-        if (semesterDates && semesterDates.startDate && semesterDates.endDate) {
-            const start = parseDate(semesterDates.startDate);
-            const end = parseDate(semesterDates.endDate);
-            if (start !== null && end !== null && end > start) {
-                const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-                const w = Math.ceil(days / 7);
-                if (w > 0) fromDates = w;
+    // 总周数直接取现成数据：weekIndices 的最大值即学期周数，
+// 不需要用「起止日期相减再除以 7」去推算。
+    function calcTotalWeeks(weekIndices, courses) {
+        let weeks = 0;
+        for (let i = 0; i < weekIndices.length; i++) {
+            const w = Number(weekIndices[i]);
+            if (Number.isInteger(w) && w > weeks) weeks = w;
+        }
+
+        // weekIndices 缺失时才回退到课程实际最大周次
+        if (!weeks) {
+            for (let i = 0; i < courses.length; i++) {
+                const ws = courses[i].weeks;
+                const last = ws[ws.length - 1];
+                if (last > weeks) weeks = last;
             }
         }
 
-        let fromIndices = 0;
-        for (let i = 0; i < weekIndices.length; i++) {
-            const w = Number(weekIndices[i]);
-            if (Number.isInteger(w) && w > fromIndices) fromIndices = w;
-        }
-
-        let fromCourses = 0;
-        for (let i = 0; i < courses.length; i++) {
-            const ws = courses[i].weeks;
-            const last = ws[ws.length - 1];
-            if (last > fromCourses) fromCourses = last;
-        }
-
-        // 学期日期可能含考试周，课程周次可能少于教学周，取较大值更稳妥
-        let weeks = Math.max(fromDates, fromIndices, fromCourses);
-        if (!weeks) weeks = 20;
-
+        if (!weeks) weeks = DEFAULT_TOTAL_WEEKS;
         if (weeks < MIN_TOTAL_WEEKS) weeks = MIN_TOTAL_WEEKS;
         if (weeks > MAX_TOTAL_WEEKS) {
-            throw new Error("推算出的总周数（" + weeks + "）超过上限 " + MAX_TOTAL_WEEKS + "，已中止导入");
+            throw new Error("总周数（" + weeks + "）超过上限 " + MAX_TOTAL_WEEKS + "，已中止导入");
         }
         return weeks;
     }
-
-    // ============================================================
     // 7. 主流程
-    // ============================================================
     async function runImportFlow() {
         try {
             const ok = await ui.alert(
@@ -702,7 +612,7 @@
             }
 
             const dates = dateMap[semester.id] || null;
-            const totalWeeks = calcTotalWeeks(dates, getData.weekIndices, courses);
+            const totalWeeks = calcTotalWeeks(getData.weekIndices, courses);
             const config = {
                 semesterStartDate: dates && dates.startDate ? dates.startDate : null,
                 semesterTotalWeeks: totalWeeks,
@@ -716,7 +626,7 @@
             await save(ui.saveConfig, config, "保存课表配置失败，请重试");
             await save(ui.saveTimeSlots, SLOTS_WINTER, "保存作息时间失败，请重试");
             try {
-                await ui.saveComboSchedule(JSON.stringify(buildComboSchedule(Date.now())));
+                await ui.saveComboSchedule(JSON.stringify(buildComboSchedule()));
             } catch (e) {
                 // 组合作息失败不影响课程导入，基础作息已可用
                 logError("保存冬令/夏令组合作息失败（不影响课程）: " + (e && e.message));
