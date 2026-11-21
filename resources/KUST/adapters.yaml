@@ -1,0 +1,16 @@
+adapters:
+  - adapter_id: "KUST_01"
+    adapter_name: "昆明理工大学（呈贡校区）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "kust.js"
+    import_url: "https://jwctsp.kust.edu.cn/integration/for-std/course-table"
+    maintainer: "ZGxudQ"
+    description: "登录呈贡校区教务系统后选择学期，导入已发布的整学期课表和节次作息。"
+
+  - adapter_id: "KUST_02"
+    adapter_name: "昆明理工大学（迎新校区）"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "kust.js"
+    import_url: "https://cityjw.kust.edu.cn/integration/for-std/course-table"
+    maintainer: "ZGxudQ"
+    description: "登录城市学院教务系统后选择学期，导入已发布的整学期课表和节次作息。"

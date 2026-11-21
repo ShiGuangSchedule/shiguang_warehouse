@@ -108,6 +108,11 @@ schools:
     initial: "Y"
     resource_folder: "YNUFE"
 
+  - id: "KUST"
+    name: "昆明理工大学"
+    initial: "K"
+    resource_folder: "KUST"
+
   - id: "HNSF"
     name: "河南师范大学"
     initial: "H"
@@ -1402,3 +1407,8 @@ schools:
     name: "天津理工大学"
     initial: "T"
     resource_folder: "TJUT"    
+
+  - id: "CWNU"
+    name: "西华师范大学"
+    initial: "X"
+    resource_folder: "CWNU"
