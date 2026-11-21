@@ -288,6 +288,11 @@ schools:
     initial: "H"
     resource_folder: "HBLGXY"
 
+  - id: "XJNU"
+    name: "新疆师范大学"
+    initial: "X"
+    resource_folder: "XJNU"
+
   - id: "XJIE"
     name: "新疆工程学院"
     initial: "X"
