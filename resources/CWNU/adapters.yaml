@@ -5,5 +5,5 @@ adapters:
     category: "BACHELOR_AND_ASSOCIATE"
     asset_js_path: "cwnu.js"
     import_url: "https://jwxt.cwnu.edu.cn/student/sso/login?service=https%3A%2F%2Fjwxt.cwnu.edu.cn%2Fstudent%2Ffor-std%2Fcourse-table"
-    maintainer: "SmoggyTing"
-    description: "登录统一身份认证后会自动跳转到课表页面，确认能看到课表后点击执行导入即可。此处需用信息门户账号，不是教务系统密码。"
+    maintainer: "Smoggy Ting"
+    description: "打开课程表页面必须先登录信息门户再进入教务系统打开课表，而不能直接打开教务系统。教务系统和信息门户密码不一样"
