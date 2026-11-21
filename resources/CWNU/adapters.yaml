@@ -1,0 +1,9 @@
+# resources/CWNU/adapters.yaml
+adapters:
+  - adapter_id: "CWNU"
+    adapter_name: "西华师范大学教务系统"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "cwnu.js"
+    import_url: "https://jwxt.cwnu.edu.cn/student/sso/login?service=https%3A%2F%2Fjwxt.cwnu.edu.cn%2Fstudent%2Ffor-std%2Fcourse-table"
+    maintainer: "Smoggy Ting"
+    description: "打开课程表页面必须先登录信息门户再进入教务系统打开课表，而不能直接打开教务系统。教务系统和信息门户密码不一样"

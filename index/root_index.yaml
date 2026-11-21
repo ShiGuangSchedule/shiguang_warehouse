@@ -1407,3 +1407,8 @@ schools:
     name: "天津理工大学"
     initial: "T"
     resource_folder: "TJUT"    
+
+  - id: "CWNU"
+    name: "西华师范大学"
+    initial: "X"
+    resource_folder: "CWNU"
