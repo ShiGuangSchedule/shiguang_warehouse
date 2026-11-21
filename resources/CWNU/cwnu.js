@@ -112,12 +112,13 @@
         return { list, current: Math.max(current, 0) };
     }
 
-    // 页面内嵌 var semesters = JSON.parse('...')，取各学期起止日期
+    // 页面内嵌 var semesters = JSON.parse('[{\"id\":261,...}]')，取各学期起止日期
     function parseDates(html) {
         const out = {};
         const at = html.indexOf("var semesters");
         if (at < 0) return out;
-        const seg = html.slice(at, at + 400000);
+        // 页面里的 JSON 以单引号字符串内嵌，引号都带反斜杠，先还原成标准 JSON
+        const seg = html.slice(at, at + 400000).replace(/\\"/g, '"').replace(/\\'/g, "'");
         const re = /\{[^{}]*\}/g;
         let m;
         while ((m = re.exec(seg))) {
