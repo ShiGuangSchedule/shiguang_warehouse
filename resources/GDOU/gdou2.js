@@ -711,6 +711,274 @@ async function fetchAndParseCourses(academicYear, semesterCode, campusConfig) {
     }
 }
 
+// ==================== 考试安排 ====================
+
+// 单次拉取的考试条数上限，够覆盖一个学期的全部考试
+const EXAM_QUERY_PAGE_SIZE = 100;
+
+// 考试课程块的名字前缀，App 侧靠它识别"这条是考试"（着色/角标/考试列表）
+const EXAM_NAME_PREFIX = "【考】";
+
+/**
+ * 拼接任意教务模块的接口地址。
+ * buildScheduleUrl 只认 /kbcx/ 目录，考试查询在 /kwgl/，故单独泛化一个。
+ * @param {string} moduleDir 模块目录，如 "kwgl"
+ * @param {string} modulePath 接口文件名，如 "kscx_cxXsksxxIndex.html"
+ * @param {string} query 可选查询串
+ */
+function buildModuleUrl(moduleDir, modulePath, query) {
+    const base = getScheduleBase();
+    const queryString = query ? `?${query}` : "";
+    return `${window.location.origin}${base}/${moduleDir}/${modulePath}${queryString}`;
+}
+
+/**
+ * 按候选字段名依次取值，返回第一个非空文本。
+ * 正方各校版本字段名不统一（cdmc / kscdmc / ksdd 都可能），故统一走候选列表。
+ */
+function pickFirstText(item, keys) {
+    if (!item) return "";
+    for (const key of keys) {
+        const value = item[key];
+        if (value == null) continue;
+        const text = String(value).trim();
+        if (text) return text;
+    }
+    return "";
+}
+
+/**
+ * 解析考试时间文本，兼容以下写法：
+ *   "2026-01-08(09:00-11:00)"、"2026-01-08 09:00~11:00"、"2026年1月8日 9:00-11:00"
+ *   只有日期（"2026-01-08"）或只有时间（"09:00-11:00"）时，缺的那部分返回 null
+ * @returns {{date: string|null, start: string|null, end: string|null}}
+ */
+function parseExamDateTime(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return { date: null, start: null, end: null };
+
+    const dateMatch = raw.match(/(\d{4})\s*[-\/.年]\s*(\d{1,2})\s*[-\/.月]\s*(\d{1,2})/);
+    const date = dateMatch
+        ? `${dateMatch[1]}-${String(dateMatch[2]).padStart(2, "0")}-${String(dateMatch[3]).padStart(2, "0")}`
+        : null;
+
+    // 时间区间：09:00-11:00 / 09:00--11:00 / 09:00~11:00 / 9:00至11:00
+    const rangeMatch = raw.match(/(\d{1,2}):(\d{2})\s*(?:-+|~|～|—|至|到)\s*(\d{1,2}):(\d{2})/);
+    const start = rangeMatch ? `${String(rangeMatch[1]).padStart(2, "0")}:${rangeMatch[2]}` : null;
+    const end = rangeMatch ? `${String(rangeMatch[3]).padStart(2, "0")}:${rangeMatch[4]}` : null;
+
+    return { date, start, end };
+}
+
+/**
+ * 把 yyyy-MM-dd 转成"1970-01-01 起的天数"，用 UTC 计算避免时区/DST 偏移
+ */
+function toUtcDayNumber(dateStr) {
+    const match = String(dateStr || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86400000;
+}
+
+/**
+ * 由考试日期推算所在周次与星期。
+ * 与 App 侧算法对齐：第 1 周从开学日期所在周的周一起算（App 会把 semesterStartDate
+ * 对齐到 firstDayOfWeek，默认周一），day 为 ISO 星期（周一=1，周日=7）。
+ * 早于第 1 周的日期视为无效，返回 null。
+ * @returns {{week: number, day: number}|null}
+ */
+function resolveWeekAndDay(dateStr, startDateStr) {
+    const examDay = toUtcDayNumber(dateStr);
+    const startDay = toUtcDayNumber(startDateStr);
+    if (examDay == null || startDay == null) return null;
+
+    // 1970-01-01 是周四：(天序号 + 3) % 7 得到"周一起算的偏移"，0 表示周一
+    const examOffset = ((examDay + 3) % 7 + 7) % 7;
+    const startOffset = ((startDay + 3) % 7 + 7) % 7;
+
+    const alignedStart = startDay - startOffset;
+    const mondayOfExam = examDay - examOffset;
+
+    const week = Math.round((mondayOfExam - alignedStart) / 7) + 1;
+    if (week < 1) return null;
+
+    return { week, day: examOffset + 1 };
+}
+
+/**
+ * 查询指定学期的考试安排。
+ * 接口：POST /kwgl/kscx_cxXsksxxIndex.html?doType=query&gnmkdm=N358105
+ * 成功返回考试记录数组，失败抛异常（由调用方决定是否中断流程）
+ */
+async function fetchExamItems(academicYear, semesterCode) {
+    const url = buildModuleUrl("kwgl", "kscx_cxXsksxxIndex.html", "doType=query&gnmkdm=N358105");
+    const body = [
+        `xnm=${encodeURIComponent(academicYear)}`,
+        `xqm=${encodeURIComponent(semesterCode)}`,
+        `queryModel.showCount=${EXAM_QUERY_PAGE_SIZE}`,
+        "queryModel.currentPage=1",
+        "queryModel.sortName=",
+        "queryModel.sortOrder=asc"
+    ].join("&");
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "accept": "application/json, text/javascript, */*; q=0.01",
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "x-requested-with": "XMLHttpRequest"
+        },
+        body,
+        credentials: "include"
+    });
+
+    if (!response.ok) throw new Error(`考试接口请求失败：HTTP ${response.status}`);
+
+    const text = await response.text();
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        throw new Error("考试接口返回的不是 JSON，通常是登录状态已失效，请重新登录后再导入");
+    }
+
+    if (Array.isArray(data)) return data;
+    return data.items || data.rows || [];
+}
+
+/**
+ * 从考试名称里提炼一个短标记。
+ * 广海的 ksmc 是整批考试名（如 "2026-2027-1期末统考（湖光、海滨校区）"），
+ * 原样塞进课程名会把课表格子撑爆，这里只取关键类型。
+ */
+function resolveExamTag(examName) {
+    const text = String(examName || "");
+    if (text.includes("补考")) return "补考";
+    if (text.includes("重修")) return "重修";
+    if (text.includes("期末")) return "期末";
+    if (text.includes("期中")) return "期中";
+    if (text.includes("学院安排")) return "院考";
+    if (text.includes("统考")) return "统考";
+    return "考试";
+}
+
+/**
+ * 把考试记录转成 App 的"自定义时间课程块"。
+ * 考试时间通常不落在标准节次上，故一律用 isCustomTime + customStartTime/EndTime。
+ * @returns {{exams: Array, stats: {noDate: number, noTime: number, noWeek: number}}}
+ */
+function parseExamList(items, startDate) {
+    const exams = [];
+    const stats = { noDate: 0, noTime: 0, noWeek: 0 };
+    const seen = new Set();
+
+    (Array.isArray(items) ? items : []).forEach(item => {
+        const courseName = pickFirstText(item, ["kcmc", "kcname", "kcmcStr"]);
+        if (!courseName) return;
+
+        // 日期与时间可能挤在同一个字段，也可能拆成 ksrq + kssj 两列
+        const dateSource = parseExamDateTime(pickFirstText(item, ["ksrq", "ksrqStr", "rq"]));
+        const timeSource = parseExamDateTime(pickFirstText(item, ["kssj", "kssjStr", "kssjms"]));
+
+        const date = dateSource.date || timeSource.date;
+        const start = timeSource.start || dateSource.start;
+        const end = timeSource.end || dateSource.end;
+
+        if (!date) { stats.noDate++; return; }
+        if (!start || !end) { stats.noTime++; return; }
+
+        const weekDay = resolveWeekAndDay(date, startDate);
+        if (!weekDay) { stats.noWeek++; return; }
+
+        const examTag = resolveExamTag(pickFirstText(item, ["ksmc", "kslbmc", "kslxmc"]));
+        const rawPosition = pickFirstText(item, ["cdmc", "kscdmc", "ksdd", "jxdd", "cd"]) || "待定";
+        const seat = pickFirstText(item, ["zwh"]);
+        const position = seat ? `${rawPosition} ${seat}号` : rawPosition;
+
+        const exam = {
+            // 前缀是约定标记：课表里能一眼区分，App 侧"只看考试"也靠它筛
+            name: `${EXAM_NAME_PREFIX}${courseName}`,
+            teacher: "",
+            position,
+            day: weekDay.day,
+            weeks: [weekDay.week],
+            isCustomTime: true,
+            customStartTime: start,
+            customEndTime: end,
+            // 详情页可见：考试类型 · 考场
+            remark: [examTag, position].filter(Boolean).join(" · "),
+            // 前向兼容：新版 App 用这个字段把考试单独归类，旧版忽略未知字段
+            isExam: true
+        };
+
+        // 同一门课同时间同考场重复下发时只保留一条
+        const key = [exam.name, exam.position, exam.day, exam.weeks[0], start, end].join("__");
+        if (seen.has(key)) return;
+        seen.add(key);
+        exams.push(exam);
+    });
+
+    return { exams, stats };
+}
+
+/**
+ * 询问是否在导入课表的同时导入考试安排
+ */
+async function askImportExams() {
+    return await window.shiguangBridgePromise.showAlert(
+        "导入考试安排",
+        "是否同时导入本学期的考试安排？\n（考试会以自定义时间的课程块显示在课表对应日期，共需一次额外的接口请求）",
+        "一起导入"
+    );
+}
+
+/**
+ * 考试导入全流程，任何失败都只提示不中断（课表优先）。
+ * 成功时返回考试课程块数组，并把总周数撑到能覆盖最后一场考试。
+ * @param {{academicYear: string, semesterCode: string}} selection 学年学期
+ * @param {{semesterStartDate: string|null, semesterTotalWeeks: number}} config 会被就地修改
+ */
+async function importExamsSafely(selection, config) {
+    if (!config.semesterStartDate) {
+        // 没有开学日期就无法把考试日期换算成"第几周星期几"
+        window.shiguangBridge.showToast("未获取到开学日期，考试安排无法定位到周次，已跳过考试导入。");
+        return [];
+    }
+
+    if (!(await askImportExams())) return [];
+
+    window.shiguangBridge.showToast("正在获取考试安排...");
+
+    try {
+        const items = await fetchExamItems(selection.academicYear, selection.semesterCode);
+        const { exams, stats } = parseExamList(items, config.semesterStartDate);
+
+        if (items.length === 0) {
+            window.shiguangBridge.showToast("该学期暂时没有考试安排。");
+            return [];
+        }
+
+        const skipped = stats.noDate + stats.noTime + stats.noWeek;
+        if (exams.length === 0) {
+            window.shiguangBridge.showToast(
+                `查到 ${items.length} 条考试记录，但都没能定位到周次（日期缺失 ${stats.noDate}、时间缺失 ${stats.noTime}、周次越界 ${stats.noWeek}），已跳过考试导入。`
+            );
+            return [];
+        }
+        if (skipped > 0) {
+            window.shiguangBridge.showToast(`已解析 ${exams.length} 场考试，另有 ${skipped} 条因日期/时间缺失被跳过。`);
+        }
+
+        // 期末考试常排在总周数之后，撑开总周数避免被课表裁剪
+        const maxExamWeek = exams.reduce((max, exam) => Math.max(max, exam.weeks[0]), 0);
+        if (maxExamWeek > config.semesterTotalWeeks) config.semesterTotalWeeks = maxExamWeek;
+
+        return exams;
+    } catch (error) {
+        window.shiguangBridge.showToast(`考试安排获取失败，课表继续导入：${error.message}`);
+        return [];
+    }
+}
+
 // ==================== 交互 ====================
 
 /**
@@ -855,10 +1123,13 @@ async function runImportFlow() {
     if (result === null) return;
     const { courses, config } = result;
 
-    // 5. 保存课程
-    if (!(await saveCourses(courses))) return;
+    // 5. 询问并解析考试安排（失败不阻断课表导入）
+    const exams = await importExamsSafely(selection, config);
 
-    // 6. 保存课表配置（开学日期、总周数）
+    // 6. 保存课程（考试作为自定义时间课程块一并写入）
+    if (!(await saveCourses([...courses, ...exams]))) return;
+
+    // 7. 保存课表配置（开学日期、总周数）
     try {
         await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
         let msg = `课表配置更新成功！总周数：${config.semesterTotalWeeks}周。`;
@@ -868,10 +1139,11 @@ async function runImportFlow() {
         window.shiguangBridge.showToast(`课表配置保存失败: ${error.message}`);
     }
 
-    // 7. 导入预设作息时间
+    // 8. 导入预设作息时间
     await importPresetTimeSlots(TimeSlots);
 
     window.shiguangBridge.showToast(`课程导入成功，共导入 ${courses.length} 门课程！`);
+    if (exams.length > 0) window.shiguangBridge.showToast(`已同时导入 ${exams.length} 场考试，请在课表对应日期查看。`);
     window.shiguangBridge.showToast(`若课程时间有误，请提交issue或联系开发者！`);
     window.shiguangBridge.notifyTaskCompletion();
 }
