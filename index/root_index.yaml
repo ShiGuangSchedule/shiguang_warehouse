@@ -1153,6 +1153,11 @@ schools:
     initial: "Q"
     resource_folder: "QJNU"
 
+  - id: "WYNU"
+    name: "滇西科技师范学院"
+    initial: "D"
+    resource_folder: "WYNU"
+
   - id: "SCEMI"
     name: "四川机电职业技术学院"
     initial: "S"
