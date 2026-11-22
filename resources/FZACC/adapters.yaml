@@ -1,0 +1,9 @@
+# resources/FZACC/adapters.yaml
+adapters:
+  - adapter_id: "FZACC_01"
+    adapter_name: "福州英华职业学院青果教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "fzacc_01.js"
+    import_url: "https://jwxt.fzacc.com/fzyhjw/"
+    maintainer: "Panda君"
+    description: "登录教务系统后直接点击“导入”即可，自动识别当前学期；如遇问题请提 issues"

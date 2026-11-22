@@ -233,6 +233,11 @@ schools:
     initial: "F"
     resource_folder: "FVTI"
 
+  - id: "FZACC"
+    name: "福州英华职业学院"
+    initial: "F"
+    resource_folder: "FZACC"
+
   - id: "FOSU"
     name: "佛山大学"
     initial: "F"
