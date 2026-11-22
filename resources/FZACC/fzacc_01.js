@@ -1,24 +1,9 @@
 // 福州英华职业学院（fzacc.com）青果教务适配
-// 接口取数，不解析页面 DOM；当前学期自动识别，无需手动选学期
+// 接口取数，不解析页面 DOM；学期与作息均从接口读取
 (function () {
   'use strict';
 
   var LOGIN_TIP = '请先在教务系统完成登录，再点击"执行导入"';
-
-  // 2021-05-31 起执行的教学作息时间（教务处通知），共 11 节
-  var TIME_SLOTS = [
-    { number: 1, startTime: '08:30', endTime: '09:10' },
-    { number: 2, startTime: '09:20', endTime: '10:00' },
-    { number: 3, startTime: '10:15', endTime: '10:55' },
-    { number: 4, startTime: '11:05', endTime: '11:45' },
-    { number: 5, startTime: '14:00', endTime: '14:40' },
-    { number: 6, startTime: '14:50', endTime: '15:30' },
-    { number: 7, startTime: '15:40', endTime: '16:20' },
-    { number: 8, startTime: '16:30', endTime: '17:10' },
-    { number: 9, startTime: '17:20', endTime: '18:00' },
-    { number: 10, startTime: '19:00', endTime: '19:40' },
-    { number: 11, startTime: '19:50', endTime: '20:30' },
-  ];
 
   var bridge = window.shiguangBridge || window.AndroidBridge || {};
   var bridgeP = window.shiguangBridgePromise || window.AndroidBridgePromise || {};
@@ -27,7 +12,6 @@
     try { bridge.showToast(msg); } catch (e) {}
   }
 
-  // 项目根，形如 https://jwxt.fzacc.com/fzyhjw/
   function webRoot() {
     var m = location.pathname.match(/^(\/[^\/]+\/)/);
     return location.origin + (m ? m[1] : '/');
@@ -37,14 +21,16 @@
     return btoa(unescape(encodeURIComponent(str)));
   }
 
-  async function getText(url, options) {
+  // 各页面编码不统一：课表页 GBK，首页组件 UTF-8，按响应头决定
+  async function getHtml(url, options) {
     var res = await fetch(url, Object.assign({ credentials: 'include' }, options || {}));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     var buf = await res.arrayBuffer();
-    return new TextDecoder('gbk').decode(buf);
+    var m = /charset=([\w-]+)/i.exec(res.headers.get('content-type') || '');
+    var enc = m ? m[1].toLowerCase() : 'gbk';
+    try { return new TextDecoder(enc).decode(buf); } catch (e) { return new TextDecoder('gbk').decode(buf); }
   }
 
-  // 当前学年学期 + 内部学号
   async function fetchTerm(root) {
     var res = await fetch(root + 'jw/common/showYearTerm.action', { credentials: 'include' });
     var data = await res.json();
@@ -59,12 +45,42 @@
     };
   }
 
-  // 校历：返回第 1 周周一日期
-  async function fetchStartDate(root, term) {
+  // 首页课表组件：节次时间 + 第 1 周周一
+  async function fetchDeskInfo(root, term) {
+    var url = root + 'frame/desk/showLessonScheduleInfosV14.action?xn=' + term.xn +
+      '&xq=' + term.xq + '&jxz=1';
+    var html = await getHtml(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: '',
+    });
+
+    var slots = {};
+    var re = />\s*(\d{1,2})\s*\(\s*(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s*\)\s*</g;
+    var m;
+    while ((m = re.exec(html))) {
+      var n = parseInt(m[1], 10);
+      slots[n] = { number: n, startTime: m[2], endTime: m[3] };
+    }
+    var list = Object.keys(slots).map(function (k) { return slots[k]; })
+      .sort(function (a, b) { return a.number - b.number; });
+
+    var startDate = null;
+    var d = />\s*一\s*<br>\s*(\d{2})-(\d{2})\s*</.exec(html);
+    if (d) {
+      var mon = parseInt(d[1], 10);
+      var year = mon >= 8 ? parseInt(term.xn, 10) : parseInt(term.xn, 10) + 1;
+      startDate = year + '-' + d[1] + '-' + d[2];
+    }
+    return { slots: list, startDate: startDate };
+  }
+
+  // 兜底：校历里找第 1 周的周一
+  async function fetchStartDateFromCalendar(root, term) {
     try {
       var body = 'menucode=&xn=' + term.xn + '&xq_m=' + term.xq + '&rad=1' +
         '&sel_xn_xq=' + term.xn + '-' + term.xq + '&btnQry=' + encodeURIComponent('检索');
-      var html = await getText(root + 'public/SchoolCalendar.show.jsp', {
+      var html = await getHtml(root + 'public/SchoolCalendar.show.jsp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
         body: body,
@@ -80,9 +96,8 @@
           month = (cells[1].textContent || '').trim();
           continue;
         }
-        if (!/^\d{1,2}$/.test(c0)) continue;
         if (parseInt(c0, 10) !== 1) continue;
-        for (var j = 1; j < cells.length && j <= 7; j++) {
+        for (var j = 1; j <= 7 && j < cells.length; j++) {
           var day = (cells[j].textContent || '').trim();
           if (/^\d{1,2}$/.test(day) && /^\d{4}-\d{2}$/.test(month)) {
             return month + '-' + (day.length < 2 ? '0' + day : day);
@@ -177,7 +192,6 @@
       }
     }
 
-    // 同一门课拆成多个周次的块合并回一条
     var map = {};
     raw.forEach(function (b) {
       var key = [b.name, b.teacher, b.position, b.day, b.startSection, b.endSection].join('|');
@@ -227,7 +241,7 @@
     var url = root + 'student/wsxk.xskcb10319.jsp?params=' + encodeURIComponent(params);
     var html;
     try {
-      html = await getText(url);
+      html = await getHtml(url);
     } catch (e) {
       toast('课表请求失败，请确认已登录');
       return;
@@ -244,15 +258,20 @@
       return;
     }
 
-    var startDate = await fetchStartDate(root, term);
-    if (startDate) {
+    var desk = { slots: [], startDate: null };
+    try { desk = await fetchDeskInfo(root, term); } catch (e) { console.warn('[FZACC] 作息接口失败', e); }
+    if (!desk.startDate) desk.startDate = await fetchStartDateFromCalendar(root, term);
+
+    if (desk.startDate) {
       try {
-        await bridgeP.saveCourseConfig(JSON.stringify({ semesterStartDate: startDate }));
+        await bridgeP.saveCourseConfig(JSON.stringify({ semesterStartDate: desk.startDate }));
       } catch (e) {}
     }
-    try {
-      await bridgeP.savePresetTimeSlots(JSON.stringify(TIME_SLOTS));
-    } catch (e) {}
+    if (desk.slots.length) {
+      try {
+        await bridgeP.savePresetTimeSlots(JSON.stringify(desk.slots));
+      } catch (e) {}
+    }
 
     try {
       await bridgeP.saveImportedCourses(JSON.stringify(courses));
@@ -271,20 +290,21 @@
         if (w < minWeek) minWeek = w;
       });
     });
-    var nameCount = Object.keys(names).length;
 
     var lines = [
-      '课程：' + nameCount + ' 门（' + courses.length + ' 个课块）',
+      '课程：' + Object.keys(names).length + ' 门（' + courses.length + ' 个课块）',
       '学期：' + term.xn + '-' + (parseInt(term.xn, 10) + 1) + ' 学年' + (term.xq === '0' ? '第一' : '第二') + '学期',
       '周次：第 ' + minWeek + '-' + maxWeek + ' 周',
     ];
-    if (startDate) lines.push('开学：' + startDate);
-    lines.push('作息时间：已导入 ' + TIME_SLOTS.length + ' 节');
+    if (desk.startDate) lines.push('开学：' + desk.startDate);
+    if (desk.slots.length) {
+      lines.push('作息：' + desk.slots.length + ' 节（第 1 节 ' + desk.slots[0].startTime + '）');
+    }
 
     if (bridgeP.showAlert) {
       await bridgeP.showAlert('导入完成', lines.join('\n'), '确定');
     } else {
-      toast('导入完成：' + nameCount + ' 门课程');
+      toast('导入完成：' + Object.keys(names).length + ' 门课程');
     }
     try { bridge.notifyTaskCompletion(); } catch (e) {}
   }
