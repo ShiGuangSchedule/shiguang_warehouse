@@ -239,6 +239,7 @@
 
     var courses = parseSchedule(html);
     if (!courses.length) {
+      console.warn('[FZACC] 未解析到课程，课表 HTML 长度 ' + html.length);
       toast('未解析到课程，可能本学期暂无排课');
       return;
     }
@@ -289,6 +290,7 @@
   }
 
   importSchedule().catch(function (e) {
+    console.error('[FZACC] 导入异常', e);
     toast('导入出错：' + (e.message || e));
   });
 })();
