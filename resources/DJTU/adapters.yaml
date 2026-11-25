@@ -1,0 +1,9 @@
+# resources/DJTU/adapters.yaml
+adapters:
+  - adapter_id: "DJTU_01"
+    adapter_name: "大连交通大学综合教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "djtu_01.js"
+    import_url: "http://jw.djtu.edu.cn/academic/common/security/affairLogin.jsp"
+    maintainer: "LoreHan64"
+    description: "大连交通大学综合教务管理系统（沙河口、旅顺口两校区作息不同，导入时可选择校区）。登录后点击执行导入，自动读取课程安排与作息时间，也可指定其它学年学期导入。"

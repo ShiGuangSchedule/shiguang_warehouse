@@ -528,6 +528,11 @@ schools:
     initial: "D"
     resource_folder: "DLNU"
 
+  - id: "DJTU"
+    name: "大连交通大学"
+    initial: "D"
+    resource_folder: "DJTU"
+
   - id: "HBMU"
     name: "湖北医药学院"
     initial: "H"
@@ -1047,6 +1052,11 @@ schools:
     name: "南阳师范学院"
     initial: "N"
     resource_folder: "NYNU"
+
+  - id: "NYIST"
+    name: "南阳理工学院"
+    initial: "N"
+    resource_folder: "NYIST"
 
   - id: "NCHU"
     name: "南昌航空大学"
