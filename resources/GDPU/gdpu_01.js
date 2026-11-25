@@ -15,7 +15,7 @@ function parseWeeks(weekStr) {
     for (const set of weekSets) {
         const trimmedSet = set.trim();
         const rangeMatch = trimmedSet.match(/(\d+)-(\d+)周/);
-        const singleMatch = trimmedSet.match(/^(\d+)周/);
+        const singleMatch = trimmedSet.match(/(\d+)周/);
 
         let start = 0;
         let end = 0;
