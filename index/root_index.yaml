@@ -528,6 +528,11 @@ schools:
     initial: "D"
     resource_folder: "DLNU"
 
+  - id: "DJTU"
+    name: "大连交通大学"
+    initial: "D"
+    resource_folder: "DJTU"
+
   - id: "HBMU"
     name: "湖北医药学院"
     initial: "H"
