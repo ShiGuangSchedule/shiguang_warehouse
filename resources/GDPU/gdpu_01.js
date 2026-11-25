@@ -160,90 +160,28 @@ function parseJsonData(jsonData) {
     return { courses: courses, campuses: Object.values(campusMap), dropped: dropped, total: jsonData.kbList.length };
 }
 
-// ==================== 日期工具 ====================
-
-/**
- * 把教务返回的日期字段规范为 yyyy-MM-dd
- * 兼容 "-"、"."、"/" 以及中文"年月日"等分隔写法
- */
-function normalizeStartDate(value) {
-    const match = String(value || "").match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
-    if (!match) return null;
-    const y = match[1];
-    const m = String(match[2]).padStart(2, '0');
-    const d = String(match[3]).padStart(2, '0');
-    return y + "-" + m + "-" + d;
-}
-
-/**
- * 从校历数据中找出第 1 周的日期作为开学日期
- */
-function findSemesterStartDate(value) {
-    if (value == null) return null;
-
-    if (typeof value !== "object") return normalizeStartDate(value);
-
-    if (Array.isArray(value)) {
-        const firstWeek = value.find(item =>
-            item && typeof item === "object" &&
-            (String(item.zs) === "1" || String(item.zsmc) === "1")
-        ) || value[0];
-        const found = findSemesterStartDate(firstWeek);
-        if (found) return found;
-
-        for (const item of value) {
-            const date = findSemesterStartDate(item);
-            if (date) return date;
-        }
-        return null;
-    }
-
-    for (const field of ["zrq", "zcrq", "rq", "ksrq"]) {
-        const date = normalizeStartDate(value[field]);
-        if (date) return date;
-    }
-
-    for (const item of Object.values(value)) {
-        const date = findSemesterStartDate(item);
-        if (date) return date;
-    }
-
-    return null;
-}
-
 // ==================== 教务接口 ====================
 
 /**
- * 从 select 元素解析选项
- * 默认索引优先使用当前 select.value，确保跟随用户在页面上的实际选择
+ * 从 select 元素解析选项，默认索引取当前选中项
  */
 function parseSelectOptions(selectElement) {
-    if (!selectElement || typeof selectElement.querySelectorAll !== "function") {
-        return { options: [], defaultIndex: 0 };
-    }
-
     const options = [];
     let defaultIndex = 0;
+
     Array.from(selectElement.querySelectorAll("option")).forEach(option => {
-        const value = String(option.value || "").trim();
+        const value = String(option.value).trim();
         if (!value) return;
-
-        const text = String(option.textContent || "").trim() || value;
         if (option.selected) defaultIndex = options.length;
-        options.push({ value: value, text: text });
+        options.push({ value: value, text: String(option.textContent).trim() });
     });
-
-    const currentValue = String(selectElement.value || "").trim();
-    const currentIndex = options.findIndex(option => option.value === currentValue);
-    if (currentIndex !== -1) defaultIndex = currentIndex;
 
     return { options: options, defaultIndex: defaultIndex };
 }
 
 /**
  * 读取课表查询页里的学年/学期下拉选项
- * 成功返回 { yearOptions, semesterOptions, defaultYearIndex, defaultSemesterIndex }
- * 失败返回 null，由调用方回退到默认值
+ * 失败返回 null，由调用方提示用户
  */
 async function fetchAcademicOptions() {
     const url = buildScheduleUrl("xskbcx_cxXskbcxIndex.html", "gnmkdm=N2151&layout=default");
@@ -276,8 +214,8 @@ async function fetchAcademicOptions() {
 }
 
 /**
- * 查询指定学期的周次安排，取出第 1 周的日期作为开学日期，并返回该学期总周数
- * 接口失败时返回 null，不影响主流程
+ * 查询指定学期的周次安排，取第 1 周的日期作为开学日期，并返回该学期总周数
+ * 与课表同源（同为正方的教务基础数据），失败即视为会话异常
  */
 async function fetchSemesterInfo(academicYear, semesterCode) {
     const url = buildScheduleUrl(
@@ -299,7 +237,8 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
         if (!Array.isArray(weeks) || weeks.length === 0) return null;
 
         return {
-            startDate: findSemesterStartDate(weeks),
+            // weeks[0] 即第 1 周，rq 形如 "2026-09-07/2026-09-13"
+            startDate: String(weeks[0].rq).split("/")[0],
             totalWeeks: weeks.length
         };
     } catch (e) {
@@ -310,7 +249,6 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
 
 /**
  * 从教务获取指定校区的作息时间表（节次 -> 起止时间）
- * 失败返回 null，由调用方回退到内置作息表
  */
 async function fetchTimeSlots(academicYear, semesterCode, xqhId) {
     const url = buildScheduleUrl("xskbcx_cxRjc.html", "gnmkdm=N2151");
@@ -367,65 +305,7 @@ async function fetchTimeSlots(academicYear, semesterCode, xqhId) {
     }
 }
 
-// ==================== 内置作息兜底 ====================
-
-// 接口获取失败时使用。广州/云浮与中山两套作息不同，不能共用一张表。
-const FALLBACK_TIME_SLOTS_CAMPUS_1 = [
-    { number: 1, startTime: "08:30", endTime: "09:10" },
-    { number: 2, startTime: "09:20", endTime: "10:00" },
-    { number: 3, startTime: "10:10", endTime: "10:50" },
-    { number: 4, startTime: "11:00", endTime: "11:40" },
-    { number: 5, startTime: "11:50", endTime: "12:30" },
-    { number: 6, startTime: "12:40", endTime: "13:20" },
-    { number: 7, startTime: "14:00", endTime: "14:40" },
-    { number: 8, startTime: "14:50", endTime: "15:30" },
-    { number: 9, startTime: "15:40", endTime: "16:20" },
-    { number: 10, startTime: "16:30", endTime: "17:10" },
-    { number: 11, startTime: "17:20", endTime: "18:00" },
-    { number: 12, startTime: "18:10", endTime: "18:50" },
-    { number: 13, startTime: "19:00", endTime: "19:40" },
-    { number: 14, startTime: "19:50", endTime: "20:30" },
-    { number: 15, startTime: "20:40", endTime: "21:20" }
-];
-
-const FALLBACK_TIME_SLOTS_CAMPUS_2 = [
-    { number: 1, startTime: "08:30", endTime: "09:10" },
-    { number: 2, startTime: "09:20", endTime: "10:00" },
-    { number: 3, startTime: "10:10", endTime: "10:50" },
-    { number: 4, startTime: "11:00", endTime: "11:40" },
-    { number: 5, startTime: "11:50", endTime: "12:30" },
-    { number: 6, startTime: "12:40", endTime: "13:20" },
-    { number: 7, startTime: "13:30", endTime: "14:10" },
-    { number: 8, startTime: "14:20", endTime: "15:00" },
-    { number: 9, startTime: "15:10", endTime: "15:50" },
-    { number: 10, startTime: "16:00", endTime: "16:40" },
-    { number: 11, startTime: "16:50", endTime: "17:30" },
-    { number: 12, startTime: "17:40", endTime: "18:20" },
-    { number: 13, startTime: "18:30", endTime: "19:10" },
-    { number: 14, startTime: "19:20", endTime: "20:00" },
-    { number: 15, startTime: "20:10", endTime: "20:50" }
-];
-
-/**
- * 按校区名选择兜底作息。中山校区作息整体比广州/云浮早 30 分钟，
- * 无法从教务取到作息时必须区分，否则中山的 7-15 节会整体偏晚。
- */
-function getFallbackTimeSlots(campus) {
-    const name = campus && campus.name ? String(campus.name) : "";
-    if (name.indexOf("中山") !== -1) return FALLBACK_TIME_SLOTS_CAMPUS_2;
-    return FALLBACK_TIME_SLOTS_CAMPUS_1;
-}
-
 // ==================== 交互 ====================
-
-/**
- * 按当前月份推断学年起始年份：9 月及以后属于新学年，其余月份沿用上一学年
- */
-function getDefaultAcademicYear(date) {
-    const d = date || new Date();
-    const currentYear = d.getFullYear();
-    return (d.getMonth() >= 8 ? currentYear : currentYear - 1).toString();
-}
 
 async function promptUserToStart() {
     return await window.shiguangBridgePromise.showAlert(
@@ -437,34 +317,16 @@ async function promptUserToStart() {
 }
 
 /**
- * 依次弹出学年、学期选择框
- * 选项优先来自教务系统；读取失败则按当前月份给出默认值
+ * 依次弹出学年、学期选择框，选项来自教务系统
  */
 async function selectAcademicYearAndSemester() {
     const options = await fetchAcademicOptions();
-
-    let yearOptions;
-    let semesterOptions;
-    let defaultYearIndex;
-    let defaultSemesterIndex;
-
-    if (options) {
-        yearOptions = options.yearOptions;
-        semesterOptions = options.semesterOptions;
-        defaultYearIndex = options.defaultYearIndex;
-        defaultSemesterIndex = options.defaultSemesterIndex;
-    } else {
-        const year = getDefaultAcademicYear();
-        const isFirstSemester = new Date().getMonth() >= 8;
-        yearOptions = [{ value: year, text: year + "-" + (Number(year) + 1) }];
-        semesterOptions = [
-            { value: "3", text: "第一学期" },
-            { value: "12", text: "第二学期" }
-        ];
-        defaultYearIndex = 0;
-        defaultSemesterIndex = isFirstSemester ? 0 : 1;
-        window.shiguangBridge.showToast("未读取到教务系统学年学期选项，已使用默认值，请核对。");
+    if (!options) {
+        window.shiguangBridge.showToast("读取学年学期失败，请确认已登录教务系统。");
+        return null;
     }
+
+    const { yearOptions, semesterOptions, defaultYearIndex, defaultSemesterIndex } = options;
 
     const yearIndex = await window.shiguangBridgePromise.showSingleSelection(
         "选择学年",
@@ -572,6 +434,11 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
             return null;
         }
 
+        if (!semesterInfo) {
+            window.shiguangBridge.showToast("获取校历失败，无法确定开学日期，请确认登录状态后重试。");
+            return null;
+        }
+
         return {
             courses: parsed.courses,
             campuses: parsed.campuses,
@@ -637,41 +504,28 @@ async function runImportFlow() {
         const m = c.weeks.length ? Math.max.apply(null, c.weeks) : 0;
         return Math.max(max, m);
     }, 0);
-    // 校历接口返回的是「学期总跨度」，第二学期会把 8 周暑假也算进去（2026-2027 学年实测 27 周），
-    // 不能直接当教学总周数。故以课程实际周次为准，校历仅作参考且不超过软件的默认上限 20 周。
-    const calendarWeeks = semesterInfo && semesterInfo.totalWeeks ? semesterInfo.totalWeeks : 20;
-    const totalWeeks = Math.max(maxCourseWeek, Math.min(calendarWeeks, 20));
+    // 校历返回的是学期总跨度（第二学期含暑假，实测 27 周），不能直接当教学周数。
+    const totalWeeks = Math.max(maxCourseWeek, Math.min(semesterInfo.totalWeeks, 20));
 
-    // semesterStartDate 在 App 侧是整体覆盖写入，为空时不能提交，
-    // 否则会擦掉用户手动设置的第一周。
-    const config = { semesterTotalWeeks: totalWeeks };
-    if (semesterInfo && semesterInfo.startDate) {
-        config.semesterStartDate = semesterInfo.startDate;
-    }
+    const config = {
+        semesterStartDate: semesterInfo.startDate,
+        semesterTotalWeeks: totalWeeks
+    };
 
     try {
         await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
-        let msg = "课表配置更新成功！总周数：" + totalWeeks + " 周。";
-        if (config.semesterStartDate) {
-            msg += " 开学日期：" + config.semesterStartDate;
-        } else {
-            msg += " 未能获取开学日期，请在设置中手动设置第一周。";
-        }
-        window.shiguangBridge.showToast(msg);
+        window.shiguangBridge.showToast(
+            "课表配置更新成功！总周数：" + totalWeeks + " 周。 开学日期：" + config.semesterStartDate
+        );
     } catch (error) {
         window.shiguangBridge.showToast("课表配置保存失败: " + error.message);
     }
 
-    // 7. 导入作息时间：优先从教务获取，失败时按校区回退内置表
-    let timeSlots = null;
-    if (campus.id) {
-        timeSlots = await fetchTimeSlots(selection.academicYear, selection.semesterCode, campus.id);
-    }
+    // 7. 导入作息时间
+    const timeSlots = await fetchTimeSlots(selection.academicYear, selection.semesterCode, campus.id);
     if (!timeSlots) {
-        timeSlots = getFallbackTimeSlots(campus);
-        window.shiguangBridge.showToast(
-            "未获取到教务作息，已使用" + (campus.name || "默认") + "的内置作息，请核对节次时间。"
-        );
+        window.shiguangBridge.showToast("获取作息时间失败，请确认登录状态后重试。");
+        return;
     }
     await importPresetTimeSlots(timeSlots);
 
