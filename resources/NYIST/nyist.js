@@ -111,39 +111,114 @@ async function chooseSemester(select) {
     return values[index];
 }
 
-// 同课同节合并周次，再合并连续节次
-function mergeCourses(list) {
-    const bySection = new Map();
-    for (const c of list) {
-        const key = [c.name, c.teacher, c.position, c.day, c.startSection].join("\u0001");
-        const item = bySection.get(key);
-        if (item) item.weeks.push(...c.weeks);
-        else bySection.set(key, { ...c, weeks: [...c.weeks] });
-    }
+/**
+ * 节次与周次合并去重函数（供开发者参考）
+ * 将原始课程数组按周次拆解，逐周合并节次，再按相同节次结构重组，最终输出合并去重后的课程数组。
+ * @param {Array<Object>} courses 原始解析课程数组
+ * @returns {Array<Object>} 合并去重后的课程数组
+ */
+function mergeAndDistinctCourses(courses) {
+    if (!Array.isArray(courses) || courses.length <= 1) return courses;
 
-    const rows = Array.from(bySection.values())
-        .map(c => ({ ...c, weeks: Array.from(new Set(c.weeks)).sort((a, b) => a - b) }))
-        .sort((a, b) =>
-            a.day - b.day ||
-            a.name.localeCompare(b.name) ||
-            a.teacher.localeCompare(b.teacher) ||
-            a.position.localeCompare(b.position) ||
-            a.startSection - b.startSection);
+    // 按天、课程名、教师、地点将课程分组，相同课程的记录归入同一组
+    const grouped = {};
+    courses.forEach(c => {
+        const name = c.name || '';
+        const teacher = c.teacher || '';
+        const position = c.position || '';
+        const day = c.day || 0;
+        
+        // 构造唯一标识，用于识别是否为同一门课
+        const key = `${day}|${name}|${teacher}|${position}`;
+        
+        if (!grouped[key]) {
+            grouped[key] = {
+                name, teacher, position, day,
+                // 记录每周对应的节次段，结构如 { 8: [ {start: 5, end: 6}, {start: 7, end: 8} ] }
+                weeksMap: {}
+            };
+        }
+        
+        // 将该记录覆盖的所有周次拆开，分别记录对应周的节次段
+        const weeksArr = Array.isArray(c.weeks) ? [...new Set(c.weeks)] : [];
+        weeksArr.forEach(w => {
+            if (!grouped[key].weeksMap[w]) grouped[key].weeksMap[w] = [];
+            grouped[key].weeksMap[w].push({ start: c.startSection, end: c.endSection });
+        });
+    });
 
-    const result = [];
-    for (const row of rows) {
-        const prev = result[result.length - 1];
-        const mergeable = prev &&
-            prev.day === row.day &&
-            prev.name === row.name &&
-            prev.teacher === row.teacher &&
-            prev.position === row.position &&
-            prev.weeks.join(",") === row.weeks.join(",") &&
-            prev.endSection + 1 === row.startSection;
-        if (mergeable) prev.endSection = row.startSection;
-        else result.push({ ...row, endSection: row.startSection });
-    }
-    return result;
+    const finalResult = [];
+
+    // 逐组处理每门课程
+    Object.values(grouped).forEach(group => {
+        // 获取该课程有课的所有周次，升序排列
+        const sortedWeeks = Object.keys(group.weeksMap).map(Number).sort((a, b) => a - b);
+        
+        // 记录每周合并后的最终节次段，结构如 { 8: [ {start: 5, end: 8} ] }
+        const processedWeeksMap = {};
+        
+        sortedWeeks.forEach(w => {
+            let parts = group.weeksMap[w];
+            
+            // 按开始节次和结束节次排序，确保合并顺序正确
+            parts.sort((a, b) => a.start - b.start || a.end - b.end);
+            
+            // 合并该周内连续或重叠的节次段
+            const mergedParts = [];
+            let cur = parts[0];
+            for (let i = 1; i < parts.length; i++) {
+                // 如果当前节次段与下一段相邻或重叠，则延长当前段
+                if (cur.end + 1 >= parts[i].start) {
+                    cur.end = Math.max(cur.end, parts[i].end);
+                } else {
+                    mergedParts.push(cur);
+                    cur = parts[i];
+                }
+            }
+            mergedParts.push(cur);
+            processedWeeksMap[w] = mergedParts;
+        });
+
+        // 将节次结构完全相同的周次归为一组
+        // 结构如 { "节次签名字符串": { sections: [...], weeks: [] } }
+        const sectionsMap = {};
+        
+        sortedWeeks.forEach(w => {
+            const parts = processedWeeksMap[w];
+            // 将当前周的所有节次段组合成字符串签名，如 "1-2|5-6"
+            const sig = parts.map(p => `${p.start}-${p.end}`).join('|');
+            
+            if (!sectionsMap[sig]) {
+                sectionsMap[sig] = { sections: parts, weeks: [] };
+            }
+            sectionsMap[sig].weeks.push(w);
+        });
+
+        // 将每组相同节次结构的周次生成对应的课程对象
+        Object.values(sectionsMap).forEach(secGroup => {
+            secGroup.sections.forEach(sec => {
+                finalResult.push({
+                    name: group.name,
+                    teacher: group.teacher,
+                    position: group.position,
+                    day: group.day,
+                    startSection: sec.start,
+                    endSection: sec.end,
+                    weeks: secGroup.weeks
+                });
+            });
+        });
+    });
+
+    // 按星期、开始节次、课程名、起始周排序，保证输出结果顺序稳定
+    finalResult.sort((a, b) => {
+        return (a.day || 0) - (b.day || 0) ||
+               (a.startSection || 0) - (b.startSection || 0) ||
+               a.name.localeCompare(b.name) ||
+               a.weeks[0] - b.weeks[0];
+    });
+
+    return finalResult;
 }
 
 function parseCourses(json) {
@@ -160,10 +235,11 @@ function parseCourses(json) {
             position: extractTexts(item.croommc, " ") || "待定",
             day,
             startSection: section,
+            endSection: section,
             weeks
         });
     }
-    return mergeCourses(raw);
+    return mergeAndDistinctCourses(raw);
 }
 
 async function fetchCourses(xnxq, xhid, xqdm) {
