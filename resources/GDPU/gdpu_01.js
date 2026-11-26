@@ -1,7 +1,7 @@
 // 广东药科大学 (gdpu.edu.cn) 拾光课程表适配脚本
 // 基于正方教务系统 V-9.0 接口适配
-// 非该大学开发者适配,开发者无法及时发现问题
-// 出现问题请提issues或者提交pr更改,这更加快速
+// 维护者：morangsu（本校维护）
+// 出现问题请提 issues 或 PR，本校维护者会及时跟进
 
 (function () {
 
@@ -30,8 +30,7 @@ function getScheduleBase() {
  */
 function buildScheduleUrl(modulePath, query) {
     const base = getScheduleBase();
-    const queryString = query ? "?" + query : "";
-    return window.location.origin + base + "/kbcx/" + modulePath + queryString;
+    return window.location.origin + base + "/kbcx/" + modulePath + "?" + query;
 }
 
 // ==================== 解析函数 ====================
@@ -61,11 +60,6 @@ function parseWeeks(weekStr) {
         segRegex.lastIndex = 0;
         let m;
         while ((m = segRegex.exec(s)) !== null) {
-            if (m[0] === '') {
-                segRegex.lastIndex++;
-                continue;
-            }
-
             const start = parseInt(m[1], 10);
             const end = m[2] ? parseInt(m[2], 10) : start;
             const flagStr = m[3] || '';
@@ -90,18 +84,13 @@ function parseWeeks(weekStr) {
  * 格式无法识别或数值不合法时返回 null
  */
 function parseSectionRange(sectionStr) {
-    const text = sectionStr == null ? '' : String(sectionStr);
-    const match = text.match(/^\s*(?:第)?(\d+)\s*(?:-\s*(\d+))?\s*节?\s*$/);
-
+    const match = String(sectionStr).match(/^\s*(?:第)?(\d+)\s*(?:-\s*(\d+))?\s*节?\s*$/);
     if (!match) return null;
 
     const startSection = Number(match[1]);
     const endSection = Number(match[2] || match[1]);
 
-    if (!Number.isInteger(startSection) || !Number.isInteger(endSection) ||
-        startSection < 1 || endSection < startSection) {
-        return null;
-    }
+    if (startSection < 1 || endSection < startSection) return null;
 
     return { startSection, endSection };
 }
@@ -112,7 +101,7 @@ function parseSectionRange(sectionStr) {
  */
 function parseJsonData(jsonData) {
     if (!jsonData || !Array.isArray(jsonData.kbList)) {
-        return { courses: [], campuses: [] };
+        return { courses: [], campuses: [], dropped: 0, total: 0 };
     }
 
     const courses = [];
@@ -136,11 +125,11 @@ function parseJsonData(jsonData) {
         const xqhId = raw.xqh_id == null ? "" : String(raw.xqh_id).trim();
         const xqmc = raw.xqmc == null ? "" : String(raw.xqmc).trim();
         if (xqhId && !campusMap[xqhId]) {
-            campusMap[xqhId] = { id: xqhId, name: xqmc || ("校区 " + xqhId) };
+            campusMap[xqhId] = { id: xqhId, name: xqmc || ("未知校区(id=" + xqhId + ")") };
         }
 
         courses.push({
-            name: raw.kcmc == null ? '' : String(raw.kcmc).trim(),
+            name: String(raw.kcmc).trim(),
             teacher: raw.xm == null ? '' : String(raw.xm).trim(),
             position: raw.cdmc == null ? '' : String(raw.cdmc).trim(),
             day: day,
@@ -224,7 +213,7 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
     );
 
     try {
-        // 该接口沿用正方 V9 惯例，按 GET 携带 xnm/xqm 查询；失败时上层回退默认值
+        // 与课表同源；失败由调用方显式报错终止
         const response = await fetch(url, {
             method: "GET",
             headers: { "accept": "application/json, text/javascript, */*; q=0.01" },
@@ -236,9 +225,22 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
         const weeks = await response.json();
         if (!Array.isArray(weeks) || weeks.length === 0) return null;
 
+        // weeks[0] 即第 1 周，rq 形如 "2026-09-07/2026-09-13"；先取第一个日期再规范化
+        const rqMatch = String(weeks[0].rq).match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+        if (!rqMatch) {
+            window.shiguangBridge.showToast("校历返回的开学日期无法识别：" + weeks[0].rq);
+            return null;
+        }
+        const startDate = rqMatch[1] + "-" + rqMatch[2].padStart(2, "0") + "-" + rqMatch[3].padStart(2, "0");
+        // App 侧对该字段是裸 LocalDate.parse，格式非法会导致课表页崩溃，
+        // 这是少数确实需要在脚本侧拦截的地方。
+        if (isNaN(Date.parse(startDate))) {
+            window.shiguangBridge.showToast("校历返回的开学日期非法：" + startDate);
+            return null;
+        }
+
         return {
-            // weeks[0] 即第 1 周，rq 形如 "2026-09-07/2026-09-13"
-            startDate: String(weeks[0].rq).split("/")[0],
+            startDate: startDate,
             totalWeeks: weeks.length
         };
     } catch (e) {
@@ -250,6 +252,8 @@ async function fetchSemesterInfo(academicYear, semesterCode) {
 /**
  * 从教务获取指定校区的作息时间表（节次 -> 起止时间）
  */
+const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
 async function fetchTimeSlots(academicYear, semesterCode, xqhId) {
     const url = buildScheduleUrl("xskbcx_cxRjc.html", "gnmkdm=N2151");
     const body = "xnm=" + encodeURIComponent(academicYear) +
@@ -285,7 +289,8 @@ async function fetchTimeSlots(academicYear, semesterCode, xqhId) {
 
             const start = String(item.qssj).substring(0, 5);
             const end = String(item.jssj).substring(0, 5);
-            if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) continue;
+            // 与 App 侧 TimeSlotJsonModel 校验保持一致，避免放过 App 会拒绝的值
+            if (!TIME_PATTERN.test(start) || !TIME_PATTERN.test(end)) continue;
 
             timeSlots.push({ number: num, startTime: start, endTime: end });
         }
@@ -333,14 +338,14 @@ async function selectAcademicYearAndSemester() {
         JSON.stringify(yearOptions.map(item => item.text)),
         defaultYearIndex
     );
-    if (yearIndex === null || yearIndex === -1) return null;
+    if (yearIndex === null) return null;
 
     const semesterIndex = await window.shiguangBridgePromise.showSingleSelection(
         "选择学期",
         JSON.stringify(semesterOptions.map(item => item.text)),
         defaultSemesterIndex
     );
-    if (semesterIndex === null || semesterIndex === -1) return null;
+    if (semesterIndex === null) return null;
 
     return {
         academicYear: yearOptions[yearIndex].value,
@@ -353,7 +358,10 @@ async function selectAcademicYearAndSemester() {
  * 单校区时直接返回，不打扰用户
  */
 async function selectCampus(campuses) {
-    if (campuses.length === 0) return null;
+    if (campuses.length === 0) {
+        window.shiguangBridge.showToast("课表中未解析到校区信息，无法确定作息时间表。");
+        return null;
+    }
     if (campuses.length === 1) return campuses[0];
 
     const campusIndex = await window.shiguangBridgePromise.showSingleSelection(
@@ -361,7 +369,7 @@ async function selectCampus(campuses) {
         JSON.stringify(campuses.map(item => item.name)),
         0
     );
-    if (campusIndex === null || campusIndex === -1) return null;
+    if (campusIndex === null) return null;
     return campuses[campusIndex];
 }
 
@@ -378,16 +386,53 @@ async function saveCourses(courses) {
 }
 
 async function importPresetTimeSlots(timeSlots) {
-    if (!timeSlots || timeSlots.length === 0) {
-        window.shiguangBridge.showToast("警告：时间段为空，未导入时间段信息。");
-        return;
-    }
-
     try {
         await window.shiguangBridgePromise.savePresetTimeSlots(JSON.stringify(timeSlots));
+        return true;
     } catch (error) {
         window.shiguangBridge.showToast("导入时间段失败: " + error.message);
+        return false;
     }
+}
+
+/**
+ * 由作息表推导单节时长与课间时长（分钟）
+ * 广药实际为 40 分钟一节、10 分钟课间，与 App 默认的 45/10 不同，
+ * 若不显式传入，App 会用默认值覆盖用户的作息设置。
+ * 取多数节次一致的时长，避免个别长短课影响整体。
+ */
+function deriveDurations(timeSlots) {
+    if (!timeSlots || timeSlots.length === 0) return null;
+
+    const toMinutes = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+    const classDurations = [];
+    const breakDurations = [];
+
+    for (let i = 0; i < timeSlots.length; i++) {
+        classDurations.push(toMinutes(timeSlots[i].endTime) - toMinutes(timeSlots[i].startTime));
+        if (i > 0) {
+            breakDurations.push(toMinutes(timeSlots[i].startTime) - toMinutes(timeSlots[i - 1].endTime));
+        }
+    }
+
+    const mode = values => {
+        const count = {};
+        let best = values[0];
+        let bestCount = 0;
+        for (const v of values) {
+            count[v] = (count[v] || 0) + 1;
+            if (count[v] > bestCount) {
+                bestCount = count[v];
+                best = v;
+            }
+        }
+        return best;
+    };
+
+    return {
+        classDuration: mode(classDurations),
+        breakDuration: breakDurations.length ? mode(breakDurations) : 10
+    };
 }
 
 // ==================== 数据抓取 ====================
@@ -442,9 +487,12 @@ async function fetchAndParseCourses(academicYear, semesterCode) {
         return {
             courses: parsed.courses,
             campuses: parsed.campuses,
-            semesterInfo: semesterInfo
+            semesterInfo: semesterInfo,
+            dropped: parsed.dropped,
+            total: parsed.total
         };
     } catch (e) {
+        console.error("获取课表失败:", e);
         window.shiguangBridge.showToast("获取课表失败，请确认已登录且网络可正常访问教务系统。");
         return null;
     }
@@ -480,7 +528,7 @@ async function runImportFlow() {
 
     // 3. 拉取并解析课程
     const result = await fetchAndParseCourses(selection.academicYear, selection.semesterCode);
-    if (result === null) return;
+    if (result === null) return;   // 失败原因已由 fetchAndParseCourses 内部提示
 
     const courses = result.courses;
     const campuses = result.campuses;
@@ -492,47 +540,67 @@ async function runImportFlow() {
         );
     }
 
-    // 4. 确定作息所属校区（用户取消则终止，避免写入课程后静默套用错误作息）
+    // 4. 确定作息所属校区（仅影响作息，取不到也不影响课程导入）
     const campus = await selectCampus(campuses);
-    if (!campus) return;
 
     // 5. 保存课程
     if (!(await saveCourses(courses))) return;
 
     // 6. 保存课表配置
-    const maxCourseWeek = courses.reduce((max, c) => {
-        const m = c.weeks.length ? Math.max.apply(null, c.weeks) : 0;
-        return Math.max(max, m);
-    }, 0);
+    const maxCourseWeek = courses.reduce((max, c) => Math.max(max, Math.max.apply(null, c.weeks)), 0);
     // 校历返回的是学期总跨度（第二学期含暑假，实测 27 周），不能直接当教学周数。
     const totalWeeks = Math.max(maxCourseWeek, Math.min(semesterInfo.totalWeeks, 20));
+
+    // 7. 先取作息：既用于导入，也用于推导单节时长与课间时长
+    const timeSlots = campus
+        ? await fetchTimeSlots(selection.academicYear, selection.semesterCode, campus.id)
+        : null;
 
     const config = {
         semesterStartDate: semesterInfo.startDate,
         semesterTotalWeeks: totalWeeks
     };
 
+    // App 的 config 默认 45/10 会整体覆盖用户自定义时长，这里按实际作息推导后显式传入。
+    const durations = deriveDurations(timeSlots);
+    if (durations) {
+        config.defaultClassDuration = durations.classDuration;
+        config.defaultBreakDuration = durations.breakDuration;
+    }
+
+    let configSaved = false;
     try {
         await window.shiguangBridgePromise.saveCourseConfig(JSON.stringify(config));
-        window.shiguangBridge.showToast(
-            "课表配置更新成功！总周数：" + totalWeeks + " 周。 开学日期：" + config.semesterStartDate
-        );
+        configSaved = true;
     } catch (error) {
-        window.shiguangBridge.showToast("课表配置保存失败: " + error.message);
+        console.error("保存课表配置失败:", error);
     }
 
-    // 7. 导入作息时间
-    const timeSlots = await fetchTimeSlots(selection.academicYear, selection.semesterCode, campus.id);
-    if (!timeSlots) {
-        window.shiguangBridge.showToast("获取作息时间失败，请确认登录状态后重试。");
-        return;
+    let slotsSaved = false;
+    if (timeSlots) {
+        slotsSaved = await importPresetTimeSlots(timeSlots);
     }
-    await importPresetTimeSlots(timeSlots);
 
-    window.shiguangBridge.showToast("课程导入成功，共导入 " + courses.length + " 门课程！");
+    // 合并为一条最终提示：App 每个 save 内部已有自己的 toast，逐条弹会被覆盖
+    let msg = "课程导入成功，共导入 " + courses.length + " 门课程！";
+    if (result.dropped > 0) {
+        msg += "（" + result.dropped + " 条记录无法识别已跳过）";
+    }
+    if (!configSaved) {
+        msg += " 课表配置保存失败，请检查开学日期与周数。";
+    }
+    if (!slotsSaved) {
+        msg += " 作息时间未设置，请在设置中调整节次时间。";
+    }
+    window.shiguangBridge.showToast(msg);
+
     window.shiguangBridge.notifyTaskCompletion();
 }
 
-runImportFlow();
+// App 外层的 try/catch 只包同步执行，异步 reject 不会被捕获，需自行兜底
+runImportFlow().catch(e => {
+    console.error("导入流程异常:", e);
+    window.shiguangBridge.showToast("导入异常终止：" + (e && e.message ? e.message : e));
+});
 
 })();
