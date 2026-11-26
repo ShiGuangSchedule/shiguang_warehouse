@@ -5,8 +5,9 @@
 
   var LOGIN_TIP = '请先在教务系统完成登录，再点击"执行导入"';
 
-  var bridge = window.shiguangBridge || window.AndroidBridge || {};
-  var bridgeP = window.shiguangBridgePromise || window.AndroidBridgePromise || {};
+  // 桥接对象：v2 接口
+  var bridge = window.shiguangBridge;
+  var bridgeP = window.shiguangBridgePromise;
 
   function toast(msg) {
     try { bridge.showToast(msg); } catch (e) {}
