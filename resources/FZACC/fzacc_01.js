@@ -21,7 +21,7 @@
     return btoa(unescape(encodeURIComponent(str)));
   }
 
-  // 各页面编码不统一：课表页 GBK，首页组件 UTF-8，按响应头决定
+  // 课表页 GBK、首页组件 UTF-8
   async function getHtml(url, options) {
     var res = await fetch(url, Object.assign({ credentials: 'include' }, options || {}));
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -41,11 +41,10 @@
       xn: String(data.xn),
       xq: String(data.xqM),
       xh: String(data.userCode),
-      name: data.xqName || '',
     };
   }
 
-  // 首页课表组件：节次时间 + 第 1 周周一
+  // 首页课表组件：节次时间 + 学期首周一
   async function fetchDeskInfo(root, term) {
     var url = root + 'frame/desk/showLessonScheduleInfosV14.action?xn=' + term.xn +
       '&xq=' + term.xq + '&jxz=1';
@@ -75,7 +74,6 @@
     return { slots: list, startDate: startDate };
   }
 
-  // 兜底：校历里找第 1 周的周一
   async function fetchStartDateFromCalendar(root, term) {
     try {
       var body = 'menucode=&xn=' + term.xn + '&xq_m=' + term.xq + '&rad=1' +
@@ -112,7 +110,7 @@
     return html.replace(/charset\s*=\s*["']?gbk["']?/gi, 'charset=utf-8');
   }
 
-  // DOMParser 文档不在渲染树里，innerText 不可用，用 <br> 切行 + textContent
+  // DOMParser 文档无渲染树，innerText 不可用
   function linesOf(el, doc) {
     var html = (el.innerHTML || '').replace(/<br\s*\/?>/gi, '\n');
     var box = doc.createElement('div');
